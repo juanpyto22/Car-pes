@@ -60,13 +60,15 @@ const SignupPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     setLoading(true);
 
-    const { error } = await signUp(
+    const { error, needsEmailConfirmation } = await signUp(
       formData.email,
       formData.password,
       formData.username,
@@ -86,10 +88,48 @@ const SignupPage = () => {
         title: "Error en el registro",
         description: errorMessage,
       });
+    } else if (needsEmailConfirmation) {
+      setShowEmailConfirmation(true);
     } else {
       navigate('/login');
     }
   };
+
+  if (showEmailConfirmation) {
+    return (
+      <>
+        <Helmet>
+          <title>Confirma tu email - FishHub</title>
+        </Helmet>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-950 via-blue-900 to-cyan-800 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-slate-950/40 backdrop-blur-xl rounded-2xl p-8 border border-white/10 shadow-2xl text-center"
+          >
+            <div className="w-20 h-20 bg-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Mail className="w-10 h-10 text-cyan-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-3">¡Revisa tu email!</h1>
+            <p className="text-blue-200 mb-6">
+              Hemos enviado un enlace de confirmación a <span className="font-bold text-cyan-400">{formData.email}</span>.
+              Por favor, haz clic en el enlace para activar tu cuenta.
+            </p>
+            <div className="bg-blue-900/30 rounded-xl p-4 mb-6 border border-blue-800/50">
+              <p className="text-sm text-blue-300">
+                💡 Si no ves el email, revisa tu carpeta de spam o correo no deseado.
+              </p>
+            </div>
+            <Link to="/login">
+              <Button className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold">
+                Ir a Iniciar Sesión
+              </Button>
+            </Link>
+          </motion.div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

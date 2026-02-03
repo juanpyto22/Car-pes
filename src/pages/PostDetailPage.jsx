@@ -199,7 +199,7 @@ const PostDetailPage = () => {
              </div>
              
              {/* Comments Section */}
-             <CommentSection postId={postId} />
+             <CommentSection postId={postId} postOwnerId={post.user_id} />
           </div>
         </motion.div>
       </div>

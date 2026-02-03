@@ -9,18 +9,18 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const CommentSection = ({ postId }) => {
-  const { user } = useAuth();
+const CommentSection = ({ postId, postOwnerId }) => {
+  const { user, profile } = useAuth();
   const { comments, loading, addComment, deleteComment } = useComments(postId);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!newComment.trim() || submitting) return;
+    if (!newComment.trim() || submitting || !user) return;
 
     setSubmitting(true);
-    const success = await addComment(user.id, newComment);
+    const success = await addComment(user.id, newComment, postOwnerId);
     if (success) {
       setNewComment('');
     }
@@ -95,16 +95,17 @@ const CommentSection = ({ postId }) => {
       <div className="p-4 bg-slate-800/30 border-t border-white/5">
         <form onSubmit={handleSubmit} className="flex gap-3 items-end">
             <Avatar className="w-8 h-8 hidden sm:block mb-1">
-                <AvatarImage src={user?.foto_perfil} />
-                <AvatarFallback className="bg-blue-900">{user?.username?.[0]}</AvatarFallback>
+                <AvatarImage src={profile?.foto_perfil} />
+                <AvatarFallback className="bg-blue-900">{profile?.username?.[0] || '?'}</AvatarFallback>
             </Avatar>
             <div className="flex-1 relative">
                 <textarea
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Escribe un comentario..."
+                    placeholder={user ? "Escribe un comentario..." : "Inicia sesión para comentar"}
+                    disabled={!user}
                     maxLength={500}
-                    className="w-full bg-slate-950 border border-blue-900 rounded-xl px-4 py-3 pr-12 text-sm text-white placeholder-blue-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 resize-none h-[50px] custom-scrollbar focus:border-cyan-500/50 transition-all"
+                    className="w-full bg-slate-950 border border-blue-900 rounded-xl px-4 py-3 pr-12 text-sm text-white placeholder-blue-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 resize-none h-[50px] custom-scrollbar focus:border-cyan-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <div className="absolute right-2 bottom-2 text-[10px] text-blue-500">
                     {newComment.length}/500
@@ -113,7 +114,7 @@ const CommentSection = ({ postId }) => {
             <Button 
                 type="submit" 
                 size="icon"
-                disabled={!newComment.trim() || submitting}
+                disabled={!newComment.trim() || submitting || !user}
                 className="bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl h-[50px] w-[50px] shrink-0 shadow-lg shadow-cyan-900/20"
             >
                 {submitting ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" /> : <Send className="w-5 h-5" />}

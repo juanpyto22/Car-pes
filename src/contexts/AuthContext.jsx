@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -9,8 +9,11 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
 
-  const fetchProfile = async (userId) => {
+  const fetchProfile = useCallback(async (userId) => {
+    if (!userId) return null;
+    
     try {
       const { data, error } = await supabase
         .from('users')
@@ -28,48 +31,56 @@ export const AuthProvider = ({ children }) => {
       console.error('Error inesperado al cargar perfil:', error);
       return null;
     }
-  };
+  }, []);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const initializeAuth = async () => {
       // Skip auth if Supabase is not configured
       const isConfigured = isSupabaseConfigured();
-      console.log('isSupabaseConfigured:', isConfigured);
       
       if (!isConfigured) {
         console.warn('Supabase no está configurado. Por favor, configura las variables de entorno.');
-        setLoading(false);
+        setAuthError('Supabase no está configurado');
+        if (isMounted) setLoading(false);
         return;
       }
 
       try {
-        console.log('Intentando obtener sesión...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error obteniendo sesión:', error);
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
+          if (isMounted) {
+            setUser(null);
+            setProfile(null);
+            setAuthError(error.message);
+            setLoading(false);
+          }
           return;
         }
         
-        console.log('Session obtenida:', session?.user?.id);
-        
         if (session?.user) {
-          setUser(session.user);
-          await fetchProfile(session.user.id);
+          if (isMounted) {
+            setUser(session.user);
+            await fetchProfile(session.user.id);
+          }
         } else {
-          console.log('No hay sesión activa');
-          setUser(null);
-          setProfile(null);
+          if (isMounted) {
+            setUser(null);
+            setProfile(null);
+          }
         }
       } catch (error) {
         console.error('Error al verificar sesión:', error);
-        setUser(null);
-        setProfile(null);
+        if (isMounted) {
+          setUser(null);
+          setProfile(null);
+          setAuthError(error.message);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
@@ -77,24 +88,31 @@ export const AuthProvider = ({ children }) => {
 
     // Skip auth listener if Supabase is not configured
     if (!isSupabaseConfigured()) {
-      return;
+      return () => { isMounted = false; };
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.id);
-      if (session?.user) {
+      if (!isMounted) return;
+      
+      if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
-        if (!profile || profile.id !== session.user.id) {
-           await fetchProfile(session.user.id);
-        }
-      } else {
+        await fetchProfile(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
+      } else if (session?.user) {
+        setUser(session.user);
+        if (!profile || profile.id !== session.user.id) {
+          await fetchProfile(session.user.id);
+        }
       }
       setLoading(false);
     });
 
-    return () => subscription?.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email, password, username, nombre) => {
@@ -110,7 +128,7 @@ export const AuthProvider = ({ children }) => {
         return { error: { message: 'El nombre de usuario ya está en uso' } };
       }
 
-      // Crear usuario de Auth
+      // Crear usuario de Auth con confirmación de email
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -118,7 +136,8 @@ export const AuthProvider = ({ children }) => {
           data: {
             username,
             nombre,
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/login`
         }
       });
 
@@ -142,13 +161,21 @@ export const AuthProvider = ({ children }) => {
           return { data, error: { message: "Cuenta creada, pero falló la configuración del perfil." } };
         }
         
-        toast({
-          title: "¡Cuenta creada exitosamente!",
-          description: "Ya puedes iniciar sesión con tus credenciales.",
-        });
+        // Verificar si el email necesita confirmación
+        if (data.user && !data.session) {
+          toast({
+            title: "¡Cuenta creada exitosamente!",
+            description: "Revisa tu email para confirmar tu cuenta antes de iniciar sesión.",
+          });
+        } else {
+          toast({
+            title: "¡Cuenta creada exitosamente!",
+            description: "Ya puedes iniciar sesión con tus credenciales.",
+          });
+        }
       }
 
-      return { data, error: null };
+      return { data, error: null, needsEmailConfirmation: data.user && !data.session };
     } catch (error) {
       return { error };
     }
@@ -161,7 +188,13 @@ export const AuthProvider = ({ children }) => {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Mensaje más claro para email no confirmado
+        if (error.message.includes('Email not confirmed')) {
+          throw new Error('Por favor, confirma tu email antes de iniciar sesión. Revisa tu bandeja de entrada.');
+        }
+        throw error;
+      }
 
       toast({
         title: "¡Bienvenido de nuevo!",
@@ -231,6 +264,7 @@ export const AuthProvider = ({ children }) => {
     user,
     profile,
     loading,
+    authError,
     signUp,
     signIn,
     signOut,

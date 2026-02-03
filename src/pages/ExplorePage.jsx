@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Filter, TrendingUp, MapPin, Fish } from 'lucide-react';
+import { Filter, TrendingUp, Fish } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
+import LocationAutocomplete from '@/components/LocationAutocomplete';
 
 const ExplorePage = () => {
   const [trendingPosts, setTrendingPosts] = useState([]);
@@ -13,11 +14,7 @@ const ExplorePage = () => {
 
   const fishTypes = ['Todos', 'Trucha', 'Salmón', 'Bagre', 'Carpa', 'Perca', 'Robalo', 'Otro'];
 
-  useEffect(() => {
-    fetchTrendingPosts();
-  }, [selectedFish, searchLocation]);
-
-  const fetchTrendingPosts = async () => {
+  const fetchTrendingPosts = useCallback(async () => {
     setLoading(true);
     try {
       let query = supabase
@@ -30,7 +27,7 @@ const ExplorePage = () => {
         query = query.eq('tipo_pez', selectedFish);
       }
       
-      if (searchLocation) {
+      if (searchLocation && searchLocation.length > 2) {
         query = query.ilike('ubicacion', `%${searchLocation}%`);
       }
 
@@ -44,7 +41,11 @@ const ExplorePage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedFish, searchLocation]);
+
+  useEffect(() => {
+    fetchTrendingPosts();
+  }, [fetchTrendingPosts]);
 
   return (
     <>
@@ -58,14 +59,11 @@ const ExplorePage = () => {
             </h1>
 
             <div className="flex flex-col md:flex-row gap-4 bg-slate-900/50 p-4 rounded-3xl border border-white/5 backdrop-blur-sm">
-              <div className="relative flex-1">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
-                <input
-                  type="text"
-                  placeholder="Filtrar por ubicación..."
+              <div className="flex-1">
+                <LocationAutocomplete
                   value={searchLocation}
-                  onChange={(e) => setSearchLocation(e.target.value)}
-                  className="w-full bg-slate-950 border border-blue-900 rounded-xl pl-10 pr-4 py-3 text-white placeholder-blue-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all"
+                  onChange={setSearchLocation}
+                  placeholder="Filtrar por ubicación..."
                 />
               </div>
 

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, X, Fish, MapPin, Weight, Ruler } from 'lucide-react';
+import { Upload, X, Fish, Weight, Ruler } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Helmet } from 'react-helmet';
+import LocationAutocomplete from '@/components/LocationAutocomplete';
 
 const CreatePostPage = () => {
   const navigate = useNavigate();
@@ -201,15 +202,13 @@ const CreatePostPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-blue-200 mb-2 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-cyan-400" /> Ubicación
+                  <label className="block text-sm font-bold text-blue-200 mb-2">
+                    Ubicación
                   </label>
-                  <input
-                    type="text"
+                  <LocationAutocomplete
                     value={formData.ubicacion}
-                    onChange={e => setFormData({ ...formData, ubicacion: e.target.value })}
-                    className="w-full bg-slate-950 border border-blue-900 rounded-xl p-3 text-white placeholder-blue-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                    placeholder="Ej: Lago Villarrica"
+                    onChange={(val) => setFormData({ ...formData, ubicacion: val })}
+                    placeholder="Buscar río, lago, embalse..."
                   />
                 </div>
 

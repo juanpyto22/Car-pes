@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -6,6 +6,26 @@ export const useComments = (postId) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+
+  const getComments = useCallback(async (id) => {
+    if (!id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('comments')
+        .select('*, user:users(*)')
+        .eq('post_id', id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setComments(data || []);
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      setComments([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (postId) {
@@ -27,42 +47,39 @@ export const useComments = (postId) => {
         subscription.unsubscribe();
       };
     }
-  }, [postId]);
+  }, [postId, getComments]);
 
-  const getComments = async (id) => {
+  const addComment = async (userId, content, postOwnerId) => {
     try {
-      const { data, error } = await supabase
+      const { data: newComment, error } = await supabase
         .from('comments')
+        .insert([{ post_id: postId, user_id: userId, contenido: content }])
         .select('*, user:users(*)')
-        .eq('post_id', id)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      setComments(data);
-    } catch (error) {
-      console.error('Error fetching comments:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addComment = async (userId, content) => {
-    try {
-      const { error } = await supabase
-        .from('comments')
-        .insert([{ post_id: postId, user_id: userId, contenido: content }]);
+        .single();
 
       if (error) throw error;
 
-      // Optimistic update handled by realtime subscription usually, 
-      // but for immediate feedback we can append manually if needed.
-      // We'll rely on fetch refetching triggered by subscription or manual call.
+      // Agregar comentario localmente para respuesta inmediata
+      setComments(prev => [...prev, newComment]);
+
+      // Enviar notificación si el comentario es de otro usuario
+      if (postOwnerId && postOwnerId !== userId) {
+        await supabase.from('notifications').insert([{
+          user_id: postOwnerId,
+          type: 'comment',
+          related_user_id: userId,
+          post_id: postId,
+          read: false
+        }]);
+      }
+
       return true;
     } catch (error) {
+      console.error('Error posting comment:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to post comment"
+        description: "No se pudo publicar el comentario"
       });
       return false;
     }
