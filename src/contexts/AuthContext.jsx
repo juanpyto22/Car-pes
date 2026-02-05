@@ -35,105 +35,59 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let isMounted = true;
-    
-    // Timeout de seguridad para evitar loading infinito
-    const timeoutId = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn('Auth timeout - forzando fin de loading');
-        setLoading(false);
-      }
-    }, 5000);
-    
-    const initializeAuth = async () => {
-      // Skip auth if Supabase is not configured
-      const isConfigured = isSupabaseConfigured();
-      
-      if (!isConfigured) {
-        console.warn('Supabase no está configurado. Por favor, configura las variables de entorno.');
-        if (isMounted) {
-          setAuthError('Supabase no está configurado');
-          setLoading(false);
-        }
-        return;
-      }
 
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error obteniendo sesión:', error);
-          if (isMounted) {
-            setUser(null);
-            setProfile(null);
-            setAuthError(error.message);
-            setLoading(false);
-          }
-          return;
-        }
-        
-        if (session?.user) {
-          if (isMounted) {
-            setUser(session.user);
-            setAuthError(null);
-            await fetchProfile(session.user.id);
-          }
-        } else {
-          if (isMounted) {
-            setUser(null);
-            setProfile(null);
-            setAuthError(null);
-          }
-        }
-      } catch (error) {
-        console.error('Error al verificar sesión:', error);
-        if (isMounted) {
-          setUser(null);
-          setProfile(null);
-          setAuthError(error.message);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    initializeAuth();
-
-    // Skip auth listener if Supabase is not configured
+    // Skip auth if Supabase is not configured
     if (!isSupabaseConfigured()) {
-      clearTimeout(timeoutId);
-      return () => { isMounted = false; };
+      console.warn('Supabase no está configurado.');
+      setAuthError('Supabase no está configurado');
+      setLoading(false);
+      return;
     }
 
+    // Manejar eventos de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
+      console.log('Auth event:', event, session?.user?.email);
       
-      if (event === 'SIGNED_IN' && session?.user) {
+      if (!isMounted) return;
+
+      if (session?.user) {
         setUser(session.user);
         setAuthError(null);
-        await fetchProfile(session.user.id);
-        setLoading(false);
-      } else if (event === 'SIGNED_OUT') {
+        // Usar setTimeout para evitar deadlock con Supabase
+        setTimeout(async () => {
+          if (isMounted) {
+            await fetchProfile(session.user.id);
+            setLoading(false);
+          }
+        }, 0);
+      } else {
         setUser(null);
         setProfile(null);
         setAuthError(null);
         setLoading(false);
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        setUser(session.user);
-      } else if (session?.user) {
-        setUser(session.user);
-        setAuthError(null);
-        if (!profile || profile.id !== session.user.id) {
-          await fetchProfile(session.user.id);
-        }
+      }
+    });
+
+    // Verificar sesión existente manualmente
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (!isMounted) return;
+      
+      if (error) {
+        console.error('Error obteniendo sesión:', error);
+        setAuthError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      // Si no hay sesión, terminar loading
+      // Si hay sesión, onAuthStateChange ya lo manejará
+      if (!session) {
         setLoading(false);
       }
     });
 
     return () => {
       isMounted = false;
-      clearTimeout(timeoutId);
       subscription?.unsubscribe();
     };
   }, [fetchProfile]);
