@@ -84,7 +84,7 @@ const CreatePostPage = () => {
 
       // Intentar subir al storage de Supabase
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('Post')
+        .from('POSTS')
         .upload(fileName, file, {
           cacheControl: '3600',
           upsert: false
@@ -105,7 +105,7 @@ const CreatePostPage = () => {
 
       // Obtener URL pública
       const { data: urlData } = supabase.storage
-        .from('Post')
+        .from('POSTS')
         .getPublicUrl(fileName);
       
       publicUrl = urlData?.publicUrl;
