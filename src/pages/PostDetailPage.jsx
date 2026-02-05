@@ -20,42 +20,42 @@ const PostDetailPage = () => {
   const [likesCount, setLikesCount] = useState(0);
 
   useEffect(() => {
+    const fetchPost = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('posts')
+          .select('*, user:users(*), likes(count), comments(count)')
+          .eq('id', postId)
+          .single();
+
+        if (error) throw error;
+        setPost(data);
+        setLikesCount(data.likes_count || 0);
+      } catch (error) {
+        console.error('Error fetching post:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchPost();
   }, [postId]);
 
   useEffect(() => {
-    if (user && post) {
-      checkLiked();
-    }
-  }, [user, post]);
+    if (!user?.id || !post?.id) return;
 
-  const fetchPost = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('posts')
-        .select('*, user:users(*), likes(count), comments(count)')
-        .eq('id', postId)
+    const checkLiked = async () => {
+      const { data } = await supabase
+        .from('likes')
+        .select('id')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
         .single();
+      setLiked(!!data);
+    };
 
-      if (error) throw error;
-      setPost(data);
-      setLikesCount(data.likes_count || 0);
-    } catch (error) {
-      console.error('Error fetching post:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const checkLiked = async () => {
-    const { data } = await supabase
-      .from('likes')
-      .select('id')
-      .eq('post_id', postId)
-      .eq('user_id', user.id)
-      .single();
-    setLiked(!!data);
-  };
+    checkLiked();
+  }, [user?.id, post?.id, postId]);
 
   const handleLike = async () => {
     if (!user) return;

@@ -14,45 +14,74 @@ const FeedPage = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [followedIds, setFollowedIds] = useState([]);
-  const [initialLoad, setInitialLoad] = useState(true);
   const observer = useRef();
   const PAGE_SIZE = 10;
 
-  const fetchFollowedIds = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const { data, error } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user.id);
-
-      if (error) throw error;
-      const ids = data ? data.map(f => f.following_id) : [];
-      ids.push(user.id);
-      setFollowedIds(ids);
-    } catch (error) {
-      console.error('Error fetching followed users:', error);
-      // Aún así incluir el propio usuario
-      setFollowedIds([user.id]);
-    } finally {
-      setInitialLoad(false);
+  // Cargar IDs de usuarios seguidos
+  useEffect(() => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
     }
+
+    const fetchFollowedIds = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', user.id);
+
+        if (error) throw error;
+        const ids = data ? data.map(f => f.following_id) : [];
+        ids.push(user.id);
+        setFollowedIds(ids);
+      } catch (error) {
+        console.error('Error fetching followed users:', error);
+        setFollowedIds([user.id]);
+      }
+    };
+
+    fetchFollowedIds();
   }, [user?.id]);
 
+  // Cargar posts cuando cambien los IDs
   useEffect(() => {
-    if (user?.id) {
-      fetchFollowedIds();
-    }
-  }, [user?.id, fetchFollowedIds]);
-
-  const fetchPosts = useCallback(async (pageNumber, isRefresh = false) => {
     if (followedIds.length === 0) {
       setLoading(false);
       return;
     }
 
+    const fetchPosts = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('posts')
+          .select('*, user:users(*), likes(count), comments(count)')
+          .in('user_id', followedIds)
+          .order('created_at', { ascending: false })
+          .range(0, PAGE_SIZE - 1);
+
+        if (error) throw error;
+
+        if (data.length < PAGE_SIZE) setHasMore(false);
+        setPosts(data || []);
+      } catch (error) {
+        console.error('Error cargando posts:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPosts();
+  }, [followedIds.join(',')]); // Usar join para evitar referencia nueva del array
+
+  const fetchMorePosts = async () => {
+    if (loadingMore || !hasMore || followedIds.length === 0) return;
+
     try {
-      const from = pageNumber * PAGE_SIZE;
+      setLoadingMore(true);
+      const nextPage = Math.floor(posts.length / PAGE_SIZE);
+      const from = nextPage * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
       const { data, error } = await supabase
@@ -65,44 +94,48 @@ const FeedPage = () => {
       if (error) throw error;
 
       if (data.length < PAGE_SIZE) setHasMore(false);
-
-      setPosts(prev => isRefresh ? data : [...prev, ...data]);
+      setPosts(prev => [...prev, ...data]);
     } catch (error) {
-      console.error('Error cargando posts:', error);
+      console.error('Error cargando más posts:', error);
     } finally {
-      setLoading(false);
       setLoadingMore(false);
     }
-  }, [followedIds]);
-
-  useEffect(() => {
-    if (!initialLoad && followedIds.length > 0) {
-      setLoading(true);
-      fetchPosts(0, true);
-    } else if (!initialLoad && followedIds.length === 0) {
-      // Usuario autenticado pero sin follows - mostrar estado vacío
-      setLoading(false);
-    }
-  }, [followedIds, fetchPosts, initialLoad]);
+  };
 
   const lastPostElementRef = useCallback(node => {
     if (loading || loadingMore) return;
     if (observer.current) observer.current.disconnect();
     observer.current = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && hasMore) {
-        setLoadingMore(true);
-        // Calculate next page based on current length
-        const nextPage = Math.floor(posts.length / PAGE_SIZE);
-        fetchPosts(nextPage);
+        fetchMorePosts();
       }
     });
     if (node) observer.current.observe(node);
-  }, [loading, loadingMore, hasMore, fetchPosts, posts.length]);
+  }, [loading, loadingMore, hasMore]);
 
-  const handleRefresh = () => {
-    setLoading(true);
-    setHasMore(true);
-    fetchPosts(0, true);
+  const handleRefresh = async () => {
+    if (followedIds.length === 0) return;
+    
+    try {
+      setLoading(true);
+      setHasMore(true);
+      
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*, user:users(*), likes(count), comments(count)')
+        .in('user_id', followedIds)
+        .order('created_at', { ascending: false })
+        .range(0, PAGE_SIZE - 1);
+
+      if (error) throw error;
+
+      if (data.length < PAGE_SIZE) setHasMore(false);
+      setPosts(data || []);
+    } catch (error) {
+      console.error('Error refrescando posts:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

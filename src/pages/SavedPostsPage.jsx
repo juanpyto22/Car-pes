@@ -16,49 +16,52 @@ const SavedPostsPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      fetchSavedPosts();
-    }
-  }, [user]);
-
-  const fetchSavedPosts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('saved_posts')
-        .select(`
-          id,
-          created_at,
-          post:posts(
-            id,
-            foto_url,
-            video_url,
-            tipo_pez,
-            descripcion,
-            likes_count,
-            comments_count,
-            created_at,
-            user:users(id, username, foto_perfil)
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      // Filtrar posts que existen (por si se eliminaron)
-      const validPosts = (data || []).filter(item => item.post !== null);
-      setSavedPosts(validPosts);
-    } catch (error) {
-      console.error('Error cargando posts guardados:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudieron cargar los posts guardados"
-      });
-    } finally {
+    if (!user?.id) {
       setLoading(false);
+      return;
     }
-  };
+
+    const fetchSavedPosts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('saved_posts')
+          .select(`
+            id,
+            created_at,
+            post:posts(
+              id,
+              foto_url,
+              video_url,
+              tipo_pez,
+              descripcion,
+              likes_count,
+              comments_count,
+              created_at,
+              user:users(id, username, foto_perfil)
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        
+        // Filtrar posts que existen (por si se eliminaron)
+        const validPosts = (data || []).filter(item => item.post !== null);
+        setSavedPosts(validPosts);
+      } catch (error) {
+        console.error('Error cargando posts guardados:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudieron cargar los posts guardados"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSavedPosts();
+  }, [user?.id]);
 
   const handleRemoveSaved = async (savedId, e) => {
     e.preventDefault();
