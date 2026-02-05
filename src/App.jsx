@@ -20,6 +20,7 @@ import MessagesPage from '@/pages/MessagesPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import EditProfilePage from '@/pages/EditProfilePage';
 import SearchPage from '@/pages/SearchPage';
+import SavedPostsPage from '@/pages/SavedPostsPage';
 
 // Components
 import Header from '@/components/Header';
@@ -63,6 +64,7 @@ const AppRoutes = () => {
         <Route path="/edit-profile" element={<ProtectedRoute><EditProfilePage /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+        <Route path="/saved" element={<ProtectedRoute><SavedPostsPage /></ProtectedRoute>} />
         
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" />} />

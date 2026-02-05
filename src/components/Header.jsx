@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Menu } from 'lucide-react';
+import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Menu, Bookmark } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import SearchBar from '@/components/SearchBar';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -121,6 +121,10 @@ const Header = () => {
                     <DropdownMenuItem onClick={() => navigate(`/edit-profile`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
                       <Edit3 className="mr-2 h-4 w-4" />
                       <span>Editar Perfil</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/saved`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
+                      <Bookmark className="mr-2 h-4 w-4" />
+                      <span>Posts Guardados</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-white/10" />
                     <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer hover:bg-red-900/50 focus:bg-red-900/50 text-red-400 focus:text-red-300 py-3">
