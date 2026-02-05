@@ -50,7 +50,7 @@ const ProfilePage = () => {
       
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('*')
+        .select('*, is_private')
         .eq('id', targetUserId)
         .maybeSingle();
       
@@ -62,6 +62,7 @@ const ProfilePage = () => {
         return;
       }
       
+      console.log('Profile data:', userData, 'is_private:', userData.is_private);
       setProfile(userData);
 
       const { data: postsData, error: postsError } = await supabase
@@ -109,6 +110,8 @@ const ProfilePage = () => {
       navigate('/login');
       return;
     }
+    
+    console.log('handleFollowToggle - profile.is_private:', profile?.is_private, 'isFollowing:', isFollowing, 'isPendingFollow:', isPendingFollow);
     
     setFollowLoading(true);
     try {
