@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, MoreVertical, MapPin, Ruler, Weight, Fish } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MoreVertical, MapPin, Ruler, Weight, Fish, Bookmark, BookmarkCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,13 +16,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
 
-const PostCard = ({ post }) => {
+const PostCard = ({ post, onDelete }) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [showHeart, setShowHeart] = useState(false);
+  const lastTap = useRef(0);
 
   useEffect(() => {
     if (user) {
@@ -85,13 +88,89 @@ const PostCard = ({ post }) => {
       const { error } = await supabase.from('posts').delete().eq('id', post.id);
       if (error) throw error;
       toast({ title: "Éxito", description: "Publicación eliminada" });
-      window.location.reload(); 
+      // Llamar callback en lugar de reload
+      if (onDelete) onDelete(post.id);
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar" });
     } finally {
       setIsDeleting(false);
     }
   };
+
+  // Doble tap para like
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      if (!liked) {
+        handleLike();
+        setShowHeart(true);
+        setTimeout(() => setShowHeart(false), 1000);
+      }
+    }
+    lastTap.current = now;
+  };
+
+  // Compartir con Web Share API
+  const handleShare = async () => {
+    const shareData = {
+      title: `Captura de ${post.user?.username}`,
+      text: post.descripcion || `Mira esta captura de ${post.tipo_pez || 'pesca'}`,
+      url: `${window.location.origin}/post/${post.id}`
+    };
+
+    try {
+      if (navigator.share && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        // Fallback: copiar al clipboard
+        await navigator.clipboard.writeText(shareData.url);
+        toast({ title: "Enlace copiado", description: "El enlace se copió al portapapeles" });
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        await navigator.clipboard.writeText(shareData.url);
+        toast({ title: "Enlace copiado", description: "El enlace se copió al portapapeles" });
+      }
+    }
+  };
+
+  // Guardar post
+  const handleSave = async () => {
+    if (!user) {
+      toast({ title: "Inicia sesión para guardar", variant: "destructive" });
+      return;
+    }
+
+    const prevSaved = saved;
+    setSaved(!saved);
+
+    try {
+      if (saved) {
+        await supabase.from('saved_posts').delete().eq('post_id', post.id).eq('user_id', user.id);
+      } else {
+        await supabase.from('saved_posts').insert([{ post_id: post.id, user_id: user.id }]);
+        toast({ title: "Guardado", description: "Post añadido a tu colección" });
+      }
+    } catch (error) {
+      setSaved(prevSaved);
+    }
+  };
+
+  // Verificar si está guardado
+  useEffect(() => {
+    if (user) {
+      const checkSaved = async () => {
+        const { data } = await supabase
+          .from('saved_posts')
+          .select('id')
+          .eq('post_id', post.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (data) setSaved(true);
+      };
+      checkSaved();
+    }
+  }, [user, post.id]);
 
   return (
     <motion.div
@@ -141,12 +220,27 @@ const PostCard = ({ post }) => {
         )}
       </div>
 
-      {/* Media */}
-      <div className="relative aspect-square sm:aspect-video bg-black flex items-center justify-center overflow-hidden group">
+      {/* Media - con doble tap para like */}
+      <div 
+        className="relative aspect-square sm:aspect-video bg-black flex items-center justify-center overflow-hidden group cursor-pointer"
+        onClick={handleDoubleTap}
+      >
         {post.video_url ? (
            <video src={post.video_url} controls className="w-full h-full object-contain" poster={post.foto_url} />
         ) : (
           <img src={post.foto_url} alt={post.descripcion} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+        )}
+        
+        {/* Animación de corazón al hacer doble tap */}
+        {showHeart && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+          >
+            <Heart className="w-24 h-24 text-white fill-white drop-shadow-2xl" />
+          </motion.div>
         )}
       </div>
 
@@ -168,8 +262,12 @@ const PostCard = ({ post }) => {
             </button>
           </Link>
 
-          <button className="text-white hover:text-cyan-400 transition-colors ml-auto">
+          <button onClick={handleShare} className="text-white hover:text-cyan-400 transition-colors">
             <Share2 className="w-6 h-6" />
+          </button>
+          
+          <button onClick={handleSave} className={`ml-auto transition-colors ${saved ? 'text-yellow-500' : 'text-white hover:text-yellow-400'}`}>
+            {saved ? <BookmarkCheck className="w-6 h-6 fill-current" /> : <Bookmark className="w-6 h-6" />}
           </button>
         </div>
 

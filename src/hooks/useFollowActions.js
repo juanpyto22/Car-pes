@@ -25,14 +25,14 @@ export const useFollowActions = () => {
         read: false
       }]);
 
-      toast({ title: "Followed successfully" });
+      toast({ title: "¡Ahora sigues a este usuario!" });
       return true;
     } catch (error) {
       console.error('Error following user:', error);
       toast({ 
         variant: "destructive",
         title: "Error", 
-        description: "Could not follow user" 
+        description: "No se pudo seguir al usuario" 
       });
       return false;
     } finally {
@@ -51,14 +51,14 @@ export const useFollowActions = () => {
         .eq('following_id', targetUserId);
 
       if (error) throw error;
-      toast({ title: "Unfollowed successfully" });
+      toast({ title: "Dejaste de seguir a este usuario" });
       return true;
     } catch (error) {
       console.error('Error unfollowing user:', error);
       toast({ 
         variant: "destructive",
         title: "Error", 
-        description: "Could not unfollow user" 
+        description: "No se pudo dejar de seguir" 
       });
       return false;
     } finally {

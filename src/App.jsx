@@ -9,6 +9,8 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import LandingPage from '@/pages/LandingPage';
 import LoginPage from '@/pages/LoginPage';
 import SignupPage from '@/pages/SignupPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import FeedPage from '@/pages/FeedPage';
 import CreatePostPage from '@/pages/CreatePostPage';
 import ProfilePage from '@/pages/ProfilePage';
@@ -17,18 +19,22 @@ import PostDetailPage from '@/pages/PostDetailPage';
 import MessagesPage from '@/pages/MessagesPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import EditProfilePage from '@/pages/EditProfilePage';
+import SearchPage from '@/pages/SearchPage';
 
 // Components
 import Header from '@/components/Header';
 
 const AppRoutes = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, authError } = useAuth();
 
   // Wait for auth check to complete before rendering anything to prevent flashes
   if (loading) {
     return (
         <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-cyan-500 border-t-transparent"></div>
+            <div className="flex flex-col items-center gap-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-cyan-500 border-t-transparent"></div>
+              <p className="text-cyan-400 text-sm">Cargando aplicación...</p>
+            </div>
         </div>
     );
   }
@@ -41,8 +47,11 @@ const AppRoutes = () => {
         <Route path="/" element={user ? <Navigate to="/feed" /> : <LandingPage />} />
         <Route path="/login" element={user ? <Navigate to="/feed" /> : <LoginPage />} />
         <Route path="/signup" element={user ? <Navigate to="/feed" /> : <SignupPage />} />
+        <Route path="/forgot-password" element={user ? <Navigate to="/feed" /> : <ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         
         <Route path="/explore" element={<ExplorePage />} />
+        <Route path="/search" element={<SearchPage />} />
         <Route path="/post/:postId" element={<PostDetailPage />} />
         {/* Profile is accessible to public, but functionality might differ if logged out */}
         <Route path="/profile/:userId" element={<ProfilePage />} />
@@ -67,8 +76,8 @@ function App() {
         <Router>
           <AuthProvider>
             <Helmet>
-              <title>FishHub - Angler Community</title>
-              <meta name="description" content="Social network for fishing enthusiasts" />
+              <title>Car-Pes - La Comunidad de Pesca</title>
+              <meta name="description" content="Red social para amantes de la pesca" />
             </Helmet>
             <AppRoutes />
             <Toaster />

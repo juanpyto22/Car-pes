@@ -16,8 +16,8 @@ const LandingPage = () => {
   return (
     <>
       <Helmet>
-        <title>FishHub - La Comunidad de Pesca Definitiva</title>
-        <meta name="description" content="Únete a FishHub, la plataforma social número uno para pescadores. Comparte, conecta y descubre." />
+        <title>Car-Pes - La Comunidad de Pesca Definitiva</title>
+        <meta name="description" content="Únete a Car-Pes, la plataforma social número uno para pescadores. Comparte, conecta y descubre." />
       </Helmet>
 
       <div className="min-h-screen bg-slate-950 font-sans">
@@ -41,7 +41,7 @@ const LandingPage = () => {
                     Tu pasión por la <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Pesca</span>, conectada.
                 </h1>
                 <p className="text-xl text-blue-200 mb-8 leading-relaxed max-w-lg">
-                    FishHub es el lugar donde tus historias de pesca cobran vida. Únete a miles de pescadores que ya están compartiendo sus aventuras.
+                    Car-Pes es el lugar donde tus historias de pesca cobran vida. Únete a miles de pescadores que ya están compartiendo sus aventuras.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4">
@@ -103,7 +103,7 @@ const LandingPage = () => {
           <div className="max-w-7xl mx-auto px-4">
             <div className="text-center mb-16 max-w-3xl mx-auto">
               <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Todo lo que necesitas para tu <span className="text-cyan-400">pesca</span></h2>
-              <p className="text-xl text-blue-200">Diseñado por pescadores, para pescadores. FishHub combina las mejores herramientas sociales con utilidades específicas.</p>
+              <p className="text-xl text-blue-200">Diseñado por pescadores, para pescadores. Car-Pes combina las mejores herramientas sociales con utilidades específicas.</p>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -145,10 +145,10 @@ const LandingPage = () => {
         <footer className="bg-slate-950 py-12 border-t border-white/5">
             <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="text-2xl font-black text-white flex items-center gap-2">
-                    <span className="text-3xl">🎣</span> FishHub
+                    <span className="text-3xl">🎣</span> Car-Pes
                 </div>
                 <div className="text-blue-400 text-sm">
-                    © 2024 FishHub Inc. Todos los derechos reservados.
+                    © 2026 Car-Pes. Todos los derechos reservados.
                 </div>
                 <div className="flex gap-6">
                     <a href="#" className="text-blue-400 hover:text-white transition-colors">Términos</a>

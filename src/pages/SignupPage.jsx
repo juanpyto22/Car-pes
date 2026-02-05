@@ -99,7 +99,7 @@ const SignupPage = () => {
     return (
       <>
         <Helmet>
-          <title>Confirma tu email - FishHub</title>
+          <title>Confirma tu email - Car-Pes</title>
         </Helmet>
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-950 via-blue-900 to-cyan-800 p-4">
           <motion.div
@@ -134,8 +134,8 @@ const SignupPage = () => {
   return (
     <>
       <Helmet>
-        <title>Registrarse - FishHub</title>
-        <meta name="description" content="Crea tu cuenta en FishHub y únete a la comunidad de pescadores" />
+        <title>Registrarse - Car-Pes</title>
+        <meta name="description" content="Crea tu cuenta en Car-Pes y únete a la comunidad de pescadores" />
       </Helmet>
 
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-950 via-blue-900 to-cyan-800 p-4">
@@ -147,7 +147,7 @@ const SignupPage = () => {
         >
           <div className="bg-slate-950/40 backdrop-blur-xl rounded-2xl p-8 border border-white/10 shadow-2xl">
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-white mb-2">Únete a FishHub</h1>
+              <h1 className="text-3xl font-bold text-white mb-2">Únete a Car-Pes</h1>
               <p className="text-blue-200">Crea tu cuenta y empieza a compartir</p>
             </div>
 

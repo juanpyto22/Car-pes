@@ -49,7 +49,7 @@ const ExplorePage = () => {
 
   return (
     <>
-      <Helmet><title>Explorar - FishHub</title></Helmet>
+      <Helmet><title>Explorar - Car-Pes</title></Helmet>
       <div className="min-h-screen bg-slate-950 pb-20">
         <div className="max-w-7xl mx-auto px-4 py-8">
           

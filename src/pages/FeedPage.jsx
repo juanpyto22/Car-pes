@@ -173,14 +173,18 @@ const FeedPage = () => {
           ) : (
             <div className="space-y-6">
               {posts.map((post, index) => {
+                const handleDeletePost = (postId) => {
+                  setPosts(prev => prev.filter(p => p.id !== postId));
+                };
+                
                 if (posts.length === index + 1) {
                   return (
                     <div ref={lastPostElementRef} key={post.id}>
-                      <PostCard post={post} />
+                      <PostCard post={post} onDelete={handleDeletePost} />
                     </div>
                   );
                 } else {
-                  return <PostCard key={post.id} post={post} />;
+                  return <PostCard key={post.id} post={post} onDelete={handleDeletePost} />;
                 }
               })}
             </div>

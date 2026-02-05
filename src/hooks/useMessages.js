@@ -101,7 +101,7 @@ export const useMessages = (currentUser) => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to send message"
+        description: "No se pudo enviar el mensaje"
       });
       return false;
     }

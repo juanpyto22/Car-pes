@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, authError } = useAuth();
 
   if (loading) {
     return (
@@ -12,6 +12,12 @@ const ProtectedRoute = ({ children }) => {
         <LoadingSpinner size="lg" />
       </div>
     );
+  }
+
+  // If there's an auth error and no user, redirect to login
+  if (authError && !user) {
+    console.warn('Auth error:', authError);
+    return <Navigate to="/login" replace />;
   }
 
   if (!user) {

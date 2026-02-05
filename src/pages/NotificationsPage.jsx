@@ -13,7 +13,7 @@ const NotificationsPage = () => {
 
   return (
     <>
-      <Helmet><title>Notificaciones - FishHub</title></Helmet>
+      <Helmet><title>Notificaciones - Car-Pes</title></Helmet>
       <div className="min-h-screen bg-slate-950 pb-20 pt-8 px-4">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-8">

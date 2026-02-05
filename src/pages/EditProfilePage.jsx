@@ -57,20 +57,41 @@ const EditProfilePage = () => {
       let photoUrl = profile.foto_perfil;
 
       if (photoFile) {
-        const fileExt = photoFile.name.split('.').pop();
+        const fileExt = photoFile.name.split('.').pop().toLowerCase();
         const fileName = `${user.id}-${Date.now()}.${fileExt}`;
         
-        const { error: uploadError } = await supabase.storage
+        // Intentar subir a avatars, si falla intentar con posts bucket
+        let uploadError = null;
+        let usedBucket = 'avatars';
+        
+        const { error: avatarError } = await supabase.storage
           .from('avatars')
-          .upload(fileName, photoFile);
+          .upload(fileName, photoFile, { cacheControl: '3600', upsert: false });
 
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(fileName);
+        if (avatarError) {
+          // Si el bucket avatars no existe, usar el bucket posts
+          console.warn('Bucket avatars no disponible, intentando con posts:', avatarError);
+          usedBucket = 'posts';
           
-        photoUrl = publicUrl;
+          const { error: postsError } = await supabase.storage
+            .from('posts')
+            .upload(`avatars/${fileName}`, photoFile, { cacheControl: '3600', upsert: false });
+          
+          if (postsError) {
+            throw new Error('No se pudo subir la imagen. Verifica que el almacenamiento esté configurado.');
+          }
+        }
+
+        // Obtener URL pública del bucket correcto
+        const { data: urlData } = supabase.storage
+          .from(usedBucket)
+          .getPublicUrl(usedBucket === 'avatars' ? fileName : `avatars/${fileName}`);
+          
+        photoUrl = urlData?.publicUrl;
+        
+        if (!photoUrl) {
+          throw new Error('No se pudo obtener la URL de la imagen');
+        }
       }
 
       await updateProfile({
@@ -82,10 +103,11 @@ const EditProfilePage = () => {
       
       navigate('/profile');
     } catch (error) {
+      console.error('Error al guardar perfil:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudieron guardar los cambios"
+        description: error.message || "No se pudieron guardar los cambios"
       });
     } finally {
       setLoading(false);
@@ -94,7 +116,7 @@ const EditProfilePage = () => {
 
   return (
     <>
-      <Helmet><title>Editar Perfil - FishHub</title></Helmet>
+      <Helmet><title>Editar Perfil - Car-Pes</title></Helmet>
       <div className="min-h-screen bg-slate-950 pb-20 pt-8 px-4">
         <div className="max-w-xl mx-auto bg-slate-900/50 backdrop-blur-md rounded-3xl border border-white/5 p-6 md:p-10 shadow-2xl">
           <div className="flex justify-between items-center mb-8">

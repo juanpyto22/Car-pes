@@ -161,6 +161,19 @@ const SearchBar = () => {
                   <p className="text-xs text-blue-500 mt-1">Intenta con otro término</p>
                 </div>
               )}
+              
+              {/* Ver todos los resultados */}
+              {(results.users.length > 0 || results.posts.length > 0) && (
+                <div 
+                  className="p-3 border-t border-white/5 text-center hover:bg-white/5 cursor-pointer transition-colors"
+                  onClick={() => {
+                    navigate(`/search?q=${encodeURIComponent(query)}`);
+                    setIsOpen(false);
+                  }}
+                >
+                  <span className="text-sm text-cyan-400 font-bold">Ver todos los resultados →</span>
+                </div>
+              )}
             </>
           )}
         </div>

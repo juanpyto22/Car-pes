@@ -35,6 +35,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let isMounted = true;
+    let initTimeout;
     
     const initializeAuth = async () => {
       // Skip auth if Supabase is not configured
@@ -42,8 +43,10 @@ export const AuthProvider = ({ children }) => {
       
       if (!isConfigured) {
         console.warn('Supabase no está configurado. Por favor, configura las variables de entorno.');
-        setAuthError('Supabase no está configurado');
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setAuthError('Supabase no está configurado');
+          setLoading(false);
+        }
         return;
       }
 
@@ -64,12 +67,14 @@ export const AuthProvider = ({ children }) => {
         if (session?.user) {
           if (isMounted) {
             setUser(session.user);
+            setAuthError(null);
             await fetchProfile(session.user.id);
           }
         } else {
           if (isMounted) {
             setUser(null);
             setProfile(null);
+            setAuthError(null);
           }
         }
       } catch (error) {
@@ -88,7 +93,10 @@ export const AuthProvider = ({ children }) => {
 
     // Skip auth listener if Supabase is not configured
     if (!isSupabaseConfigured()) {
-      return () => { isMounted = false; };
+      return () => { 
+        isMounted = false;
+        clearTimeout(initTimeout);
+      };
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -96,12 +104,15 @@ export const AuthProvider = ({ children }) => {
       
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
+        setAuthError(null);
         await fetchProfile(session.user.id);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
+        setAuthError(null);
       } else if (session?.user) {
         setUser(session.user);
+        setAuthError(null);
         if (!profile || profile.id !== session.user.id) {
           await fetchProfile(session.user.id);
         }
@@ -111,6 +122,7 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       isMounted = false;
+      clearTimeout(initTimeout);
       subscription?.unsubscribe();
     };
   }, []);

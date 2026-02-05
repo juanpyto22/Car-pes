@@ -53,8 +53,8 @@ const LoginPage = () => {
   return (
     <>
       <Helmet>
-        <title>Iniciar Sesión - FishHub</title>
-        <meta name="description" content="Inicia sesión en FishHub y conéctate con la comunidad de pescadores" />
+        <title>Iniciar Sesión - Car-Pes</title>
+        <meta name="description" content="Inicia sesión en Car-Pes y conéctate con la comunidad de pescadores" />
       </Helmet>
 
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-950 via-blue-900 to-cyan-800 p-4">
@@ -67,7 +67,7 @@ const LoginPage = () => {
           <div className="bg-slate-950/40 backdrop-blur-xl rounded-2xl p-8 border border-white/10 shadow-2xl">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-white mb-2">¡Bienvenido!</h1>
-              <p className="text-blue-200">Inicia sesión para continuar en FishHub</p>
+              <p className="text-blue-200">Inicia sesión para continuar en Car-Pes</p>
             </div>
 
             {errorMsg && (
@@ -111,13 +111,12 @@ const LoginPage = () => {
               </div>
 
               <div className="flex items-center justify-end">
-                <button
-                  type="button"
+                <Link
+                  to="/forgot-password"
                   className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors opacity-80 hover:opacity-100 font-medium"
-                  onClick={() => toast({ description: "¡Próximamente recuperación de contraseña!" })}
                 >
                   ¿Olvidaste tu contraseña?
-                </button>
+                </Link>
               </div>
 
               <Button
