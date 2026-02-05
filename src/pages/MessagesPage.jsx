@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/hooks/useMessages';
 import { Send, Search } from 'lucide-react';
@@ -16,6 +17,7 @@ const MessagesPage = () => {
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const messagesEndRef = useRef(null);
+    const location = useLocation();
 
   const filteredConversations = conversations.filter(c => 
     c.partner.username.toLowerCase().includes(searchTerm.toLowerCase())
@@ -26,6 +28,13 @@ const MessagesPage = () => {
       getMessages(selectedUser.id);
     }
   }, [selectedUser]);
+
+    // If navigated here with a user in location.state, open that conversation
+    useEffect(() => {
+        if (location?.state?.openUser) {
+            setSelectedUser(location.state.openUser);
+        }
+    }, [location]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { MapPin, Users, UserPlus, UserCheck, Edit3, Grid, ImageOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
@@ -8,6 +8,26 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/components/ui/use-toast';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
+
+const MessageButton = ({ profile }) => {
+  const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
+
+  const handleMessage = (e) => {
+    e.preventDefault();
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    navigate('/messages', { state: { openUser: profile } });
+  };
+
+  return (
+    <Button onClick={handleMessage} className="min-w-[120px] bg-blue-600 hover:bg-blue-500 text-white rounded-xl">
+      Mensaje
+    </Button>
+  );
+};
 
 const ProfilePage = () => {
   const { userId } = useParams();
@@ -172,26 +192,29 @@ const ProfilePage = () => {
                         </div>
                     </div>
 
-                    <div className="flex justify-center md:justify-start">
-                        {isOwnProfile ? (
-                            <Link to="/edit-profile" className="w-full md:w-auto">
-                                <Button variant="outline" className="w-full md:w-auto border-blue-700 text-blue-200 hover:bg-blue-900 hover:text-white rounded-xl">
-                                    <Edit3 className="w-4 h-4 mr-2" /> Editar Perfil
-                                </Button>
-                            </Link>
-                        ) : (
-                            <Button 
-                                onClick={handleFollowToggle} 
-                                disabled={followLoading}
-                                className={`w-full md:w-auto min-w-[140px] rounded-xl font-bold shadow-lg ${isFollowing ? 'bg-slate-800 hover:bg-red-900/80 hover:text-red-200 text-white' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
-                            >
-                                {isFollowing ? (
-                                    <span className="flex items-center"><UserCheck className="w-4 h-4 mr-2" /> Siguiendo</span>
-                                ) : (
-                                    <span className="flex items-center"><UserPlus className="w-4 h-4 mr-2" /> Seguir</span>
-                                )}
-                            </Button>
-                        )}
+                    <div className="flex justify-center md:justify-start gap-3 w-full">
+                      {isOwnProfile ? (
+                        <Link to="/edit-profile" className="w-full md:w-auto">
+                          <Button variant="outline" className="w-full md:w-auto border-blue-700 text-blue-200 hover:bg-blue-900 hover:text-white rounded-xl">
+                            <Edit3 className="w-4 h-4 mr-2" /> Editar Perfil
+                          </Button>
+                        </Link>
+                      ) : (
+                        <div className="w-full md:w-auto flex gap-3">
+                          <MessageButton profile={profile} />
+                          <Button 
+                            onClick={handleFollowToggle} 
+                            disabled={followLoading}
+                            className={`min-w-[120px] rounded-xl font-bold shadow-lg ${isFollowing ? 'bg-slate-800 hover:bg-red-900/80 hover:text-red-200 text-white' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
+                          >
+                            {isFollowing ? (
+                              <span className="flex items-center"><UserCheck className="w-4 h-4 mr-2" /> Siguiendo</span>
+                            ) : (
+                              <span className="flex items-center"><UserPlus className="w-4 h-4 mr-2" /> Seguir</span>
+                            )}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                 </div>
             </div>
