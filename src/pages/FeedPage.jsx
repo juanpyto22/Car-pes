@@ -76,14 +76,14 @@ const FeedPage = () => {
   }, [followedIds]);
 
   useEffect(() => {
-    if (followedIds.length > 0) {
+    if (!initialLoad && followedIds.length > 0) {
       setLoading(true);
       fetchPosts(0, true);
-    } else if (user?.id && !initialLoad) {
+    } else if (!initialLoad && followedIds.length === 0) {
       // Usuario autenticado pero sin follows - mostrar estado vacío
       setLoading(false);
     }
-  }, [followedIds, fetchPosts]);
+  }, [followedIds, fetchPosts, initialLoad]);
 
   const lastPostElementRef = useCallback(node => {
     if (loading || loadingMore) return;
