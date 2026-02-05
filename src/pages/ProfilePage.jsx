@@ -114,34 +114,44 @@ const ProfilePage = () => {
     try {
       if (isFollowing) {
         // Dejar de seguir
-        await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', targetUserId);
+        const { error } = await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', targetUserId);
+        if (error) throw error;
         setIsFollowing(false);
         setProfile(prev => ({...prev, followers_count: Math.max(0, (prev.followers_count || 0) - 1)}));
       } else if (isPendingFollow) {
         // Cancelar solicitud pendiente
-        await supabase.from('notifications')
+        const { error } = await supabase.from('notifications')
           .delete()
           .eq('user_id', targetUserId)
           .eq('related_user_id', currentUser.id)
           .eq('type', 'follow_request');
+        if (error) throw error;
         setIsPendingFollow(false);
         toast({ title: "Solicitud cancelada" });
       } else if (profile?.is_private === true) {
         // Enviar solicitud de seguimiento para cuenta privada
-        const { error: notifError } = await supabase.from('notifications').insert([{
+        console.log('Enviando follow_request a:', targetUserId, 'desde:', currentUser.id);
+        const { data, error: notifError } = await supabase.from('notifications').insert([{
           user_id: targetUserId,
           type: 'follow_request',
           related_user_id: currentUser.id,
           read: false
-        }]);
+        }]).select();
         
-        if (notifError) throw notifError;
+        console.log('Resultado insert:', data, 'Error:', notifError);
+        
+        if (notifError) {
+          console.error('Error insertando notificación:', notifError);
+          throw notifError;
+        }
         
         setIsPendingFollow(true);
         toast({ title: "Solicitud enviada", description: "Esperando aprobación" });
       } else {
         // Seguir directamente (cuenta pública)
-        await supabase.from('follows').insert([{ follower_id: currentUser.id, following_id: targetUserId }]);
+        const { error: followError } = await supabase.from('follows').insert([{ follower_id: currentUser.id, following_id: targetUserId }]);
+        if (followError) throw followError;
+        
         setIsFollowing(true);
         setProfile(prev => ({...prev, followers_count: (prev.followers_count || 0) + 1}));
 
@@ -154,7 +164,7 @@ const ProfilePage = () => {
       }
     } catch (error) {
       console.error('Error en follow:', error);
-      toast({ variant: "destructive", title: "Error", description: "Falló la acción de seguir" });
+      toast({ variant: "destructive", title: "Error", description: error.message || "Falló la acción de seguir" });
     } finally {
       setFollowLoading(false);
     }
