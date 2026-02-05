@@ -4,12 +4,29 @@ import { useToast } from '@/components/ui/use-toast';
 
 const AuthContext = createContext(undefined);
 
+// Función para obtener sesión inicial del localStorage
+const getInitialSession = () => {
+  try {
+    const storedSession = localStorage.getItem('sb-session');
+    if (storedSession) {
+      const parsed = JSON.parse(storedSession);
+      return parsed?.user || null;
+    }
+  } catch (e) {
+    console.error('Error reading session:', e);
+  }
+  return null;
+};
+
 export const AuthProvider = ({ children }) => {
   const { toast } = useToast();
-  const [user, setUser] = useState(null);
+  // Inicializar con la sesión guardada para evitar flash de loading
+  const [user, setUser] = useState(getInitialSession);
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Si hay usuario en localStorage, no mostrar loading inicial
+  const [loading, setLoading] = useState(!getInitialSession());
   const [authError, setAuthError] = useState(null);
+  const [initialCheckDone, setInitialCheckDone] = useState(false);
 
   const fetchProfile = useCallback(async (userId) => {
     if (!userId) return null;
@@ -35,7 +52,6 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let isMounted = true;
-    let initTimeout;
     
     const initializeAuth = async () => {
       // Skip auth if Supabase is not configured
@@ -46,6 +62,7 @@ export const AuthProvider = ({ children }) => {
         if (isMounted) {
           setAuthError('Supabase no está configurado');
           setLoading(false);
+          setInitialCheckDone(true);
         }
         return;
       }
@@ -58,8 +75,8 @@ export const AuthProvider = ({ children }) => {
           if (isMounted) {
             setUser(null);
             setProfile(null);
+            localStorage.removeItem('sb-session');
             setAuthError(error.message);
-            setLoading(false);
           }
           return;
         }
@@ -67,6 +84,8 @@ export const AuthProvider = ({ children }) => {
         if (session?.user) {
           if (isMounted) {
             setUser(session.user);
+            // Guardar sesión en localStorage
+            localStorage.setItem('sb-session', JSON.stringify({ user: session.user }));
             setAuthError(null);
             await fetchProfile(session.user.id);
           }
@@ -74,6 +93,7 @@ export const AuthProvider = ({ children }) => {
           if (isMounted) {
             setUser(null);
             setProfile(null);
+            localStorage.removeItem('sb-session');
             setAuthError(null);
           }
         }
@@ -82,10 +102,14 @@ export const AuthProvider = ({ children }) => {
         if (isMounted) {
           setUser(null);
           setProfile(null);
+          localStorage.removeItem('sb-session');
           setAuthError(error.message);
         }
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setInitialCheckDone(true);
+        }
       }
     };
 
@@ -93,10 +117,7 @@ export const AuthProvider = ({ children }) => {
 
     // Skip auth listener if Supabase is not configured
     if (!isSupabaseConfigured()) {
-      return () => { 
-        isMounted = false;
-        clearTimeout(initTimeout);
-      };
+      return () => { isMounted = false; };
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -104,12 +125,17 @@ export const AuthProvider = ({ children }) => {
       
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
+        localStorage.setItem('sb-session', JSON.stringify({ user: session.user }));
         setAuthError(null);
         await fetchProfile(session.user.id);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
+        localStorage.removeItem('sb-session');
         setAuthError(null);
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        setUser(session.user);
+        localStorage.setItem('sb-session', JSON.stringify({ user: session.user }));
       } else if (session?.user) {
         setUser(session.user);
         setAuthError(null);
@@ -122,10 +148,9 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       isMounted = false;
-      clearTimeout(initTimeout);
       subscription?.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile]);
 
   const signUp = async (email, password, username, nombre) => {
     try {

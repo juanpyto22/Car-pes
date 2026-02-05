@@ -28,8 +28,9 @@ import Header from '@/components/Header';
 const AppRoutes = () => {
   const { user, loading, authError } = useAuth();
 
-  // Wait for auth check to complete before rendering anything to prevent flashes
-  if (loading) {
+  // Solo mostrar loading si no hay usuario guardado Y está cargando
+  // Esto evita el flash de loading al recargar la página
+  if (loading && !user) {
     return (
         <div className="min-h-screen bg-slate-950 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
