@@ -130,20 +130,14 @@ const ProfilePage = () => {
         toast({ title: "Solicitud cancelada" });
       } else if (profile?.is_private === true) {
         // Enviar solicitud de seguimiento para cuenta privada
-        console.log('Enviando follow_request a:', targetUserId, 'desde:', currentUser.id);
-        const { data, error: notifError } = await supabase.from('notifications').insert([{
+        const { error: notifError } = await supabase.from('notifications').insert([{
           user_id: targetUserId,
           type: 'follow_request',
           related_user_id: currentUser.id,
           read: false
-        }]).select();
+        }]);
         
-        console.log('Resultado insert:', data, 'Error:', notifError);
-        
-        if (notifError) {
-          console.error('Error insertando notificación:', notifError);
-          throw notifError;
-        }
+        if (notifError) throw notifError;
         
         setIsPendingFollow(true);
         toast({ title: "Solicitud enviada", description: "Esperando aprobación" });
