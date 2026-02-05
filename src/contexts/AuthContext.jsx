@@ -4,29 +4,12 @@ import { useToast } from '@/components/ui/use-toast';
 
 const AuthContext = createContext(undefined);
 
-// Función para obtener sesión inicial del localStorage
-const getInitialSession = () => {
-  try {
-    const storedSession = localStorage.getItem('sb-session');
-    if (storedSession) {
-      const parsed = JSON.parse(storedSession);
-      return parsed?.user || null;
-    }
-  } catch (e) {
-    console.error('Error reading session:', e);
-  }
-  return null;
-};
-
 export const AuthProvider = ({ children }) => {
   const { toast } = useToast();
-  // Inicializar con la sesión guardada para evitar flash de loading
-  const [user, setUser] = useState(getInitialSession);
+  const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  // Si hay usuario en localStorage, no mostrar loading inicial
-  const [loading, setLoading] = useState(!getInitialSession());
+  const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
-  const [initialCheckDone, setInitialCheckDone] = useState(false);
 
   const fetchProfile = useCallback(async (userId) => {
     if (!userId) return null;
@@ -62,7 +45,6 @@ export const AuthProvider = ({ children }) => {
         if (isMounted) {
           setAuthError('Supabase no está configurado');
           setLoading(false);
-          setInitialCheckDone(true);
         }
         return;
       }
@@ -75,8 +57,8 @@ export const AuthProvider = ({ children }) => {
           if (isMounted) {
             setUser(null);
             setProfile(null);
-            localStorage.removeItem('sb-session');
             setAuthError(error.message);
+            setLoading(false);
           }
           return;
         }
@@ -84,8 +66,6 @@ export const AuthProvider = ({ children }) => {
         if (session?.user) {
           if (isMounted) {
             setUser(session.user);
-            // Guardar sesión en localStorage
-            localStorage.setItem('sb-session', JSON.stringify({ user: session.user }));
             setAuthError(null);
             await fetchProfile(session.user.id);
           }
@@ -93,7 +73,6 @@ export const AuthProvider = ({ children }) => {
           if (isMounted) {
             setUser(null);
             setProfile(null);
-            localStorage.removeItem('sb-session');
             setAuthError(null);
           }
         }
@@ -102,13 +81,11 @@ export const AuthProvider = ({ children }) => {
         if (isMounted) {
           setUser(null);
           setProfile(null);
-          localStorage.removeItem('sb-session');
           setAuthError(error.message);
         }
       } finally {
         if (isMounted) {
           setLoading(false);
-          setInitialCheckDone(true);
         }
       }
     };
@@ -125,17 +102,16 @@ export const AuthProvider = ({ children }) => {
       
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
-        localStorage.setItem('sb-session', JSON.stringify({ user: session.user }));
         setAuthError(null);
         await fetchProfile(session.user.id);
+        setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
-        localStorage.removeItem('sb-session');
         setAuthError(null);
+        setLoading(false);
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
         setUser(session.user);
-        localStorage.setItem('sb-session', JSON.stringify({ user: session.user }));
       } else if (session?.user) {
         setUser(session.user);
         setAuthError(null);
@@ -143,7 +119,6 @@ export const AuthProvider = ({ children }) => {
           await fetchProfile(session.user.id);
         }
       }
-      setLoading(false);
     });
 
     return () => {

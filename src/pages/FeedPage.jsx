@@ -8,17 +8,18 @@ import { Button } from '@/components/ui/button';
 import { Helmet } from 'react-helmet';
 
 const FeedPage = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [followedIds, setFollowedIds] = useState([]);
+  const [initialLoad, setInitialLoad] = useState(true);
   const observer = useRef();
   const PAGE_SIZE = 10;
 
   const fetchFollowedIds = useCallback(async () => {
-    if (!user) return;
+    if (!user?.id) return;
     try {
       const { data, error } = await supabase
         .from('follows')
@@ -26,17 +27,23 @@ const FeedPage = () => {
         .eq('follower_id', user.id);
 
       if (error) throw error;
-      const ids = data.map(f => f.following_id);
+      const ids = data ? data.map(f => f.following_id) : [];
       ids.push(user.id);
       setFollowedIds(ids);
     } catch (error) {
       console.error('Error fetching followed users:', error);
+      // Aún así incluir el propio usuario
+      setFollowedIds([user.id]);
+    } finally {
+      setInitialLoad(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
-    fetchFollowedIds();
-  }, [user]);
+    if (user?.id) {
+      fetchFollowedIds();
+    }
+  }, [user?.id, fetchFollowedIds]);
 
   const fetchPosts = useCallback(async (pageNumber, isRefresh = false) => {
     if (followedIds.length === 0) {
@@ -72,10 +79,11 @@ const FeedPage = () => {
     if (followedIds.length > 0) {
       setLoading(true);
       fetchPosts(0, true);
-    } else if (user) {
-        setLoading(false); // Stop loading if authenticated but no follows/posts yet
+    } else if (user?.id && !initialLoad) {
+      // Usuario autenticado pero sin follows - mostrar estado vacío
+      setLoading(false);
     }
-  }, [followedIds]);
+  }, [followedIds, fetchPosts]);
 
   const lastPostElementRef = useCallback(node => {
     if (loading || loadingMore) return;
