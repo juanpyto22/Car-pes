@@ -28,10 +28,11 @@ const PostCard = ({ post, onDelete }) => {
   const lastTap = useRef(0);
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       checkIfLiked();
+      checkSaved();
     }
-  }, [user, post.id]);
+  }, [user?.id, post.id]);
 
   const checkIfLiked = async () => {
     const { data } = await supabase
@@ -41,7 +42,17 @@ const PostCard = ({ post, onDelete }) => {
       .eq('user_id', user.id)
       .maybeSingle();
     
-    if (data) setLiked(true);
+    setLiked(!!data);
+  };
+
+  const checkSaved = async () => {
+    const { data } = await supabase
+      .from('saved_posts')
+      .select('id')
+      .eq('post_id', post.id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    setSaved(!!data);
   };
 
   const handleLike = async () => {
@@ -51,18 +62,29 @@ const PostCard = ({ post, onDelete }) => {
     }
 
     const previousLiked = liked;
+    const newLikesCount = liked ? likesCount - 1 : likesCount + 1;
     
+    // Actualización optimista
     setLiked(!liked);
-    setLikesCount(prev => liked ? prev - 1 : prev + 1);
+    setLikesCount(newLikesCount);
 
     try {
-      if (liked) {
-        const { error } = await supabase.from('likes').delete().eq('post_id', post.id).eq('user_id', user.id);
+      if (previousLiked) {
+        // Quitar like
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .eq('post_id', post.id)
+          .eq('user_id', user.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('likes').insert([{ post_id: post.id, user_id: user.id }]);
+        // Dar like
+        const { error } = await supabase
+          .from('likes')
+          .insert([{ post_id: post.id, user_id: user.id }]);
         if (error) throw error;
 
+        // Crear notificación si no es el propio post
         if (post.user_id !== user.id) {
           await supabase.from('notifications').insert([{
             user_id: post.user_id,
@@ -73,9 +95,18 @@ const PostCard = ({ post, onDelete }) => {
           }]);
         }
       }
+
+      // Actualizar contador en la tabla posts
+      await supabase
+        .from('posts')
+        .update({ likes_count: newLikesCount })
+        .eq('id', post.id);
+
     } catch (error) {
+      console.error('Error al dar like:', error);
+      // Revertir si hay error
       setLiked(previousLiked);
-      setLikesCount(prev => previousLiked ? prev + 1 : prev - 1);
+      setLikesCount(likesCount);
       toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el like" });
     }
   };
@@ -153,24 +184,9 @@ const PostCard = ({ post, onDelete }) => {
       }
     } catch (error) {
       setSaved(prevSaved);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar" });
     }
   };
-
-  // Verificar si está guardado
-  useEffect(() => {
-    if (user) {
-      const checkSaved = async () => {
-        const { data } = await supabase
-          .from('saved_posts')
-          .select('id')
-          .eq('post_id', post.id)
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (data) setSaved(true);
-      };
-      checkSaved();
-    }
-  }, [user, post.id]);
 
   return (
     <motion.div

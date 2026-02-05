@@ -50,7 +50,7 @@ const PostDetailPage = () => {
         .select('id')
         .eq('post_id', postId)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
       setLiked(!!data);
     };
 
@@ -60,13 +60,14 @@ const PostDetailPage = () => {
   const handleLike = async () => {
     if (!user) return;
     const prevLiked = liked;
-    const prevCount = likesCount;
+    const newLikesCount = liked ? likesCount - 1 : likesCount + 1;
 
+    // Actualización optimista
     setLiked(!liked);
-    setLikesCount(prev => liked ? prev - 1 : prev + 1);
+    setLikesCount(newLikesCount);
 
     try {
-      if (liked) {
+      if (prevLiked) {
         await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', user.id);
       } else {
         await supabase.from('likes').insert([{ post_id: postId, user_id: user.id }]);
@@ -81,9 +82,17 @@ const PostDetailPage = () => {
            }]);
         }
       }
+
+      // Actualizar contador en la tabla posts
+      await supabase
+        .from('posts')
+        .update({ likes_count: newLikesCount })
+        .eq('id', postId);
+
     } catch (error) {
+      console.error('Error al dar like:', error);
       setLiked(prevLiked);
-      setLikesCount(prevCount);
+      setLikesCount(likesCount);
     }
   };
 
