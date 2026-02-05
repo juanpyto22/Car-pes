@@ -36,6 +36,14 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let isMounted = true;
     
+    // Timeout de seguridad para evitar loading infinito
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('Auth timeout - forzando fin de loading');
+        setLoading(false);
+      }
+    }, 5000);
+    
     const initializeAuth = async () => {
       // Skip auth if Supabase is not configured
       const isConfigured = isSupabaseConfigured();
@@ -94,6 +102,7 @@ export const AuthProvider = ({ children }) => {
 
     // Skip auth listener if Supabase is not configured
     if (!isSupabaseConfigured()) {
+      clearTimeout(timeoutId);
       return () => { isMounted = false; };
     }
 
@@ -118,11 +127,13 @@ export const AuthProvider = ({ children }) => {
         if (!profile || profile.id !== session.user.id) {
           await fetchProfile(session.user.id);
         }
+        setLoading(false);
       }
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
       subscription?.unsubscribe();
     };
   }, [fetchProfile]);
