@@ -54,6 +54,16 @@ const CreatePostPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!user || !user.id) {
+      toast({
+        variant: "destructive",
+        title: "Error de autenticación",
+        description: "Debes estar autenticado para publicar",
+      });
+      return;
+    }
+
     if (!file) {
       toast({
         variant: "destructive",
@@ -66,21 +76,45 @@ const CreatePostPage = () => {
     setLoading(true);
 
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split('.').pop().toLowerCase();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      const isVideo = file.type.startsWith('video/');
       
-      const { error: uploadError } = await supabase.storage
+      let publicUrl = null;
+
+      // Intentar subir al storage de Supabase
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('posts')
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        
+        // Si el bucket no existe o hay error de permisos, mostrar mensaje específico
+        if (uploadError.message?.includes('Bucket not found') || uploadError.statusCode === '404') {
+          throw new Error('El almacenamiento no está configurado. Contacta al administrador.');
+        }
+        if (uploadError.message?.includes('row-level security') || uploadError.statusCode === '403') {
+          throw new Error('No tienes permisos para subir archivos. Verifica tu sesión.');
+        }
+        throw uploadError;
+      }
 
-      const { data: { publicUrl } } = supabase.storage
+      // Obtener URL pública
+      const { data: urlData } = supabase.storage
         .from('posts')
         .getPublicUrl(fileName);
+      
+      publicUrl = urlData?.publicUrl;
 
-      const isVideo = file.type.startsWith('video/');
+      if (!publicUrl) {
+        throw new Error('No se pudo obtener la URL del archivo');
+      }
 
+      // Crear el post en la base de datos
       const { error: insertError } = await supabase
         .from('posts')
         .insert([{
@@ -96,7 +130,10 @@ const CreatePostPage = () => {
           comments_count: 0
         }]);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Database insert error:', insertError);
+        throw new Error('Error al guardar en la base de datos: ' + insertError.message);
+      }
 
       toast({
         title: "¡Publicado!",
@@ -105,11 +142,11 @@ const CreatePostPage = () => {
       navigate('/feed');
 
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error completo:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo crear la publicación.",
+        description: error.message || "No se pudo crear la publicación.",
       });
     } finally {
       setLoading(false);
