@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Users, UserPlus, UserCheck, Edit3, Grid, ImageOff, MessageCircle, Heart, Calendar } from 'lucide-react';
+import { MapPin, Users, UserPlus, UserCheck, Edit3, Grid, ImageOff, MessageCircle, Heart, Calendar, Lock, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ const ProfilePage = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isPendingFollow, setIsPendingFollow] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   
   // Modal state
@@ -83,13 +84,24 @@ const ProfilePage = () => {
   };
 
   const checkFollowStatus = async () => {
-    const { data } = await supabase
+    // Verificar si ya sigue
+    const { data: followData } = await supabase
       .from('follows')
       .select('*')
       .eq('follower_id', currentUser.id)
       .eq('following_id', targetUserId)
       .maybeSingle();
-    setIsFollowing(!!data);
+    setIsFollowing(!!followData);
+
+    // Verificar si hay solicitud pendiente
+    const { data: pendingData } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', targetUserId)
+      .eq('related_user_id', currentUser.id)
+      .eq('type', 'follow_request')
+      .maybeSingle();
+    setIsPendingFollow(!!pendingData);
   };
 
   const handleFollowToggle = async () => {
@@ -101,10 +113,31 @@ const ProfilePage = () => {
     setFollowLoading(true);
     try {
       if (isFollowing) {
+        // Dejar de seguir
         await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', targetUserId);
         setIsFollowing(false);
         setProfile(prev => ({...prev, followers_count: Math.max(0, (prev.followers_count || 0) - 1)}));
+      } else if (isPendingFollow) {
+        // Cancelar solicitud pendiente
+        await supabase.from('notifications')
+          .delete()
+          .eq('user_id', targetUserId)
+          .eq('related_user_id', currentUser.id)
+          .eq('type', 'follow_request');
+        setIsPendingFollow(false);
+        toast({ title: "Solicitud cancelada" });
+      } else if (profile?.is_private) {
+        // Enviar solicitud de seguimiento para cuenta privada
+        await supabase.from('notifications').insert([{
+          user_id: targetUserId,
+          type: 'follow_request',
+          related_user_id: currentUser.id,
+          read: false
+        }]);
+        setIsPendingFollow(true);
+        toast({ title: "Solicitud enviada", description: "Esperando aprobación" });
       } else {
+        // Seguir directamente (cuenta pública)
         await supabase.from('follows').insert([{ follower_id: currentUser.id, following_id: targetUserId }]);
         setIsFollowing(true);
         setProfile(prev => ({...prev, followers_count: (prev.followers_count || 0) + 1}));
@@ -117,6 +150,7 @@ const ProfilePage = () => {
         }]);
       }
     } catch (error) {
+      console.error('Error en follow:', error);
       toast({ variant: "destructive", title: "Error", description: "Falló la acción de seguir" });
     } finally {
       setFollowLoading(false);
@@ -202,8 +236,9 @@ const ProfilePage = () => {
               <div className="flex-1 text-center md:text-left w-full">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
                   <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">
+                    <h1 className="text-2xl md:text-3xl font-bold text-white mb-1 flex items-center gap-2">
                       {profile.nombre || profile.username}
+                      {profile.is_private && <Lock className="w-5 h-5 text-amber-400" />}
                     </h1>
                     <p className="text-cyan-400 font-medium">@{profile.username}</p>
                   </div>
@@ -230,6 +265,8 @@ const ProfilePage = () => {
                           className={`min-w-[130px] rounded-xl font-bold transition-all ${
                             isFollowing 
                               ? 'bg-slate-800 hover:bg-red-900/80 hover:text-red-200 text-white border border-white/10' 
+                              : isPendingFollow
+                              ? 'bg-amber-600/20 hover:bg-red-900/50 text-amber-300 border border-amber-500/30'
                               : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20'
                           }`}
                         >
@@ -239,6 +276,8 @@ const ProfilePage = () => {
                             </span>
                           ) : isFollowing ? (
                             <span className="flex items-center"><UserCheck className="w-4 h-4 mr-2" /> Siguiendo</span>
+                          ) : isPendingFollow ? (
+                            <span className="flex items-center"><Clock className="w-4 h-4 mr-2" /> Solicitado</span>
                           ) : (
                             <span className="flex items-center"><UserPlus className="w-4 h-4 mr-2" /> Seguir</span>
                           )}

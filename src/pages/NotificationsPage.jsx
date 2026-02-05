@@ -9,7 +9,15 @@ import { Helmet } from 'react-helmet';
 
 const NotificationsPage = () => {
   const { user } = useAuth();
-  const { notifications, loading, markAsRead, markAllAsRead, deleteNotification } = useNotifications(user);
+  const { 
+    notifications, 
+    loading, 
+    markAsRead, 
+    markAllAsRead, 
+    deleteNotification,
+    acceptFollowRequest,
+    rejectFollowRequest 
+  } = useNotifications(user);
 
   return (
     <>
@@ -55,6 +63,8 @@ const NotificationsPage = () => {
                      notification={notification}
                      onRead={markAsRead}
                      onDelete={deleteNotification}
+                     onAcceptFollow={acceptFollowRequest}
+                     onRejectFollow={rejectFollowRequest}
                    />
                  ))}
                </AnimatePresence>

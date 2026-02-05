@@ -72,7 +72,7 @@ export const useNotifications = (currentUser) => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to mark all as read"
+        description: "No se pudieron marcar como leídas"
       });
     }
   };
@@ -91,7 +91,98 @@ export const useNotifications = (currentUser) => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to delete notification"
+        description: "No se pudo eliminar la notificación"
+      });
+    }
+  };
+
+  // Aceptar solicitud de seguimiento
+  const acceptFollowRequest = async (notification) => {
+    try {
+      // Crear el follow
+      const { error: followError } = await supabase
+        .from('follows')
+        .insert([{ 
+          follower_id: notification.related_user_id, 
+          following_id: currentUser.id 
+        }]);
+
+      if (followError) throw followError;
+
+      // Actualizar contador de seguidores del usuario actual
+      const { data: userData } = await supabase
+        .from('users')
+        .select('followers_count')
+        .eq('id', currentUser.id)
+        .single();
+
+      await supabase
+        .from('users')
+        .update({ followers_count: (userData?.followers_count || 0) + 1 })
+        .eq('id', currentUser.id);
+
+      // Actualizar contador de seguidos del solicitante
+      const { data: followerData } = await supabase
+        .from('users')
+        .select('following_count')
+        .eq('id', notification.related_user_id)
+        .single();
+
+      await supabase
+        .from('users')
+        .update({ following_count: (followerData?.following_count || 0) + 1 })
+        .eq('id', notification.related_user_id);
+
+      // Eliminar la solicitud de notificación
+      await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notification.id);
+
+      // Crear notificación de aceptación para el solicitante
+      await supabase.from('notifications').insert([{
+        user_id: notification.related_user_id,
+        type: 'follow_accepted',
+        related_user_id: currentUser.id,
+        read: false
+      }]);
+
+      setNotifications(prev => prev.filter(n => n.id !== notification.id));
+      
+      toast({
+        title: "Solicitud aceptada",
+        description: `${notification.related_user?.username} ahora te sigue`
+      });
+    } catch (error) {
+      console.error('Error aceptando solicitud:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo aceptar la solicitud"
+      });
+    }
+  };
+
+  // Rechazar solicitud de seguimiento
+  const rejectFollowRequest = async (notification) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notification.id);
+
+      if (error) throw error;
+
+      setNotifications(prev => prev.filter(n => n.id !== notification.id));
+      
+      toast({
+        title: "Solicitud rechazada"
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo rechazar la solicitud"
       });
     }
   };
@@ -110,8 +201,8 @@ export const useNotifications = (currentUser) => {
         }, () => {
           getNotifications();
           toast({
-            title: "New Notification",
-            description: "You have a new update!"
+            title: "Nueva notificación",
+            description: "¡Tienes una nueva actualización!"
           });
         })
         .subscribe();
@@ -128,6 +219,8 @@ export const useNotifications = (currentUser) => {
     loading, 
     markAsRead, 
     markAllAsRead, 
-    deleteNotification 
+    deleteNotification,
+    acceptFollowRequest,
+    rejectFollowRequest
   };
 };
