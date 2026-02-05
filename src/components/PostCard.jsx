@@ -202,13 +202,15 @@ const PostCard = ({ post }) => {
         {/* Caption */}
         {post.descripcion && (
           <div className="text-sm text-blue-100 leading-relaxed mb-2">
-            <span className="font-bold text-white mr-2">{post.user?.username}</span>
+            <Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:text-cyan-400 transition-colors mr-2">
+              {post.user?.username}
+            </Link>
             {post.descripcion}
           </div>
         )}
         
         {commentsCount > 0 && (
-            <Link to={`/post/${post.id}`} className="text-xs text-blue-400 hover:text-blue-300 block mt-2">
+            <Link to={`/post/${post.id}`} className="text-xs text-blue-400 hover:text-cyan-300 transition-colors block mt-3 font-medium">
                 Ver los {commentsCount} comentarios
             </Link>
         )}

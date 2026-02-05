@@ -47,7 +47,7 @@ export const useComments = (postId) => {
         subscription.unsubscribe();
       };
     }
-  }, [postId, getComments]);
+  }, [postId]);
 
   const addComment = async (userId, content, postOwnerId) => {
     try {
