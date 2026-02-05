@@ -120,7 +120,7 @@ export const useNotifications = (currentUser) => {
         subscription.unsubscribe();
       };
     }
-  }, [currentUser, getNotifications, toast]);
+  }, [currentUser]);
 
   return { 
     notifications, 

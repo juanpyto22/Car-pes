@@ -45,7 +45,7 @@ const ExplorePage = () => {
 
   useEffect(() => {
     fetchTrendingPosts();
-  }, [fetchTrendingPosts]);
+  }, [selectedFish, searchLocation]);
 
   return (
     <>

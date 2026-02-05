@@ -143,7 +143,7 @@ export const useMessages = (currentUser) => {
         subscription.unsubscribe();
       };
     }
-  }, [currentUser, getConversations]);
+  }, [currentUser]);
 
   return { 
     conversations, 

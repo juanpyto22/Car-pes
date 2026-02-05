@@ -36,7 +36,7 @@ const FeedPage = () => {
 
   useEffect(() => {
     fetchFollowedIds();
-  }, [fetchFollowedIds]);
+  }, [user]);
 
   const fetchPosts = useCallback(async (pageNumber, isRefresh = false) => {
     if (followedIds.length === 0) {
@@ -75,7 +75,7 @@ const FeedPage = () => {
     } else if (user) {
         setLoading(false); // Stop loading if authenticated but no follows/posts yet
     }
-  }, [followedIds, fetchPosts, user]);
+  }, [followedIds]);
 
   const lastPostElementRef = useCallback(node => {
     if (loading || loadingMore) return;
