@@ -28,6 +28,10 @@ export const useNotifications = (currentUser) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      
+      console.log('Notificaciones cargadas:', data);
+      console.log('Follow requests:', data?.filter(n => n.type === 'follow_request'));
+      
       setNotifications(data || []);
       setUnreadCount((data || []).filter(n => !n.read).length);
     } catch (error) {
