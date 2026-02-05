@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, CheckCheck, Trash2 } from 'lucide-react';
+import { Bell, CheckCheck, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/hooks/useNotifications';
 import NotificationItem from '@/components/NotificationItem';
@@ -16,7 +16,8 @@ const NotificationsPage = () => {
     markAllAsRead, 
     deleteNotification,
     acceptFollowRequest,
-    rejectFollowRequest 
+    rejectFollowRequest,
+    refreshNotifications
   } = useNotifications(user);
 
   return (
@@ -28,16 +29,26 @@ const NotificationsPage = () => {
             <h1 className="text-2xl font-bold text-white flex items-center gap-3">
               Notificaciones
             </h1>
-            {notifications.length > 0 && (
+            <div className="flex gap-2">
               <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={markAllAsRead}
-                  className="text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 rounded-xl"
+                  onClick={refreshNotifications}
+                  className="text-blue-400 border-blue-500/30 hover:bg-blue-500/10 hover:text-blue-300 rounded-xl"
               >
-                <CheckCheck className="w-4 h-4 mr-2" /> Marcar leídas
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
-            )}
+              {notifications.length > 0 && (
+                <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={markAllAsRead}
+                    className="text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 rounded-xl"
+                >
+                  <CheckCheck className="w-4 h-4 mr-2" /> Marcar leídas
+                </Button>
+              )}
+            </div>
           </div>
 
           {loading ? (

@@ -222,6 +222,7 @@ export const useNotifications = (currentUser) => {
     markAllAsRead, 
     deleteNotification,
     acceptFollowRequest,
-    rejectFollowRequest
+    rejectFollowRequest,
+    refreshNotifications: getNotifications
   };
 };
