@@ -84,7 +84,7 @@ const CreatePostPage = () => {
 
       // Intentar subir al storage de Supabase
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('POSTS')
+        .from('posts')
         .upload(fileName, file, {
           cacheControl: '3600',
           upsert: false
@@ -92,20 +92,12 @@ const CreatePostPage = () => {
 
       if (uploadError) {
         console.error('Storage upload error:', uploadError);
-        
-        // Si el bucket no existe o hay error de permisos, mostrar mensaje específico
-        if (uploadError.message?.includes('Bucket not found') || uploadError.statusCode === '404') {
-          throw new Error('El almacenamiento no está configurado. Contacta al administrador.');
-        }
-        if (uploadError.message?.includes('row-level security') || uploadError.statusCode === '403') {
-          throw new Error('No tienes permisos para subir archivos. Verifica tu sesión.');
-        }
         throw uploadError;
       }
 
       // Obtener URL pública
       const { data: urlData } = supabase.storage
-        .from('POSTS')
+        .from('posts')
         .getPublicUrl(fileName);
       
       publicUrl = urlData?.publicUrl;
