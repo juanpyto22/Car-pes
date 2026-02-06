@@ -43,7 +43,7 @@ const Header = () => {
               whileHover={{ scale: 1.05 }}
               src={logoImg}
               alt="Car-Pes"
-              className="h-12 w-auto object-contain"
+              className="h-20 w-auto object-contain"
             />
             <motion.div
               whileHover={{ scale: 1.02 }}
