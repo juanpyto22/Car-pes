@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { AdminRoute } from '@/components/AdminRoute';
 import { useCheckUserBan } from '@/hooks/useCheckUserBan';
+import { useAchievementNotifications } from '@/hooks/useAchievementNotifications';
 
 // Pages
 import LandingPage from '@/pages/LandingPage';
@@ -37,10 +38,19 @@ import BannedUserPage from '@/pages/BannedUserPage';
 
 // Components
 import Header from '@/components/Header';
+import AchievementUnlockedNotification from '@/components/AchievementUnlockedNotification';
 
 const AppRoutes = () => {
   const { user, loading } = useAuth();
   const { isBanned, banType, reason, remainingHours, loading: banLoading } = useCheckUserBan();
+  const { unlockedAchievement, testUnlockAchievement } = useAchievementNotifications(user?.id);
+  const [showNotification, setShowNotification] = React.useState(false);
+
+  React.useEffect(() => {
+    if (unlockedAchievement) {
+      setShowNotification(true);
+    }
+  }, [unlockedAchievement]);
 
   // Mostrar loading solo durante la verificación inicial de sesión
   if (loading || banLoading) {
@@ -96,6 +106,13 @@ const AppRoutes = () => {
         <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
+      
+      {/* Achievement Notification */}
+      <AchievementUnlockedNotification 
+        achievement={unlockedAchievement}
+        isVisible={showNotification}
+        onClose={() => setShowNotification(false)}
+      />
     </div>
   );
 };
