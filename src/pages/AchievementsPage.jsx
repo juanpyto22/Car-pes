@@ -3,21 +3,21 @@ import { Trophy, Medal, Star, Target, Award, Crown, Zap, Fish, Camera, Users } f
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/customSupabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useUserStats, useAchievements, useLeaderboard, useChallenges } from '@/hooks/useAchievements';
 
 const AchievementsPage = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   
-  const [achievements, setAchievements] = useState([]);
-  const [userStats, setUserStats] = useState({});
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [challenges, setChallenges] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { stats: userStats, loading: statsLoading } = useUserStats(user?.id);
+  const { achievements, loading: achievementsLoading } = useAchievements(user?.id);
+  const { leaderboard, loading: leaderboardLoading } = useLeaderboard();
+  const { challenges, loading: challengesLoading } = useChallenges();
+
   const [selectedBadge, setSelectedBadge] = useState(null);
 
   // Achievement definitions
@@ -77,99 +77,6 @@ const AchievementsPage = () => {
       description: 'Alcanza nivel 50',
       color: 'from-indigo-500 to-purple-600',
       xp: 1000
-    }
-  };
-
-  useEffect(() => {
-    fetchUserData();
-    fetchLeaderboard();
-    fetchChallenges();
-  }, [user]);
-
-  const fetchUserData = async () => {
-    if (!user?.id) return;
-
-    try {
-      // Fetch user achievements
-      const { data: userAchievements, error: achievementsError } = await supabase
-        .from('user_achievements')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (achievementsError) throw achievementsError;
-
-      // Fetch user statistics
-      const { data: statsData, error: statsError } = await supabase
-        .from('user_stats')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (statsError && statsError.code !== 'PGRST116') throw statsError;
-
-      // If no stats exist, create them
-      if (!statsData) {
-        const newStats = {
-          user_id: user.id,
-          level: 1,
-          xp: 0,
-          total_catches: 0,
-          total_posts: 0,
-          spots_visited: 0,
-          days_active: 0,
-          current_streak: 0,
-          longest_streak: 0
-        };
-
-        const { data: createdStats } = await supabase
-          .from('user_stats')
-          .insert(newStats)
-          .select()
-          .single();
-
-        setUserStats(createdStats || newStats);
-      } else {
-        setUserStats(statsData);
-      }
-
-      setAchievements(userAchievements || []);
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchLeaderboard = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_stats')
-        .select(`
-          *,
-          user:profiles(id, username, foto_perfil)
-        `)
-        .order('xp', { ascending: false })
-        .limit(10);
-
-      if (error) throw error;
-      setLeaderboard(data || []);
-    } catch (error) {
-      console.error('Error fetching leaderboard:', error);
-    }
-  };
-
-  const fetchChallenges = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('challenges')
-        .select('*')
-        .gte('end_date', new Date().toISOString())
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setChallenges(data || []);
-    } catch (error) {
-      console.error('Error fetching challenges:', error);
     }
   };
 
@@ -308,8 +215,10 @@ const AchievementsPage = () => {
       </div>
     </div>
   );
+  
+  const isLoading = statsLoading || achievementsLoading;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-2 border-cyan-500 border-t-transparent"></div>
