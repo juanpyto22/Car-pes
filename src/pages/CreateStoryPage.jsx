@@ -134,14 +134,13 @@ const CreateStoryPage = () => {
       if (insertError) {
         console.error('Database error:', insertError);
         
-        // Si la tabla no existe, mostrar mensaje amigable
         toast({
-          title: "⚠️ Funcionalidad en desarrollo",
-          description: "Las historias estarán disponibles pronto. Crea una publicación normal por ahora.",
+          variant: "destructive",
+          title: "Error al crear historia",
+          description: insertError.message || "No se pudo guardar la historia"
         });
         
-        // Redirigir a crear post
-        navigate('/create-post');
+        setLoading(false);
         return;
       }
 
@@ -155,10 +154,10 @@ const CreateStoryPage = () => {
       console.error('Error publishing story:', error);
       toast({
         variant: "destructive",
-        title: "⚠️ Funcionalidad en desarrollo", 
-        description: "Las historias no están disponibles aún. Crea una publicación normal."
+        title: "Error", 
+        description: error.message || "No se pudo publicar la historia"
       });
-      navigate('/create-post');
+      setLoading(false);
     } finally {
       setLoading(false);
     }
