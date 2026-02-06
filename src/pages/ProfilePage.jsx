@@ -84,24 +84,44 @@ const ProfilePage = () => {
   };
 
   const checkFollowStatus = async () => {
+    console.log('Verificando estado de seguimiento:', {
+      currentUser: currentUser.id,
+      targetUser: targetUserId,
+      isPrivate: profile?.is_private
+    });
+    
     // Verificar si ya sigue
-    const { data: followData } = await supabase
+    const { data: followData, error: followError } = await supabase
       .from('follows')
       .select('*')
       .eq('follower_id', currentUser.id)
       .eq('following_id', targetUserId)
       .maybeSingle();
+      
+    if (followError) {
+      console.error('Error verificando seguimiento:', followError);
+      return;
+    }
+    
     setIsFollowing(!!followData);
+    console.log('Ya sigue al usuario:', !!followData);
 
     // Verificar si hay solicitud pendiente
-    const { data: pendingData } = await supabase
+    const { data: pendingData, error: pendingError } = await supabase
       .from('notifications')
       .select('*')
       .eq('user_id', targetUserId)
       .eq('related_user_id', currentUser.id)
       .eq('type', 'follow_request')
       .maybeSingle();
+      
+    if (pendingError) {
+      console.error('Error verificando solicitudes pendientes:', pendingError);
+      return;
+    }
+    
     setIsPendingFollow(!!pendingData);
+    console.log('Solicitud pendiente encontrada:', !!pendingData, pendingData);
   };
 
   const handleFollowToggle = async () => {
@@ -130,6 +150,11 @@ const ProfilePage = () => {
         toast({ title: "Solicitud cancelada" });
       } else if (profile?.is_private === true) {
         // Enviar solicitud de seguimiento para cuenta privada
+        console.log('Enviando solicitud de seguimiento para cuenta privada:', {
+          targetUserId,
+          currentUserId: currentUser.id
+        });
+        
         const { data, error: notifError } = await supabase.from('notifications').insert([{
           user_id: targetUserId,
           type: 'follow_request',
@@ -138,23 +163,35 @@ const ProfilePage = () => {
         }]).select();
         
         if (notifError) {
+          console.error('Error completo de notificación:', notifError);
           toast({ 
             variant: "destructive", 
             title: "Error al enviar solicitud", 
-            description: notifError.message 
+            description: `Error de base de datos: ${notifError.message}. Código: ${notifError.code || 'N/A'}` 
           });
+          
+          // Si el error es de RLS, dar instrucciones específicas
+          if (notifError.message?.includes('row-level security policy') || notifError.code === '42501') {
+            toast({
+              variant: "destructive",
+              title: "Problema de permisos",
+              description: "Las políticas de la base de datos no están configuradas correctamente. Por favor ejecuta el script SQL proporcionado."
+            });
+          }
           throw notifError;
         }
         
         if (!data || data.length === 0) {
+          console.error('No se creó ninguna notificación');
           toast({ 
             variant: "destructive", 
             title: "Error", 
-            description: "No se pudo crear la solicitud. Intenta cerrar sesión y volver a entrar." 
+            description: "No se pudo crear la solicitud. Verifica la configuración de la base de datos." 
           });
           return;
         }
         
+        console.log('Solicitud creada exitosamente:', data);
         setIsPendingFollow(true);
         toast({ title: "Solicitud enviada", description: "Esperando aprobación" });
       } else {

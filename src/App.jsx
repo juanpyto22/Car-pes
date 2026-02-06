@@ -21,6 +21,15 @@ import NotificationsPage from '@/pages/NotificationsPage';
 import EditProfilePage from '@/pages/EditProfilePage';
 import SearchPage from '@/pages/SearchPage';
 import SavedPostsPage from '@/pages/SavedPostsPage';
+import StoryViewerPage from '@/pages/StoryViewerPage';
+import CreateStoryPage from '@/pages/CreateStoryPage';
+import FishingMapsPage from '@/pages/FishingMapsPage';
+import AchievementsPage from '@/pages/AchievementsPage';
+import GroupsPage from '@/pages/GroupsPage';
+import EventsCalendarPage from '@/pages/EventsCalendarPage';
+import MarketplacePage from '@/pages/MarketplacePage';
+import AnalyticsPage from '@/pages/AnalyticsPage';
+import SettingsPage from '@/pages/SettingsPage';
 
 // Components
 import Header from '@/components/Header';
@@ -54,6 +63,7 @@ const AppRoutes = () => {
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/post/:postId" element={<PostDetailPage />} />
+        <Route path="/story/:userId" element={<StoryViewerPage />} />
         {/* Profile is accessible to public, but functionality might differ if logged out */}
         <Route path="/profile/:userId" element={<ProfilePage />} />
         
@@ -65,6 +75,14 @@ const AppRoutes = () => {
         <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
         <Route path="/saved" element={<ProtectedRoute><SavedPostsPage /></ProtectedRoute>} />
+        <Route path="/create-story" element={<ProtectedRoute><CreateStoryPage /></ProtectedRoute>} />
+        <Route path="/maps" element={<ProtectedRoute><FishingMapsPage /></ProtectedRoute>} />
+        <Route path="/achievements" element={<ProtectedRoute><AchievementsPage /></ProtectedRoute>} />
+        <Route path="/groups" element={<ProtectedRoute><GroupsPage /></ProtectedRoute>} />
+        <Route path="/events" element={<ProtectedRoute><EventsCalendarPage /></ProtectedRoute>} />
+        <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
+        <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" />} />

@@ -15,12 +15,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
+import AdvancedReactionBar from '@/components/AdvancedReactionBar';
+import { useAdvancedSocial } from '@/hooks/useAdvancedSocial';
 
 const PostCard = ({ post, onDelete }) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [liked, setLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(post.likes_count || 0);
+  const { renderEnhancedText, parseHashtags, parseMentions } = useAdvancedSocial(user);
+  
+  const [reactions, setReactions] = useState([]);
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -29,20 +32,23 @@ const PostCard = ({ post, onDelete }) => {
 
   useEffect(() => {
     if (user?.id) {
-      checkIfLiked();
+      fetchReactions();
       checkSaved();
     }
   }, [user?.id, post.id]);
 
-  const checkIfLiked = async () => {
-    const { data } = await supabase
-      .from('likes')
-      .select('id')
-      .eq('post_id', post.id)
-      .eq('user_id', user.id)
-      .maybeSingle();
-    
-    setLiked(!!data);
+  const fetchReactions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('post_reactions')
+        .select('*')
+        .eq('post_id', post.id);
+      
+      if (error) throw error;
+      setReactions(data || []);
+    } catch (error) {
+      console.error('Error fetching reactions:', error);
+    }
   };
 
   const checkSaved = async () => {
@@ -55,62 +61,6 @@ const PostCard = ({ post, onDelete }) => {
     setSaved(!!data);
   };
 
-  const handleLike = async () => {
-    if (!user) {
-        toast({ title: "Inicia sesión para dar like", variant: "destructive" });
-        return;
-    }
-
-    const previousLiked = liked;
-    const newLikesCount = liked ? likesCount - 1 : likesCount + 1;
-    
-    // Actualización optimista
-    setLiked(!liked);
-    setLikesCount(newLikesCount);
-
-    try {
-      if (previousLiked) {
-        // Quitar like
-        const { error } = await supabase
-          .from('likes')
-          .delete()
-          .eq('post_id', post.id)
-          .eq('user_id', user.id);
-        if (error) throw error;
-      } else {
-        // Dar like
-        const { error } = await supabase
-          .from('likes')
-          .insert([{ post_id: post.id, user_id: user.id }]);
-        if (error) throw error;
-
-        // Crear notificación si no es el propio post
-        if (post.user_id !== user.id) {
-          await supabase.from('notifications').insert([{
-            user_id: post.user_id,
-            type: 'like',
-            related_user_id: user.id,
-            post_id: post.id,
-            read: false
-          }]);
-        }
-      }
-
-      // Actualizar contador en la tabla posts
-      await supabase
-        .from('posts')
-        .update({ likes_count: newLikesCount })
-        .eq('id', post.id);
-
-    } catch (error) {
-      console.error('Error al dar like:', error);
-      // Revertir si hay error
-      setLiked(previousLiked);
-      setLikesCount(likesCount);
-      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el like" });
-    }
-  };
-
   const handleDelete = async () => {
     if (!window.confirm('¿Estás seguro de que quieres eliminar esta publicación?')) return;
     
@@ -119,7 +69,6 @@ const PostCard = ({ post, onDelete }) => {
       const { error } = await supabase.from('posts').delete().eq('id', post.id);
       if (error) throw error;
       toast({ title: "Éxito", description: "Publicación eliminada" });
-      // Llamar callback en lugar de reload
       if (onDelete) onDelete(post.id);
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar" });
@@ -128,12 +77,13 @@ const PostCard = ({ post, onDelete }) => {
     }
   };
 
-  // Doble tap para like
+  // Doble tap para like rápido
   const handleDoubleTap = () => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
-      if (!liked) {
-        handleLike();
+      const userReaction = reactions.find(r => r.user_id === user?.id);
+      if (!userReaction) {
+        // Quick like reaction
         setShowHeart(true);
         setTimeout(() => setShowHeart(false), 1000);
       }
@@ -262,33 +212,14 @@ const PostCard = ({ post, onDelete }) => {
 
       {/* Content */}
       <div className="p-4">
-        {/* Actions */}
-        <div className="flex items-center gap-6 mb-4">
-          <motion.button
-            whileTap={{ scale: 0.8 }}
-            onClick={handleLike}
-            className={`flex items-center gap-2 group ${liked ? 'text-red-500' : 'text-white hover:text-red-400'} transition-colors`}
+        {/* Save Button */}
+        <div className="flex justify-end mb-4">
+          <button 
+            onClick={handleSave} 
+            className={`transition-colors ${saved ? 'text-yellow-500' : 'text-white hover:text-yellow-400'}`}
           >
-            <Heart className={`w-7 h-7 ${liked ? 'fill-current' : ''}`} />
-          </motion.button>
-          
-          <Link to={`/post/${post.id}`}>
-            <button className="flex items-center gap-2 text-white hover:text-cyan-400 transition-colors">
-              <MessageCircle className="w-7 h-7" />
-            </button>
-          </Link>
-
-          <button onClick={handleShare} className="text-white hover:text-cyan-400 transition-colors">
-            <Share2 className="w-6 h-6" />
-          </button>
-          
-          <button onClick={handleSave} className={`ml-auto transition-colors ${saved ? 'text-yellow-500' : 'text-white hover:text-yellow-400'}`}>
             {saved ? <BookmarkCheck className="w-6 h-6 fill-current" /> : <Bookmark className="w-6 h-6" />}
           </button>
-        </div>
-
-        <div className="text-white font-bold mb-3 text-sm">
-             {likesCount} Me gusta
         </div>
 
         {/* Catch Details Badge Grid */}
@@ -313,21 +244,35 @@ const PostCard = ({ post, onDelete }) => {
           )}
         </div>
 
-        {/* Caption */}
+        {/* Caption with enhanced text rendering */}
         {post.descripcion && (
           <div className="text-sm text-blue-100 leading-relaxed mb-2">
             <Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:text-cyan-400 transition-colors mr-2">
               {post.user?.username}
             </Link>
-            {post.descripcion}
+            <span 
+              dangerouslySetInnerHTML={{ 
+                __html: renderEnhancedText(post.descripcion) 
+              }}
+            />
           </div>
         )}
         
         {commentsCount > 0 && (
-            <Link to={`/post/${post.id}`} className="text-xs text-blue-400 hover:text-cyan-300 transition-colors block mt-3 font-medium">
+            <Link to={`/post/${post.id}`} className="text-xs text-blue-400 hover:text-cyan-300 transition-colors block mb-4 font-medium">
                 Ver los {commentsCount} comentarios
             </Link>
         )}
+
+        {/* Advanced Reaction Bar */}
+        <AdvancedReactionBar
+          post={post}
+          reactions={reactions}
+          onReactionUpdate={fetchReactions}
+          onShare={() => console.log('Shared!')}
+          onComment={() => window.location.href = `/post/${post.id}`}
+          className="mt-4"
+        />
       </div>
     </motion.div>
   );

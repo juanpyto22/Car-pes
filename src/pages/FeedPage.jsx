@@ -6,6 +6,7 @@ import { Loader2, RefreshCw, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Helmet } from 'react-helmet';
+import StoriesBar from '@/components/StoriesBar';
 
 const FeedPage = () => {
   const { user, profile } = useAuth();
@@ -169,6 +170,9 @@ const FeedPage = () => {
                 </Link>
             </div>
           </div>
+
+          {/* Stories Bar */}
+          <StoriesBar />
 
           {loading && posts.length === 0 ? (
             <div className="space-y-6">

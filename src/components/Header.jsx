@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Menu, Bookmark } from 'lucide-react';
+import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Menu, Bookmark, Map, Trophy, Users, Calendar, ShoppingBag, BarChart3, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import SearchBar from '@/components/SearchBar';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -125,6 +125,34 @@ const Header = () => {
                     <DropdownMenuItem onClick={() => navigate(`/saved`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
                       <Bookmark className="mr-2 h-4 w-4" />
                       <span>Posts Guardados</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/maps`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
+                      <Map className="mr-2 h-4 w-4" />
+                      <span>Mapas de Pesca</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/achievements`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
+                      <Trophy className="mr-2 h-4 w-4" />
+                      <span>Logros</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/groups`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
+                      <Users className="mr-2 h-4 w-4" />
+                      <span>Grupos</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/events`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      <span>Eventos</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/marketplace`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
+                      <ShoppingBag className="mr-2 h-4 w-4" />
+                      <span>Marketplace</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/analytics`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
+                      <BarChart3 className="mr-2 h-4 w-4" />
+                      <span>Estadísticas</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/settings`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Configuración</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-white/10" />
                     <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer hover:bg-red-900/50 focus:bg-red-900/50 text-red-400 focus:text-red-300 py-3">
