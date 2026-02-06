@@ -102,44 +102,123 @@ ADD COLUMN IF NOT EXISTS level_up_coins INT DEFAULT 0; -- Monedas acumuladas sin
 -- ========================================
 INSERT INTO public.achievements_library (achievement_id, name, description, xp_reward, icon, tier, condition_type, condition_value, is_repeatable)
 VALUES
-  -- Logros sociales
+  -- Logros de Posts (Primeros y Milestones)
   ('first_post', 'Tu Primer Catch', 'Publica tu primer post en Car-Pes', 100, 'Fish', 'bronze', 'first_post', 1, FALSE),
+  ('ten_posts', 'Publicador', 'Publica 10 posts', 200, 'Fish', 'bronze', 'total_posts', 10, FALSE),
+  ('fifty_posts', 'Obseso del Contenido', 'Publica 50 posts', 500, 'Fish', 'silver', 'total_posts', 50, FALSE),
+  ('hundred_posts', 'Prolífico', 'Publica 100 posts', 1000, 'Fish', 'gold', 'total_posts', 100, FALSE),
+  ('five_hundred_posts', 'Leyenda de Contenido', 'Publica 500 posts', 2500, 'Fish', 'platinum', 'total_posts', 500, FALSE),
+  
+  -- Logros de Seguidores
+  ('first_follower', 'Tu Primer Fan', 'Consigue tu primer seguidor', 50, 'Users', 'bronze', 'followers', 1, FALSE),
   ('social_butterfly', 'Mariposa Social', 'Alcanza 10 seguidores', 150, 'Users', 'bronze', 'followers', 10, FALSE),
+  ('popular', 'Popular', 'Alcanza 50 seguidores', 300, 'Users', 'silver', 'followers', 50, FALSE),
   ('influencer', 'Influencer', 'Alcanza 100 seguidores', 500, 'Star', 'silver', 'followers', 100, FALSE),
+  ('celebrity', 'Celebridad Local', 'Alcanza 250 seguidores', 800, 'Star', 'gold', 'followers', 250, FALSE),
   ('mega_influencer', 'Mega Influencer', 'Alcanza 1000 seguidores', 1500, 'Star', 'gold', 'followers', 1000, FALSE),
+  ('superstar', 'Superestrella', 'Alcanza 5000 seguidores', 3000, 'Star', 'platinum', 'followers', 5000, FALSE),
+  ('legend_follower', 'Leyenda Social', 'Alcanza 10000 seguidores', 5000, 'Star', 'diamond', 'followers', 10000, FALSE),
   
-  -- Logros de interacción
-  ('first_like', 'Me Gusta Primer Catch', 'Da tu primer like a un post', 50, 'Heart', 'bronze', 'first_like', 1, FALSE),
+  -- Logros de Likes Recibidos
+  ('first_like_received', 'Primer Me Gusta', 'Recibe tu primer like', 50, 'Heart', 'bronze', 'first_like_received', 1, FALSE),
+  ('liked', 'Gustas', 'Recibe 25 likes en tus posts', 150, 'Heart', 'bronze', 'likes_received', 25, FALSE),
   ('like_collector', 'Coleccionista de Likes', 'Recibe 100 likes en tus posts', 300, 'Heart', 'silver', 'likes_received', 100, FALSE),
-  ('like_giver', 'Generoso', 'Da 100 likes a otros posts', 250, 'Heart', 'silver', 'likes_given', 100, FALSE),
+  ('very_liked', 'Muy Gustado', 'Recibe 500 likes en tus posts', 600, 'Heart', 'silver', 'likes_received', 500, FALSE),
+  ('beloved', 'Amado', 'Recibe 1000 likes en tus posts', 1200, 'Heart', 'gold', 'likes_received', 1000, FALSE),
+  ('heart_magnet', 'Imán de Corazones', 'Recibe 5000 likes en tus posts', 2500, 'Heart', 'platinum', 'likes_received', 5000, FALSE),
   
-  -- Logros de comentarios
+  -- Logros de Likes Dados
+  ('first_like_given', 'Primer Like Dado', 'Da tu primer like a un post', 50, 'ThumbsUp', 'bronze', 'first_like_given', 1, FALSE),
+  ('generous', 'Generoso', 'Da 50 likes a otros posts', 150, 'ThumbsUp', 'bronze', 'likes_given', 50, FALSE),
+  ('like_giver', 'Repartidor de Loves', 'Da 100 likes a otros posts', 250, 'ThumbsUp', 'silver', 'likes_given', 100, FALSE),
+  ('like_champion', 'Campeón de Likes', 'Da 500 likes a otros posts', 500, 'ThumbsUp', 'gold', 'likes_given', 500, FALSE),
+  ('like_enthusiast', 'Entusiasta', 'Da 1000 likes a otros posts', 1000, 'ThumbsUp', 'gold', 'likes_given', 1000, FALSE),
+  
+  -- Logros de Comentarios
   ('first_comment', 'Primer Comentario', 'Comenta por primera vez', 50, 'MessageSquare', 'bronze', 'first_comment', 1, FALSE),
-  ('comment_master', 'Maestro de Comentarios', 'Haz 50 comentarios', 300, 'MessageSquare', 'gold', 'comments', 50, FALSE),
+  ('commenter', 'Conversador', 'Haz 25 comentarios', 150, 'MessageSquare', 'bronze', 'comments', 25, FALSE),
+  ('comment_regular', 'Regular en Comentarios', 'Haz 100 comentarios', 250, 'MessageSquare', 'silver', 'comments', 100, FALSE),
+  ('comment_master', 'Maestro de Comentarios', 'Haz 500 comentarios', 600, 'MessageSquare', 'gold', 'comments', 500, FALSE),
+  ('discussion_champion', 'Campeón de Discusiones', 'Haz 1000 comentarios', 1500, 'MessageSquare', 'platinum', 'comments', 1000, FALSE),
   
-  -- Logros de historias
+  -- Logros de Historias
   ('first_story', 'Tu Primera Historia', 'Publica tu primera historia', 75, 'BookOpen', 'bronze', 'first_story', 1, FALSE),
-  ('story_master', 'Maestro de Historias', 'Publica 10 historias', 300, 'BookOpen', 'silver', 'stories', 10, FALSE),
+  ('story_teller', 'Narrador', 'Publica 5 historias', 150, 'BookOpen', 'bronze', 'stories', 5, FALSE),
+  ('story_regular', 'Historiador', 'Publica 20 historias', 300, 'BookOpen', 'silver', 'stories', 20, FALSE),
+  ('story_master', 'Maestro de Historias', 'Publica 50 historias', 600, 'BookOpen', 'gold', 'stories', 50, FALSE),
+  ('story_legend', 'Leyenda de Historias', 'Publica 100 historias', 1500, 'BookOpen', 'platinum', 'stories', 100, FALSE),
   
-  -- Logros de marketplace
+  -- Logros de Marketplace
   ('first_listing', 'Primer Objeto', 'Crea tu primer anuncio en marketplace', 200, 'ShoppingBag', 'silver', 'marketplace_listings', 1, FALSE),
-  ('market_seller', 'Vendedor', 'Crea 10 anuncios en marketplace', 500, 'ShoppingBag', 'gold', 'marketplace_listings', 10, FALSE),
+  ('seller', 'Vendedor', 'Crea 5 anuncios en marketplace', 300, 'ShoppingBag', 'silver', 'marketplace_listings', 5, FALSE),
+  ('market_seller', 'Vendedor Activo', 'Crea 10 anuncios en marketplace', 500, 'ShoppingBag', 'gold', 'marketplace_listings', 10, FALSE),
+  ('market_king', 'Rey del Mercado', 'Crea 50 anuncios en marketplace', 1200, 'ShoppingBag', 'gold', 'marketplace_listings', 50, FALSE),
+  ('market_master', 'Maestro del Marketplace', 'Crea 100 anuncios en marketplace', 2500, 'ShoppingBag', 'platinum', 'marketplace_listings', 100, FALSE),
   
-  -- Logros de grupos
+  -- Logros de Grupos
   ('group_creator', 'Creador de Grupos', 'Crea tu primer grupo', 300, 'Users', 'silver', 'groups_created', 1, FALSE),
+  ('group_organizer', 'Organizador', 'Crea 3 grupos', 500, 'Users', 'silver', 'groups_created', 3, FALSE),
   ('group_leader', 'Líder de Grupo', 'Crea 5 grupos', 750, 'Users', 'gold', 'groups_created', 5, FALSE),
+  ('group_empire', 'Imperio de Grupos', 'Crea 10 grupos', 1500, 'Users', 'platinum', 'groups_created', 10, FALSE),
+  ('community_builder', 'Constructor de Comunidades', 'Crea 20 grupos', 3000, 'Users', 'platinum', 'groups_created', 20, FALSE),
   
-  -- Logros de eventos
+  -- Logros de Eventos
   ('event_organizer', 'Organizador', 'Crea tu primer evento', 250, 'Calendar', 'silver', 'events_created', 1, FALSE),
+  ('event_planner', 'Planificador', 'Crea 3 eventos', 400, 'Calendar', 'silver', 'events_created', 3, FALSE),
   ('event_master', 'Maestro de Eventos', 'Crea 10 eventos', 1000, 'Calendar', 'gold', 'events_created', 10, FALSE),
+  ('event_legend', 'Leyenda de Eventos', 'Crea 25 eventos', 2000, 'Calendar', 'platinum', 'events_created', 25, FALSE),
+  ('party_king', 'Rey de Fiestas', 'Crea 50 eventos', 4000, 'Calendar', 'diamond', 'events_created', 50, FALSE),
   
-  -- Logros de pesca
+  -- Logros de Pesca
   ('fishing_spot', 'Cazador de Spots', 'Publica tu primer spot de pesca', 150, 'MapPin', 'bronze', 'fishing_spots', 1, FALSE),
-  ('spot_collector', 'Explorador', 'Guarda 25 spots de pesca', 400, 'MapPin', 'silver', 'fishing_spots_saved', 25, FALSE),
+  ('explorer', 'Explorador', 'Publica 10 spots de pesca', 300, 'MapPin', 'silver', 'fishing_spots', 10, FALSE),
+  ('spot_collector', 'Cartógrafo', 'Guarda 25 spots de pesca', 400, 'MapPin', 'silver', 'fishing_spots_saved', 25, FALSE),
+  ('map_master', 'Maestro de Mapas', 'Guarda 100 spots de pesca', 800, 'MapPin', 'gold', 'fishing_spots_saved', 100, FALSE),
+  ('world_explorer', 'Explorador Mundial', 'Guarda 250 spots de pesca', 1500, 'MapPin', 'platinum', 'fishing_spots_saved', 250, FALSE),
   
-  -- Logros de permanencia
-  ('loyal_fisherman', 'Pescador Leal', 'Mantén 30 días consecutivos de actividad', 600, 'Trophy', 'gold', 'consecutive_days', 30, FALSE),
-  ('dedicated_angler', 'Angosto Dedicado', 'Alcanza 100 días de actividad', 1500, 'Trophy', 'platinum', 'total_days_active', 100, FALSE)
+  -- Logros de Permanencia y Consistencia
+  ('first_week', 'Primer Semana', 'Mantén 7 días consecutivos de actividad', 150, 'Trophy', 'bronze', 'consecutive_days', 7, FALSE),
+  ('two_weeks', 'Dos Semanas', 'Mantén 14 días consecutivos de actividad', 300, 'Trophy', 'bronze', 'consecutive_days', 14, FALSE),
+  ('monthly', 'Mes Completo', 'Mantén 30 días consecutivos de actividad', 600, 'Trophy', 'silver', 'consecutive_days', 30, FALSE),
+  ('loyal_fisherman', 'Pescador Leal', 'Mantén 60 días consecutivos de actividad', 800, 'Trophy', 'gold', 'consecutive_days', 60, FALSE),
+  ('quarterly', 'Trimestral', 'Mantén 90 días consecutivos de actividad', 1200, 'Trophy', 'gold', 'consecutive_days', 90, FALSE),
+  ('semi_annual', 'Semestral', 'Mantén 180 días consecutivos de actividad', 2000, 'Trophy', 'platinum', 'consecutive_days', 180, FALSE),
+  ('annual', 'Anual', 'Mantén 365 días consecutivos de actividad', 5000, 'Trophy', 'diamond', 'consecutive_days', 365, FALSE),
+  ('dedicated_angler', 'Angosto Dedicado', 'Alcanza 100 días de actividad total', 1500, 'Trophy', 'platinum', 'total_days_active', 100, FALSE),
+  ('veteran', 'Veterano', 'Alcanza 365 días de actividad total', 3000, 'Trophy', 'platinum', 'total_days_active', 365, FALSE),
+  ('eternal', 'Eterno', 'Alcanza 730 días de actividad total', 6000, 'Trophy', 'diamond', 'total_days_active', 730, FALSE),
+  
+  -- Logros Especiales / Diarios
+  ('morning_person', 'Madrugador', 'Publica antes de las 8am', 100, 'Sun', 'bronze', 'morning_post', 1, TRUE),
+  ('night_owl', 'Noctámbulo', 'Publica entre las 10pm y 5am', 100, 'Moon', 'bronze', 'night_post', 1, TRUE),
+  ('weekend_warrior', 'Guerrero del Fin de Semana', 'Publica en fin de semana', 75, 'Flag', 'bronze', 'weekend_post', 1, TRUE),
+  ('weekday_grind', 'Grind Entre Semana', 'Publica entre semana 5 veces', 200, 'Briefcase', 'silver', 'weekday_posts', 5, TRUE),
+  
+  -- Logros de Achievement Completados
+  ('achiever_bronze', 'Cazador de Logros', 'Desbloquea 5 logros bronze', 200, 'Award', 'silver', 'bronze_achievements', 5, FALSE),
+  ('achiever_silver', 'Buscador Persistente', 'Desbloquea 10 logros silver', 400, 'Award', 'silver', 'silver_achievements', 10, FALSE),
+  ('achiever_gold', 'Coleccionista Oro', 'Desbloquea 5 logros gold', 600, 'Award', 'gold', 'gold_achievements', 5, FALSE),
+  ('achiever_platinum', 'Elite', 'Desbloquea 5 logros platinum', 1000, 'Award', 'platinum', 'platinum_achievements', 5, FALSE),
+  ('achievement_collector', 'Coleccionista Total', 'Desbloquea 50 logros diferentes', 2000, 'Award', 'platinum', 'total_achievements', 50, FALSE),
+  ('perfect_collector', 'Perfeccionista', 'Desbloquea 75 logros diferentes', 4000, 'Award', 'diamond', 'total_achievements', 75, FALSE),
+  
+  -- Logros de Engagement Social
+  ('shared_thousand', 'Compartidor', 'Consigue 10 comparticiones en tus posts', 300, 'Share2', 'silver', 'shares_received', 10, FALSE),
+  ('viral_moment', 'Momento Viral', 'Consigue 100 de interacciones en un post', 500, 'TrendingUp', 'gold', 'viral_post', 1, FALSE),
+  ('influencer_status', 'Estado Influencer', 'Tiene un engagement rate > 10%', 750, 'Zap', 'gold', 'high_engagement', 1, FALSE),
+  
+  -- Logros Misceláneos
+  ('profile_complete', 'Perfil Completado', 'Completa todos los campos de tu perfil', 250, 'CheckCircle', 'silver', 'profile_complete', 1, FALSE),
+  ('picture_perfect', 'Foto Perfecta', 'Sube una foto de perfil y portada', 100, 'Camera', 'bronze', 'has_profile_pictures', 1, FALSE),
+  ('verifier', 'Verificador', 'Verifica tu email', 150, 'Check', 'bronze', 'email_verified', 1, FALSE),
+  ('bio_master', 'Biógrafo', 'Crea una bio de más de 50 caracteres', 100, 'Edit', 'bronze', 'bio_length', 50, FALSE),
+  
+  -- Logros Raros (Difíciles)
+  ('speedster', 'Velocista', 'Publica 10 posts en un solo día', 500, 'Zap', 'gold', 'posts_per_day', 10, FALSE),
+  ('unstoppable', 'Imparable', 'Publica 20 posts en un solo día', 1000, 'Zap', 'platinum', 'posts_per_day', 20, FALSE),
+  ('octopus', 'Pulpo', 'Interactúa (comenta + dlike) 50+ veces en un día', 400, 'Star', 'gold', 'interactions_per_day', 50, FALSE),
+  ('multi_tasker', 'Multitarea', 'Crea posts, historias y eventos en el mismo día', 300, 'Workflow', 'silver', 'multi_content_day', 1, FALSE),
+  ('comeback_kid', 'Niño de Regreso', 'Vuelve después de 30 días inactivo con un post viral', 750, 'RotateCw', 'gold', 'comeback', 1, FALSE)
 ON CONFLICT (achievement_id) DO NOTHING;
 
 -- ========================================
