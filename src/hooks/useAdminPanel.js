@@ -217,13 +217,14 @@ export const useSearchUsers = (query) => {
     const searchUsers = async () => {
       try {
         setLoading(true);
-        const searchLower = `%${query.toLowerCase()}%`;
+        const searchPattern = `%${query.toLowerCase()}%`;
         
         const { data, error: err } = await supabase
           .from('profiles')
           .select('id, username, email')
-          .or(`username.ilike.${searchLower},email.ilike.${searchLower}`)
-          .limit(10);
+          .or(`username.ilike.${searchPattern},email.ilike.${searchPattern}`);
+
+        console.log('useSearchUsers - query:', query, 'results:', data, 'error:', err);
 
         if (err) throw err;
         setUsers(data || []);
