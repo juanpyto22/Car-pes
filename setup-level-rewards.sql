@@ -95,6 +95,23 @@ DROP POLICY IF EXISTS "Users can read their own level up log" ON public.level_up
 CREATE POLICY "Users can read their own level up log" ON public.level_up_log 
   FOR SELECT USING (auth.uid() = user_id);
 
+-- 6. TABLA: User Achievements (Logros desbloqueados por usuario)
+CREATE TABLE IF NOT EXISTS public.user_achievements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  achievement_id VARCHAR(50) NOT NULL REFERENCES public.achievements_library(achievement_id) ON DELETE CASCADE,
+  unlocked_at TIMESTAMP DEFAULT NOW(),
+  CONSTRAINT unique_user_achievement UNIQUE(user_id, achievement_id)
+);
+
+ALTER TABLE public.user_achievements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can read their own achievements" ON public.user_achievements;
+DROP POLICY IF EXISTS "Users can insert their own achievements" ON public.user_achievements;
+CREATE POLICY "Users can read their own achievements" ON public.user_achievements 
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own achievements" ON public.user_achievements 
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
 -- ========================================
 -- ACTUALIZAR user_stats - AGREGAR total_xp
 -- ========================================
@@ -107,6 +124,7 @@ ADD COLUMN IF NOT EXISTS level_up_coins INT DEFAULT 0; -- Monedas acumuladas sin
 -- INSERTAR CATÁLOGO DE LOGROS
 -- ========================================
 -- Primero limpiar logros antiguos - DELETE para evitar problemas con FK
+DELETE FROM public.user_achievements WHERE TRUE;
 DELETE FROM public.achievements_library WHERE TRUE;
 
 INSERT INTO public.achievements_library (achievement_id, name, description, xp_reward, icon, tier, condition_type, condition_value, is_repeatable)
