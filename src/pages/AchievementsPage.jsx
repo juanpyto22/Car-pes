@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Medal, Star, Target, Award, Crown, Zap, Fish, Camera, Users } from 'lucide-react';
+import { Trophy, Medal, Star, Target, Award, Crown, Zap, Fish, Camera, Users, Lock, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,78 +7,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useUserStats, useAchievements, useLeaderboard, useChallenges } from '@/hooks/useAchievements';
+import { useUserStats, useLeaderboard, useChallenges } from '@/hooks/useAchievements';
+import { useAchievementsLibrary, useUserUnlockedAchievements, getAchievementGradient } from '@/hooks/useAchievementsLibrary';
 
 const AchievementsPage = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   
   const { stats: userStats, loading: statsLoading } = useUserStats(user?.id);
-  const { achievements, loading: achievementsLoading } = useAchievements(user?.id);
+  const { achievements: achievementsLibrary, loading: libraryLoading } = useAchievementsLibrary();
+  const { unlockedIds, loading: unlockedLoading } = useUserUnlockedAchievements(user?.id);
   const { leaderboard, loading: leaderboardLoading } = useLeaderboard();
   const { challenges, loading: challengesLoading } = useChallenges();
 
   const [selectedBadge, setSelectedBadge] = useState(null);
-
-  // Achievement definitions
-  const achievementTypes = {
-    first_catch: {
-      icon: Fish,
-      name: 'Primera Captura',
-      description: 'Compartiste tu primera captura',
-      color: 'from-green-500 to-emerald-600',
-      xp: 100
-    },
-    social_butterfly: {
-      icon: Users,
-      name: 'Mariposa Social',
-      description: 'Sigue a 10 pescadores',
-      color: 'from-pink-500 to-rose-600',
-      xp: 150
-    },
-    photographer: {
-      icon: Camera,
-      name: 'Fotógrafo',
-      description: 'Sube 25 fotos de capturas',
-      color: 'from-purple-500 to-violet-600',
-      xp: 200
-    },
-    big_catch: {
-      icon: Trophy,
-      name: 'Gran Captura',
-      description: 'Captura un pez de más de 5kg',
-      color: 'from-yellow-500 to-orange-600',
-      xp: 300
-    },
-    explorer: {
-      icon: Target,
-      name: 'Explorador',
-      description: 'Visita 5 spots diferentes',
-      color: 'from-blue-500 to-cyan-600',
-      xp: 250
-    },
-    influencer: {
-      icon: Crown,
-      name: 'Influencer',
-      description: 'Consigue 100 seguidores',
-      color: 'from-amber-500 to-yellow-600',
-      xp: 500
-    },
-    streak_master: {
-      icon: Zap,
-      name: 'Racha Master',
-      description: 'Pesca 7 días seguidos',
-      color: 'from-red-500 to-pink-600',
-      xp: 400
-    },
-    legend: {
-      icon: Medal,
-      name: 'Leyenda',
-      description: 'Alcanza nivel 50',
-      color: 'from-indigo-500 to-purple-600',
-      xp: 1000
-    }
-  };
 
   const calculateLevel = (xp) => {
     return Math.floor(1 + Math.sqrt(xp / 100));
@@ -89,8 +31,8 @@ const AchievementsPage = () => {
   };
 
   const getProgressToNextLevel = () => {
-    const currentLevel = userStats.level || 1;
-    const currentXP = userStats.xp || 0;
+    const currentLevel = userStats?.current_level || 1;
+    const currentXP = userStats?.total_xp || 0;
     const xpForCurrentLevel = Math.pow(currentLevel - 1, 2) * 100;
     const xpForNextLevel = Math.pow(currentLevel, 2) * 100;
     const xpNeeded = xpForNextLevel - xpForCurrentLevel;
@@ -99,11 +41,10 @@ const AchievementsPage = () => {
     return Math.max(0, Math.min(100, (xpProgress / xpNeeded) * 100));
   };
 
-  const AchievementBadge = ({ type, unlocked, progress = 0, onClick }) => {
-    const achievement = achievementTypes[type];
+  const AchievementBadge = ({ achievement, unlocked, onClick }) => {
     if (!achievement) return null;
 
-    const IconComponent = achievement.icon;
+    const gradient = getAchievementGradient(achievement.tier);
 
     return (
       <motion.div
@@ -112,15 +53,15 @@ const AchievementsPage = () => {
         onClick={() => onClick && onClick(achievement)}
         className={`relative p-4 rounded-2xl border-2 cursor-pointer transition-all ${
           unlocked 
-            ? `bg-gradient-to-br ${achievement.color} border-white/20 shadow-lg`
+            ? `bg-gradient-to-br ${gradient} border-white/20 shadow-lg`
             : 'bg-slate-800/50 border-slate-700 grayscale opacity-60'
         }`}
       >
-        {/* Badge Icon */}
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${
+        {/* Badge Icon / Emoji */}
+        <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl ${
           unlocked ? 'bg-white/20' : 'bg-slate-700'
         }`}>
-          <IconComponent className={`w-6 h-6 ${unlocked ? 'text-white' : 'text-slate-400'}`} />
+          {achievement.icon || getTierEmoji(achievement.tier)}
         </div>
 
         {/* Badge Info */}
@@ -132,26 +73,35 @@ const AchievementsPage = () => {
             {achievement.description}
           </p>
           
-          {!unlocked && progress > 0 && (
-            <div className="mt-2">
-              <div className="w-full bg-slate-700 rounded-full h-1">
-                <div 
-                  className="bg-cyan-500 h-1 rounded-full transition-all"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <span className="text-xs text-slate-400">{progress.toFixed(0)}%</span>
-            </div>
-          )}
+          <div className={`mt-2 text-xs font-medium ${unlocked ? 'text-white/80' : 'text-slate-400'}`}>
+            +{achievement.xp_reward} XP
+          </div>
         </div>
 
         {unlocked && (
           <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-            <Star className="w-3 h-3 text-white fill-current" />
+            <CheckCircle className="w-3 h-3 text-white fill-current" />
+          </div>
+        )}
+
+        {!unlocked && (
+          <div className="absolute -top-1 -right-1 w-6 h-6 bg-slate-700 rounded-full flex items-center justify-center">
+            <Lock className="w-3 h-3 text-slate-400" />
           </div>
         )}
       </motion.div>
     );
+  };
+
+  const getTierEmoji = (tier) => {
+    const emojis = {
+      bronze: '🥉',
+      silver: '🥈',
+      gold: '🥇',
+      platinum: '👑',
+      diamond: '💎'
+    };
+    return emojis[tier] || '🏆';
   };
 
   const LeaderboardItem = ({ user, rank, stats }) => (
@@ -216,7 +166,7 @@ const AchievementsPage = () => {
     </div>
   );
   
-  const isLoading = statsLoading || achievementsLoading;
+  const isLoading = statsLoading || libraryLoading || unlockedLoading;
 
   if (isLoading) {
     return (
@@ -248,12 +198,12 @@ const AchievementsPage = () => {
                 </AvatarFallback>
               </Avatar>
               <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 px-3 py-1 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full">
-                <span className="text-white font-bold text-sm">Nivel {userStats.level || 1}</span>
+                <span className="text-white font-bold text-sm">Nivel {userStats?.current_level || 1}</span>
               </div>
             </div>
             
             <h1 className="text-3xl font-bold text-white mb-2">
-              {(userStats.xp || 0).toLocaleString()} XP
+              {(userStats?.total_xp || 0).toLocaleString()} XP
             </h1>
             <div className="w-64 mx-auto bg-slate-700 rounded-full h-3 mb-2">
               <div 
@@ -262,7 +212,7 @@ const AchievementsPage = () => {
               />
             </div>
             <p className="text-blue-300">
-              {(getXPForNextLevel(userStats.level || 1) - (userStats.xp || 0)).toLocaleString()} XP para el siguiente nivel
+              {(getXPForNextLevel(userStats?.current_level || 1) - (userStats?.total_xp || 0)).toLocaleString()} XP para el siguiente nivel
             </p>
           </motion.div>
 
@@ -277,21 +227,34 @@ const AchievementsPage = () => {
             {/* Achievements Tab */}
             <TabsContent value="achievements" className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-white mb-6">Tus Logros</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {Object.keys(achievementTypes).map(type => {
-                    const unlocked = achievements.some(a => a.achievement_type === type);
-                    
-                    return (
-                      <AchievementBadge
-                        key={type}
-                        type={type}
-                        unlocked={unlocked}
-                        onClick={setSelectedBadge}
-                      />
-                    );
-                  })}
-                </div>
+                <h2 className="text-2xl font-bold text-white mb-6">Tus Logros ({achievementsLibrary.length})</h2>
+                
+                {libraryLoading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-2 border-cyan-500 border-t-transparent"></div>
+                  </div>
+                ) : achievementsLibrary.length === 0 ? (
+                  <div className="text-center py-12 bg-slate-900/50 rounded-2xl border border-white/10">
+                    <Trophy className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-2">No hay logros disponibles</h3>
+                    <p className="text-blue-400">¡Intenta más tarde!</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {achievementsLibrary.map((achievement) => {
+                      const unlocked = unlockedIds.includes(achievement.achievement_id);
+                      
+                      return (
+                        <AchievementBadge
+                          key={achievement.achievement_id}
+                          achievement={achievement}
+                          unlocked={unlocked}
+                          onClick={setSelectedBadge}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Stats */}
@@ -299,19 +262,19 @@ const AchievementsPage = () => {
                 <h3 className="text-xl font-bold text-white mb-4">Estadísticas</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-cyan-400">{userStats.total_catches || 0}</p>
+                    <p className="text-2xl font-bold text-cyan-400">{userStats?.total_catches || 0}</p>
                     <p className="text-blue-300 text-sm">Capturas</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-green-400">{userStats.total_posts || 0}</p>
+                    <p className="text-2xl font-bold text-green-400">{userStats?.total_posts || 0}</p>
                     <p className="text-blue-300 text-sm">Posts</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-purple-400">{userStats.spots_visited || 0}</p>
+                    <p className="text-2xl font-bold text-purple-400">{userStats?.spots_visited || 0}</p>
                     <p className="text-blue-300 text-sm">Spots</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-orange-400">{userStats.current_streak || 0}</p>
+                    <p className="text-2xl font-bold text-orange-400">{userStats?.current_streak || 0}</p>
                     <p className="text-blue-300 text-sm">Racha</p>
                   </div>
                 </div>
@@ -372,13 +335,21 @@ const AchievementsPage = () => {
                 className="bg-slate-900 border border-white/10 rounded-2xl p-8 max-w-md w-full text-center"
                 onClick={e => e.stopPropagation()}
               >
-                <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${selectedBadge.color} flex items-center justify-center mx-auto mb-4`}>
-                  <selectedBadge.icon className="w-10 h-10 text-white" />
+                <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${getAchievementGradient(selectedBadge.tier)} flex items-center justify-center mx-auto mb-4 text-4xl`}>
+                  {getTierEmoji(selectedBadge.tier)}
                 </div>
                 
                 <h3 className="text-2xl font-bold text-white mb-2">{selectedBadge.name}</h3>
                 <p className="text-blue-300 mb-4">{selectedBadge.description}</p>
-                <p className="text-cyan-400 font-bold">+{selectedBadge.xp} XP</p>
+                
+                <div className="mb-4 space-y-2 text-sm">
+                  <p className="text-cyan-400 font-bold">+{selectedBadge.xp_reward} XP</p>
+                  <p className="text-slate-400 capitalize">Tipo: {selectedBadge.condition_type}</p>
+                  {selectedBadge.condition_value && (
+                    <p className="text-slate-400">Meta: {selectedBadge.condition_value}</p>
+                  )}
+                  <p className="text-purple-400 font-medium capitalize">{selectedBadge.tier}</p>
+                </div>
 
                 <Button 
                   onClick={() => setSelectedBadge(null)}
