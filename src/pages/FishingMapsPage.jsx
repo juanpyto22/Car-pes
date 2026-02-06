@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { MapPin, Navigation, Fish, Eye, Star, Filter, Plus, Search, X, Map as MapIcon, Layers, Zap, HelpCircle, Smartphone, Home } from 'lucide-react';
+import { MapPin, Navigation, Fish, Eye, Star, Filter, Plus, Search, X, Map as MapIcon, Layers, Zap, HelpCircle, Smartphone, Home, Clock, Heart, Bookmark, ChevronRight, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -70,6 +70,20 @@ const FishingMapsPage = () => {
   const [mapCenter, setMapCenter] = useState([40.4168, -3.7038]); // Madrid
   const [mapZoom, setMapZoom] = useState(6);
   const [showSearchMenu, setShowSearchMenu] = useState(false);
+  const [searchHistory, setSearchHistory] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('fishingSearchHistory')) || [];
+    } catch {
+      return [];
+    }
+  });
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('fishingFavorites')) || [];
+    } catch {
+      return [];
+    }
+  });
   const searchInputRef = useRef(null);
   
   // Filtros
@@ -212,6 +226,8 @@ const FishingMapsPage = () => {
     setMapCenter([location.latitude, location.longitude]);
     setMapZoom(10);
     setShowSearchMenu(false);
+    // Guardar en historial
+    addToSearchHistory(location.name);
     setSearchQuery('');
   };
 
@@ -230,10 +246,16 @@ const FishingMapsPage = () => {
 
   // Filtros rápidos preestablecidos
   const quickFilters = [
-    { label: '🏞️ Ríos', type: 'río', country: 'España' },
-    { label: '💧 Embalses', type: 'embalse', country: 'España' },
-    { label: '🌊 Mares', type: 'mar', country: 'España' },
-    { label: '🏔️ Patagonia', type: 'all', country: 'Argentina' },
+    // España
+    { label: '🏞️ Ríos España', type: 'río', country: 'España' },
+    { label: '💧 Embalses España', type: 'embalse', country: 'España' },
+    { label: '🏔️ Lagos España', type: 'lago', country: 'España' },
+    { label: '🌊 Mares España', type: 'mar', country: 'España' },
+    // Latinoamérica
+    { label: '🏔️ Patagonia Argentina', type: 'all', country: 'Argentina' },
+    { label: '🌴 México Todos', type: 'all', country: 'México' },
+    { label: '🌊 Perú Todos', type: 'all', country: 'Perú' },
+    { label: '🏞️ Chile Todos', type: 'all', country: 'Chile' },
   ];
 
   const applyQuickFilter = (quickFilter) => {
@@ -244,6 +266,201 @@ const FishingMapsPage = () => {
     });
     setShowFilters(false);
   };
+
+  // Agregar búsqueda al historial
+  const addToSearchHistory = (query) => {
+    if (!query.trim()) return;
+    
+    const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 10);
+    setSearchHistory(newHistory);
+    localStorage.setItem('fishingSearchHistory', JSON.stringify(newHistory));
+  };
+
+  // Toggle favorito
+  const toggleFavorite = (location) => {
+    const isFavorite = favorites.some(
+      fav => fav.name === location.name && fav.latitude === location.latitude
+    );
+    
+    let newFavorites;
+    if (isFavorite) {
+      newFavorites = favorites.filter(
+        fav => !(fav.name === location.name && fav.latitude === location.latitude)
+      );
+      toast({
+        title: "Quitado de favoritos",
+        description: location.name
+      });
+    } else {
+      newFavorites = [location, ...favorites];
+      toast({
+        title: "Añadido a favoritos",
+        description: location.name
+      });
+    }
+    
+    setFavorites(newFavorites);
+    localStorage.setItem('fishingFavorites', JSON.stringify(newFavorites));
+  };
+
+  // Verificar si un lugar es favorito
+  const isFavorite = (location) => {
+    return favorites.some(
+      fav => fav.name === location.name && fav.latitude === location.latitude
+    );
+  };
+
+  // Componente Panel de Ayuda
+  const HelpPanel = () => (
+    <AnimatePresence>
+      {showHelp && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 z-50"
+          onClick={() => setShowHelp(false)}
+        >
+          <motion.div
+            initial={{ x: -400 }}
+            animate={{ x: 0 }}
+            exit={{ x: -400 }}
+            className="absolute left-0 top-0 h-full w-96 bg-slate-900 border-r border-white/10 overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-6 space-y-6">
+              {/* Encabezado */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <HelpCircle className="w-5 h-5 text-cyan-400" />
+                  Guía del Mapa
+                </h2>
+                <button
+                  onClick={() => setShowHelp(false)}
+                  className="text-white/60 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Tutorial pasos */}
+              <div className="space-y-4">
+                {/* Búsqueda */}
+                <div className="bg-blue-900/20 p-4 rounded-lg border border-blue-500/30">
+                  <h3 className="font-semibold text-cyan-400 flex items-center gap-2 mb-2">
+                    <Search className="w-4 h-4" />
+                    Búsqueda Rápida
+                  </h3>
+                  <p className="text-blue-300 text-sm mb-2">
+                    Escribe el nombre del lugar, región o tipo de pesca.
+                  </p>
+                  <ul className="text-blue-200 text-xs space-y-1 ml-4">
+                    <li>• Se muestran 6 sugerencias mientras escribes</li>
+                    <li>• Haz click o presiona Enter para ir</li>
+                    <li>• Atajo: <code className="bg-black/30 px-2 rounded">Ctrl+K</code></li>
+                  </ul>
+                </div>
+
+                {/* Filtros Rápidos */}
+                <div className="bg-green-900/20 p-4 rounded-lg border border-green-500/30">
+                  <h3 className="font-semibold text-green-400 flex items-center gap-2 mb-2">
+                    <Zap className="w-4 h-4" />
+                    Filtros Rápidos
+                  </h3>
+                  <p className="text-green-300 text-sm">
+                    Acceso de 1 clic a búsquedas populares:
+                  </p>
+                  <ul className="text-green-200 text-xs space-y-1 ml-4 mt-2">
+                    <li>🏞️ Todos los ríos de España</li>
+                    <li>💧 Embalses con mayor capacidad</li>
+                    <li>🌊 Costas y zonas marítimas</li>
+                    <li>🏔️ Regiones como Patagonia</li>
+                  </ul>
+                </div>
+
+                {/* Filtros Personalizados */}
+                <div className="bg-purple-900/20 p-4 rounded-lg border border-purple-500/30">
+                  <h3 className="font-semibold text-purple-400 flex items-center gap-2 mb-2">
+                    <Layers className="w-4 h-4" />
+                    Filtros Avanzados
+                  </h3>
+                  <p className="text-purple-300 text-sm">
+                    Abre "Filtros" para:
+                  </p>
+                  <ul className="text-purple-200 text-xs space-y-1 ml-4 mt-2">
+                    <li>• Seleccionar país específico</li>
+                    <li>• Elegir tipo de lugar (río, lago, mar...)</li>
+                    <li>• Ver conteo de resultados</li>
+                    <li>• Resetear a valores por defecto</li>
+                  </ul>
+                </div>
+
+                {/* Favoritos */}
+                <div className="bg-red-900/20 p-4 rounded-lg border border-red-500/30">
+                  <h3 className="font-semibold text-red-400 flex items-center gap-2 mb-2">
+                    <Heart className="w-4 h-4" />
+                    Guardar Favoritos
+                  </h3>
+                  <p className="text-red-300 text-sm">
+                    Haz click en el corazón de cualquier lugar para guardarlo. Los favoritos se sincronizan automáticamente.
+                  </p>
+                </div>
+
+                {/* Historial */}
+                <div className="bg-orange-900/20 p-4 rounded-lg border border-orange-500/30">
+                  <h3 className="font-semibold text-orange-400 flex items-center gap-2 mb-2">
+                    <Clock className="w-4 h-4" />
+                    Historial
+                  </h3>
+                  <p className="text-orange-300 text-sm">
+                    Tus últimas 10 búsquedas se guardan automáticamente. Aparecen en el menú de sugerencias.
+                  </p>
+                </div>
+
+                {/* Mapeo */}
+                <div className="bg-cyan-900/20 p-4 rounded-lg border border-cyan-500/30">
+                  <h3 className="font-semibold text-cyan-400 flex items-center gap-2 mb-2">
+                    <MapPin className="w-4 h-4" />
+                    Navegación
+                  </h3>
+                  <ul className="text-cyan-200 text-xs space-y-1 ml-4">
+                    <li>• Haz zoom con rueda del ratón</li>
+                    <li>• Arrastra para mover el mapa</li>
+                    <li>• Click en marcador = detalles</li>
+                    <li>• Botón "Ir al lugar" = Google Maps</li>
+                  </ul>
+                </div>
+
+                {/* Atajos */}
+                <div className="bg-indigo-900/20 p-4 rounded-lg border border-indigo-500/30">
+                  <h3 className="font-semibold text-indigo-400 mb-2">⌨️ Atajos de Teclado</h3>
+                  <ul className="text-indigo-200 text-xs space-y-1">
+                    <li><code className="bg-black/30 px-2 rounded">Ctrl+K</code> - Enfoca búsqueda</li>
+                    <li><code className="bg-black/30 px-2 rounded">Escape</code> - Cierra menús</li>
+                    <li><code className="bg-black/30 px-2 rounded">Enter</code> - Ir al primer resultado</li>
+                  </ul>
+                </div>
+
+                {/* Tips */}
+                <div className="bg-yellow-900/20 p-4 rounded-lg border border-yellow-500/30">
+                  <h3 className="font-semibold text-yellow-400 flex items-center gap-2 mb-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Tips Pro
+                  </h3>
+                  <ul className="text-yellow-200 text-xs space-y-1 ml-4">
+                    <li>✨ Combina búsqueda + filtros para resultados precisos</li>
+                    <li>✨ Busca por región: "Asturias", "Tajo"...</li>
+                    <li>✨ Los favoritos se guardan en tu navegador</li>
+                    <li>✨ Permite ubicación para ver distancia</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   const SpotDetailsModal = ({ spot, onClose }) => (
     <AnimatePresence>
@@ -451,6 +668,18 @@ const FishingMapsPage = () => {
               </Button>
               <Button 
                 variant="outline"
+                onClick={() => toggleFavorite(location)}
+                className={`flex-1 ${
+                  isFavorite(location)
+                    ? 'bg-red-900/30 border-red-500/50 text-red-300 hover:bg-red-900/50'
+                    : 'text-white/60 hover:text-red-400'
+                }`}
+              >
+                <Heart className={`w-4 h-4 mr-2 ${isFavorite(location) ? 'fill-current' : ''}`} />
+                {isFavorite(location) ? 'Guardado' : 'Guardar'}
+              </Button>
+              <Button 
+                variant="outline"
                 className="flex-1"
                 onClick={onClose}
               >
@@ -542,29 +771,105 @@ const FishingMapsPage = () => {
                   )}
 
                   {/* Menú desplegable de sugerencias */}
-                  {showSearchMenu && searchSuggestions.length > 0 && (
+                  {showSearchMenu && (
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-white/20 rounded-lg shadow-2xl overflow-hidden z-50"
                     >
-                      <div className="max-h-64 overflow-y-auto">
-                        {searchSuggestions.map((location, idx) => (
-                          <button
-                            key={`${location.name}-${location.latitude}`}
-                            onClick={() => handleSelectLocation(location)}
-                            className="w-full px-4 py-2.5 text-left border-b border-white/5 hover:bg-blue-900/30 transition flex items-center gap-3"
-                          >
-                            <span className="text-xl flex-shrink-0">{getLocationIcon(location.type)}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-white font-medium truncate">{location.name}</div>
-                              <div className="text-blue-400 text-xs">{location.region}</div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {/* Sugerencias */}
+                        {searchSuggestions.length > 0 && (
+                          <>
+                            {searchSuggestions.map((location, idx) => (
+                              <button
+                                key={`${location.name}-${location.latitude}`}
+                                onClick={() => handleSelectLocation(location)}
+                                className="w-full px-4 py-2.5 text-left border-b border-white/5 hover:bg-blue-900/30 transition flex items-center gap-3"
+                              >
+                                <span className="text-xl flex-shrink-0">{getLocationIcon(location.type)}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-white font-medium truncate">{location.name}</div>
+                                  <div className="text-blue-400 text-xs">{location.region}</div>
+                                </div>
+                                {isFavorite(location) && <Heart className="w-4 h-4 text-red-400 flex-shrink-0" />}
+                              </button>
+                            ))}
+                            <div className="px-4 py-2 bg-slate-800/50 border-t border-white/5 text-blue-400 text-xs">
+                              {searchSuggestions.length} resultado{searchSuggestions.length > 1 ? 's' : ''}
                             </div>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="px-4 py-1.5 bg-slate-800/50 text-blue-400 text-xs">
-                        {searchSuggestions.length} resultado{searchSuggestions.length > 1 ? 's' : ''} · Presiona Enter para ir al primero
+                          </>
+                        )}
+
+                        {/* Historial de búsquedas */}
+                        {!searchQuery.trim() && searchHistory.length > 0 && (
+                          <>
+                            <div className="px-4 py-2 bg-slate-900 border-t border-white/5 text-orange-400 text-xs font-semibold flex items-center gap-2">
+                              <Clock className="w-3 h-3" />
+                              Historial Reciente
+                            </div>
+                            {searchHistory.slice(0, 5).map((historyItem, idx) => {
+                              const historyLocation = fishingLocations.find(
+                                loc => loc.name === historyItem
+                              );
+                              return historyLocation ? (
+                                <button
+                                  key={`history-${idx}`}
+                                  onClick={() => {
+                                    setSearchQuery(historyItem);
+                                    handleSelectLocation(historyLocation);
+                                  }}
+                                  className="w-full px-4 py-2 text-left border-b border-white/5 hover:bg-orange-900/20 transition flex items-center gap-3 text-sm"
+                                >
+                                  <Clock className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-white truncate">{historyItem}</div>
+                                  </div>
+                                  <ChevronRight className="w-3 h-3 text-white/40 flex-shrink-0" />
+                                </button>
+                              ) : null;
+                            })}
+                          </>
+                        )}
+
+                        {/* Favoritos */}
+                        {!searchQuery.trim() && favorites.length > 0 && (
+                          <>
+                            <div className="px-4 py-2 bg-slate-900 border-t border-white/5 text-red-400 text-xs font-semibold flex items-center gap-2">
+                              <Heart className="w-3 h-3" />
+                              Mis Favoritos
+                            </div>
+                            {favorites.slice(0, 5).map((fav, idx) => (
+                              <button
+                                key={`fav-${idx}`}
+                                onClick={() => handleSelectLocation(fav)}
+                                className="w-full px-4 py-2 text-left border-b border-white/5 hover:bg-red-900/20 transition flex items-center gap-3"
+                              >
+                                <span className="text-xl flex-shrink-0">{getLocationIcon(fav.type)}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-white font-medium truncate">{fav.name}</div>
+                                  <div className="text-red-400 text-xs">{fav.region}</div>
+                                </div>
+                                <Heart className="w-4 h-4 text-red-400 flex-shrink-0 fill-current" />
+                              </button>
+                            ))}
+                          </>
+                        )}
+
+                        {/* Empty state */}
+                        {searchSuggestions.length === 0 && !searchQuery.trim() && searchHistory.length === 0 && (
+                          <div className="px-4 py-6 text-center text-blue-400 text-sm">
+                            <p>Escribe para buscar o agrega favoritos</p>
+                          </div>
+                        )}
+
+                        {/* No resultados */}
+                        {searchSuggestions.length === 0 && searchQuery.trim() && (
+                          <div className="px-4 py-4 text-center text-blue-400 text-sm">
+                            <p>No se encontraron lugares para "{searchQuery}"</p>
+                            <p className="text-xs mt-2">Intenta con otro término o abre Filtros</p>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -830,6 +1135,9 @@ const FishingMapsPage = () => {
           </div>
         )}
       </div>
+      
+      {/* Panel de Ayuda */}
+      <HelpPanel />
     </>
   );
 };
