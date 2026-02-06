@@ -15,25 +15,13 @@ export const useStories = (currentUser) => {
     }
 
     try {
-      // Obtener usuarios seguidos
-      const { data: followedUsers } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', currentUser.id);
-
-      const followedIds = followedUsers?.map(f => f.following_id) || [];
-      const allUserIds = [...followedIds, currentUser.id];
-
-      // Obtener stories activas (no expiradas)
+      // Obtener TODAS las stories activas (no expiradas) de todos los usuarios
       const { data: storiesData, error } = await supabase
         .from('stories')
         .select(`
           *,
-          user:profiles!user_id(id, username, foto_perfil),
-          likes_count:story_likes(count),
-          user_liked:story_likes!inner(user_id)
+          user:profiles!user_id(id, username, foto_perfil)
         `)
-        .in('user_id', allUserIds)
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 

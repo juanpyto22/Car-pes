@@ -25,21 +25,18 @@ const StoriesBar = () => {
     }
     
     try {
-      console.log('Fetching stories...');
-      
-      // Obtener stories (con manejo de errores si la tabla no existe)
+      // Obtener TODAS las stories activas (no expiradas) de todos los usuarios
       const { data: storiesData, error } = await supabase
         .from('stories')
         .select(`
           *,
-          profiles(id, username, foto_perfil, nombre)
+          user:profiles!user_id(id, username, foto_perfil, nombre)
         `)
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Stories table error:', error);
-        // Si la tabla no existe, mostrar stories simuladas
         setStories([]);
         setMyStories([]);
         setLoading(false);
@@ -48,33 +45,35 @@ const StoriesBar = () => {
 
       // Agrupar por usuario
       const groupedStories = {};
-      storiesData?.forEach(story => {
-        const userId = story.user_id;
-        if (!groupedStories[userId]) {
-          groupedStories[userId] = {
-            user: story.user,
+      (storiesData || []).forEach(story => {
+        const uid = story.user_id;
+        if (!groupedStories[uid]) {
+          groupedStories[uid] = {
+            user: story.user || { id: uid, username: 'usuario' },
             stories: [],
             hasUnseen: false
           };
         }
-        groupedStories[userId].stories.push(story);
+        groupedStories[uid].stories.push(story);
         
         // Verificar si hay stories no vistas
         if (!story.viewed_by?.includes(user.id)) {
-          groupedStories[userId].hasUnseen = true;
+          groupedStories[uid].hasUnseen = true;
         }
       });
 
       const grouped = Object.values(groupedStories);
       
       // Separar propias stories
-      const myStoriesGroup = grouped.find(g => g.user.id === user.id);
-      const otherStories = grouped.filter(g => g.user.id !== user.id);
+      const myStoriesGroup = grouped.find(g => g.user?.id === user.id);
+      const otherStories = grouped.filter(g => g.user?.id !== user.id);
       
       setMyStories(myStoriesGroup?.stories || []);
       setStories(otherStories);
     } catch (error) {
       console.error('Error fetching stories:', error);
+      setStories([]);
+      setMyStories([]);
     } finally {
       setLoading(false);
     }
@@ -95,11 +94,11 @@ const StoriesBar = () => {
         >
           <div className={`relative ${
             hasUnseen 
-              ? 'ring-4 ring-gradient-to-r from-purple-500 to-pink-500' 
+              ? 'ring-[3px] ring-pink-500' 
               : hasStories 
-                ? 'ring-2 ring-gray-400' 
+                ? 'ring-2 ring-gray-500' 
                 : ''
-          } rounded-full`}>
+          } rounded-full p-0.5`}>
             <Avatar className="w-16 h-16 border-2 border-background">
               <AvatarImage 
                 src={isOwn ? profile?.foto_perfil : storyGroup?.user?.foto_perfil} 
@@ -165,8 +164,8 @@ const StoriesBar = () => {
         ))}
         
         {stories.length === 0 && myStories.length === 0 && (
-          <div className="flex-1 text-center py-8">
-            <p className="text-blue-400 text-sm">
+          <div className="flex items-center justify-center px-4">
+            <p className="text-blue-400/60 text-sm whitespace-nowrap">
               ¡Sé el primero en compartir una historia!
             </p>
           </div>

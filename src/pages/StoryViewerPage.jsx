@@ -283,7 +283,23 @@ const StoryViewer = () => {
         className="relative w-full h-full flex items-center justify-center"
         onClick={togglePause}
       >
-        {currentStory.media_type === 'video' ? (
+        {currentStory.media_type === 'text' || (!currentStory.media_url && currentStory.background_gradient) ? (
+          <div 
+            className="w-full h-full flex items-center justify-center p-8"
+            style={{ background: currentStory.background_gradient || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+          >
+            <p 
+              className="text-center max-w-lg"
+              style={{
+                fontSize: `${currentStory.text_size || 24}px`,
+                color: currentStory.text_color || '#ffffff',
+                fontWeight: currentStory.text_bold ? 'bold' : 'normal'
+              }}
+            >
+              {currentStory.text_content}
+            </p>
+          </div>
+        ) : currentStory.media_type === 'video' ? (
           <video
             ref={videoRef}
             src={currentStory.media_url}
@@ -293,17 +309,21 @@ const StoryViewer = () => {
             onEnded={nextStory}
             onLoadedData={startProgress}
           />
-        ) : (
+        ) : currentStory.media_url ? (
           <img
             src={currentStory.media_url}
             alt="Story"
             className="w-full h-full object-contain"
             onLoad={startProgress}
           />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-slate-800">
+            <p className="text-white/50">Sin contenido</p>
+          </div>
         )}
         
-        {/* Text overlay if exists */}
-        {currentStory.text_content && (
+        {/* Text overlay if exists on media stories */}
+        {currentStory.text_content && currentStory.media_url && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div 
               className="bg-black/30 backdrop-blur-sm rounded-2xl p-6 max-w-sm text-center"

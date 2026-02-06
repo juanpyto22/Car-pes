@@ -14,48 +14,16 @@ const FeedPage = () => {
   const navigate = useNavigate();
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [followedIds, setFollowedIds] = useState([]);
   const observer = useRef();
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 20;
 
+  // Cargar TODOS los posts (como Instagram), no solo los de seguidos
   const { posts, loading, error, toggleLike, refetch, appendPosts } = usePosts({
-    userIds: followedIds,
     limit: PAGE_SIZE
   });
 
-  // Cargar IDs de usuarios seguidos
-  useEffect(() => {
-    if (!user?.id) {
-      return;
-    }
-
-    const fetchFollowedIds = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', user.id);
-
-        if (error) throw error;
-        const ids = data ? data.map(f => f.following_id) : [];
-        ids.push(user.id);
-        setFollowedIds(ids);
-      } catch (error) {
-        console.error('Error fetching followed users:', error);
-        setFollowedIds([user.id]);
-      }
-    };
-
-    fetchFollowedIds();
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (followedIds.length === 0) return;
-    setHasMore(true);
-  }, [followedIds.join(',')]);
-
   const fetchMorePosts = async () => {
-    if (loadingMore || !hasMore || followedIds.length === 0) return;
+    if (loadingMore || !hasMore) return;
 
     try {
       setLoadingMore(true);
@@ -74,14 +42,13 @@ const FeedPage = () => {
             foto_perfil
           )
         `)
-        .in('user_id', followedIds)
         .order('created_at', { ascending: false })
         .range(from, to);
 
       if (error) throw error;
 
-      if (data.length < PAGE_SIZE) setHasMore(false);
-      appendPosts(data);
+      if (!data || data.length < PAGE_SIZE) setHasMore(false);
+      if (data?.length > 0) appendPosts(data);
     } catch (error) {
       console.error('Error cargando más posts:', error);
     } finally {
@@ -101,10 +68,7 @@ const FeedPage = () => {
   }, [loading, loadingMore, hasMore]);
 
   const handleRefresh = async () => {
-    if (followedIds.length === 0) return;
-    
     try {
-      // Usar la función refetch del hook usePosts en lugar de manejar estado local
       await refetch();
       setHasMore(true);
     } catch (error) {
@@ -172,22 +136,22 @@ const FeedPage = () => {
                 <span className="text-5xl">🐟</span>
               </div>
               
-              <h3 className="text-2xl font-bold text-white mb-3">¡Está muy tranquilo aquí!</h3>
+              <h3 className="text-2xl font-bold text-white mb-3">¡Comparte tu primera captura!</h3>
               <p className="text-blue-300 mb-8 max-w-sm mx-auto">
-                {error ? 
-                  'No se pudieron cargar los posts. Verifica tu conexión a internet.' :
-                  'Sigue a otros pescadores o comparte tu primera captura para ver actividad en tu feed.'
+                {error 
+                  ? 'No se pudieron cargar los posts. Verifica tu conexión a internet.'
+                  : 'Sé el primero en compartir una captura con la comunidad.'
                 }
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Link to="/explore">
+                <Link to="/create-post">
                   <Button className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl shadow-lg shadow-cyan-900/20 w-full sm:w-auto">
-                    Explorar Comunidad
+                    <Plus className="w-4 h-4 mr-2" /> Crear publicación
                   </Button>
                 </Link>
-                <Link to="/create-post">
+                <Link to="/explore">
                   <Button variant="outline" className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 rounded-xl w-full sm:w-auto">
-                    Crear mi primer post
+                    Explorar Comunidad
                   </Button>
                 </Link>
               </div>
