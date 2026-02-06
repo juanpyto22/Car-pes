@@ -31,13 +31,13 @@ const FollowersModal = ({ isOpen, onClose, userId, type = 'followers', username 
         // Usuarios que siguen a userId
         query = supabase
           .from('follows')
-          .select('follower:users!follower_id(*)')
+          .select('follower:profiles!follower_id(*)')
           .eq('following_id', userId);
       } else {
         // Usuarios a los que sigue userId
         query = supabase
           .from('follows')
-          .select('following:users!following_id(*)')
+          .select('following:profiles!following_id(*)')
           .eq('follower_id', userId);
       }
 

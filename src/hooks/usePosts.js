@@ -185,15 +185,7 @@ export const usePosts = (options = {}) => {
           user_id: user.id,
           ...postData
         })
-        .select(`
-          *,
-          user:profiles(
-            id,
-            username,
-            nombre,
-            foto_perfil
-          )
-        `);
+        .select('*');
 
       if (error) throw error;
 
