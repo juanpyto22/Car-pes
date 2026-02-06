@@ -72,15 +72,19 @@ const FishingMapsPage = () => {
   const [showSearchMenu, setShowSearchMenu] = useState(false);
   const [searchHistory, setSearchHistory] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('fishingSearchHistory')) || [];
-    } catch {
+      const stored = localStorage.getItem('fishingSearchHistory');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Error loading search history:', error);
       return [];
     }
   });
   const [favorites, setFavorites] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('fishingFavorites')) || [];
-    } catch {
+      const stored = localStorage.getItem('fishingFavorites');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Error loading favorites:', error);
       return [];
     }
   });
@@ -146,46 +150,8 @@ const FishingMapsPage = () => {
     }
   };
 
-  // Actualizar sugerencias de búsqueda en tiempo real
-  useEffect(() => {
-    if (searchQuery.trim().length >= 1) {
-      const query = searchQuery.toLowerCase();
-      const suggestions = filteredLocations
-        .filter(loc =>
-          loc.name.toLowerCase().includes(query) ||
-          loc.region.toLowerCase().includes(query)
-        )
-        .slice(0, 6);
-      setSearchSuggestions(suggestions);
-      setShowSearchMenu(true);
-    } else {
-      setSearchSuggestions([]);
-      setShowSearchMenu(false);
-    }
-  }, [searchQuery, filteredLocations]);
-
-  // Atajos de teclado
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Cmd/Ctrl + K para enfoque en búsqueda
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-      // ESC para cerrar menús
-      if (e.key === 'Escape') {
-        setShowSearchMenu(false);
-        setShowFilters(false);
-      }
-      // Enter en búsqueda para ir al primer resultado
-      if (e.key === 'Enter' && searchSuggestions.length > 0) {
-        handleSelectLocation(searchSuggestions[0]);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [searchSuggestions]);
+  // Filtrar ubicaciones por país, tipo y búsqueda
+  const filteredLocations = useMemo(() => {
     let result = [...fishingLocations];
 
     // Filtrar por país
@@ -210,6 +176,52 @@ const FishingMapsPage = () => {
 
     return result;
   }, [searchQuery, filters]);
+
+  // Actualizar sugerencias de búsqueda con debounce optimizado
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      if (searchQuery.trim().length >= 1) {
+        const query = searchQuery.toLowerCase();
+        const suggestions = filteredLocations
+          .filter(loc =>
+            loc.name.toLowerCase().includes(query) ||
+            loc.region.toLowerCase().includes(query)
+          )
+          .slice(0, 6);
+        setSearchSuggestions(suggestions);
+        setShowSearchMenu(true);
+      } else {
+        setSearchSuggestions([]);
+        setShowSearchMenu(false);
+      }
+    }, 150); // Debounce optimizado para responsividad
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery, filteredLocations]);
+
+  // Atajos de teclado
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Cmd/Ctrl + K para enfoque en búsqueda
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      // ESC para cerrar menús
+      if (e.key === 'Escape') {
+        setShowSearchMenu(false);
+        setShowFilters(false);
+        setShowHelp(false);
+      }
+      // Enter en búsqueda para ir al primer resultado
+      if (e.key === 'Enter' && searchSuggestions.length > 0) {
+        handleSelectLocation(searchSuggestions[0]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchSuggestions]);
 
   // Obtener países únicos
   const countries = useMemo(() => {
@@ -271,9 +283,13 @@ const FishingMapsPage = () => {
   const addToSearchHistory = (query) => {
     if (!query.trim()) return;
     
-    const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 10);
-    setSearchHistory(newHistory);
-    localStorage.setItem('fishingSearchHistory', JSON.stringify(newHistory));
+    try {
+      const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 10);
+      setSearchHistory(newHistory);
+      localStorage.setItem('fishingSearchHistory', JSON.stringify(newHistory));
+    } catch (error) {
+      console.error('Error saving search history:', error);
+    }
   };
 
   // Toggle favorito
@@ -282,25 +298,34 @@ const FishingMapsPage = () => {
       fav => fav.name === location.name && fav.latitude === location.latitude
     );
     
-    let newFavorites;
-    if (isFavorite) {
-      newFavorites = favorites.filter(
-        fav => !(fav.name === location.name && fav.latitude === location.latitude)
-      );
+    try {
+      let newFavorites;
+      if (isFavorite) {
+        newFavorites = favorites.filter(
+          fav => !(fav.name === location.name && fav.latitude === location.latitude)
+        );
+        toast({
+          title: "Quitado de favoritos",
+          description: location.name
+        });
+      } else {
+        newFavorites = [location, ...favorites];
+        toast({
+          title: "Añadido a favoritos",
+          description: location.name
+        });
+      }
+      
+      setFavorites(newFavorites);
+      localStorage.setItem('fishingFavorites', JSON.stringify(newFavorites));
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
       toast({
-        title: "Quitado de favoritos",
-        description: location.name
-      });
-    } else {
-      newFavorites = [location, ...favorites];
-      toast({
-        title: "Añadido a favoritos",
-        description: location.name
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo guardar el favorito"
       });
     }
-    
-    setFavorites(newFavorites);
-    localStorage.setItem('fishingFavorites', JSON.stringify(newFavorites));
   };
 
   // Verificar si un lugar es favorito
@@ -816,7 +841,6 @@ const FishingMapsPage = () => {
                                 <button
                                   key={`history-${idx}`}
                                   onClick={() => {
-                                    setSearchQuery(historyItem);
                                     handleSelectLocation(historyLocation);
                                   }}
                                   className="w-full px-4 py-2 text-left border-b border-white/5 hover:bg-orange-900/20 transition flex items-center gap-3 text-sm"
@@ -842,7 +866,10 @@ const FishingMapsPage = () => {
                             {favorites.slice(0, 5).map((fav, idx) => (
                               <button
                                 key={`fav-${idx}`}
-                                onClick={() => handleSelectLocation(fav)}
+                                onClick={() => {
+                                  handleSelectLocation(fav);
+                                  setShowSearchMenu(false);
+                                }}
                                 className="w-full px-4 py-2 text-left border-b border-white/5 hover:bg-red-900/20 transition flex items-center gap-3"
                               >
                                 <span className="text-xl flex-shrink-0">{getLocationIcon(fav.type)}</span>
