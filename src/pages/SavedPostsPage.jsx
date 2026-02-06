@@ -28,7 +28,7 @@ const SavedPostsPage = () => {
           .select(`
             id,
             created_at,
-            post:posts(
+            post:posts!saved_posts_post_id_fkey(
               id,
               foto_url,
               video_url,
@@ -37,7 +37,9 @@ const SavedPostsPage = () => {
               likes_count,
               comments_count,
               created_at,
-              user:profiles(id, username, foto_perfil)
+              user:profiles!posts_user_id_fkey(id, username, foto_perfil),
+              likes(count),
+              comments(count)
             )
           `)
           .eq('user_id', user.id)
@@ -45,23 +47,75 @@ const SavedPostsPage = () => {
 
         if (error) throw error;
         
-        // Filtrar posts que existen (por si se eliminaron)
         const validPosts = (data || []).filter(item => item.post !== null);
-        setSavedPosts(validPosts);
+        const normalized = validPosts.map(item => ({
+          ...item,
+          post: {
+            ...item.post,
+            likes_count: item.post.likes?.[0]?.count ?? item.post.likes_count ?? 0,
+            comments_count: item.post.comments?.[0]?.count ?? item.post.comments_count ?? 0
+          }
+        }));
+        setSavedPosts(normalized);
       } catch (error) {
-        console.error('Error cargando posts guardados:', error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudieron cargar los posts guardados"
-        });
+        try {
+          console.warn('Fallo join de guardados, usando fallback:', error.message);
+          const { data: savedData, error: savedError } = await supabase
+            .from('saved_posts')
+            .select('id, post_id, created_at')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
+
+          if (savedError) throw savedError;
+
+          const postIds = (savedData || []).map(item => item.post_id);
+          if (postIds.length === 0) {
+            setSavedPosts([]);
+            return;
+          }
+
+          const { data: postsData, error: postsError } = await supabase
+            .from('posts')
+            .select(`
+              *,
+              user:profiles(id, username, foto_perfil),
+              likes(count),
+              comments(count)
+            `)
+            .in('id', postIds);
+
+          if (postsError) throw postsError;
+
+          const postsById = new Map((postsData || []).map(post => [post.id, {
+            ...post,
+            likes_count: post.likes?.[0]?.count ?? post.likes_count ?? 0,
+            comments_count: post.comments?.[0]?.count ?? post.comments_count ?? 0
+          }]));
+
+          const merged = (savedData || [])
+            .map(item => ({
+              id: item.id,
+              created_at: item.created_at,
+              post: postsById.get(item.post_id) || null
+            }))
+            .filter(item => item.post !== null);
+
+          setSavedPosts(merged);
+        } catch (fallbackError) {
+          console.error('Error cargando posts guardados:', fallbackError);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "No se pudieron cargar los posts guardados"
+          });
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchSavedPosts();
-  }, [user?.id]);
+  }, [user?.id, toast]);
 
   const handleRemoveSaved = async (savedId, e) => {
     e.preventDefault();

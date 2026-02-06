@@ -56,6 +56,7 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
   };
 
   const checkSaved = async () => {
+    if (!user?.id) return;
     const { data } = await supabase
       .from('saved_posts')
       .select('id')
@@ -133,7 +134,7 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
       if (saved) {
         await supabase.from('saved_posts').delete().eq('post_id', post.id).eq('user_id', user.id);
       } else {
-        await supabase.from('saved_posts').insert([{ post_id: post.id, user_id: user.id }]);
+        await supabase.from('saved_posts').upsert({ post_id: post.id, user_id: user.id }, { onConflict: 'post_id,user_id' });
         toast({ title: "Guardado", description: "Post añadido a tu colección" });
       }
     } catch (error) {
