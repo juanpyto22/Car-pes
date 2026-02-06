@@ -16,13 +16,22 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
   realtime: {
     params: {
-      eventsPerSecond: 2,
+      eventsPerSecond: 1, // Reducir aún más para evitar rate limiting
+    },
+    // Deshabilitar heartbeat para reducir conexiones
+    heartbeatIntervalMs: 60000,
+    reconnectAfterMs: function(tries) {
+      return Math.min(tries * 1000, 30000); // Backoff más largo
     },
   },
   global: {
     headers: {
       'apikey': supabaseAnonKey,
     },
+  },
+  // Configuración más tolerante a errores
+  db: {
+    schema: 'public',
   },
 });
 

@@ -67,6 +67,26 @@ const SignupPage = () => {
     if (!validateForm()) return;
 
     setLoading(true);
+    setErrors({}); // Limpiar errores anteriores
+
+    // Verificar rate limiting local
+    const lastAttempt = localStorage.getItem('lastSignupAttempt');
+    const now = Date.now();
+    const cooldownTime = 2 * 60 * 1000; // 2 minutos
+    
+    if (lastAttempt && (now - parseInt(lastAttempt)) < cooldownTime) {
+      const remainingTime = Math.ceil((cooldownTime - (now - parseInt(lastAttempt))) / 1000 / 60);
+      toast({
+        variant: "destructive",
+        title: "Espera un momento",
+        description: `Puedes intentar de nuevo en ${remainingTime} minuto(s).`,
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Guardar timestamp del intento
+    localStorage.setItem('lastSignupAttempt', now.toString());
 
     const { error, needsEmailConfirmation } = await signUp(
       formData.email,
@@ -78,9 +98,21 @@ const SignupPage = () => {
     setLoading(false);
 
     if (error) {
-      let errorMessage = error.message;
-      if (errorMessage.includes("User already registered") || errorMessage.includes("already taken")) {
-        errorMessage = "Este email o usuario ya está registrado.";
+      let errorMessage = error.message || 'Error desconocido';
+      
+      // Mapear errores específicos
+      if (errorMessage.includes('rate limit') || errorMessage.includes('Too Many Requests')) {
+        errorMessage = "Has hecho demasiados intentos. Espera 5 minutos o usa un email diferente.";
+        setErrors({ email: 'Rate limit alcanzado' });
+      } else if (errorMessage.includes('already registered') || errorMessage.includes('already taken')) {
+        errorMessage = "Este email ya está registrado. Intenta iniciar sesión.";
+        setErrors({ email: 'Email ya registrado' });
+      } else if (errorMessage.includes('Invalid email')) {
+        errorMessage = "Email inválido. Usa un email real como gmail.com";
+        setErrors({ email: 'Email inválido' });
+      } else if (errorMessage.includes('Password')) {
+        errorMessage = "La contraseña es muy débil. Usa al menos 8 caracteres.";
+        setErrors({ password: 'Contraseña muy débil' });
       }
       
       toast({
@@ -91,7 +123,13 @@ const SignupPage = () => {
     } else if (needsEmailConfirmation) {
       setShowEmailConfirmation(true);
     } else {
-      navigate('/login');
+      // Éxito - limpiar localStorage y redirigir
+      localStorage.removeItem('lastSignupAttempt');
+      toast({
+        title: "✅ ¡Cuenta creada!",
+        description: "Ya puedes iniciar sesión",
+      });
+      setTimeout(() => navigate('/login'), 1500);
     }
   };
 

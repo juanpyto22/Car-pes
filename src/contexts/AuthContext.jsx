@@ -131,7 +131,10 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('Attempting signup...', { email, username, nombre });
       
-      // Crear usuario de Auth
+      // Añadir delay para evitar rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Crear usuario de Auth con configuración simplificada
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -139,12 +142,33 @@ export const AuthProvider = ({ children }) => {
           data: {
             username: username,
             nombre: nombre,
-          }
+          },
+          // Remover emailRedirectTo para evitar rate limiting
+          captchaToken: undefined
         }
       });
 
       if (error) {
         console.error('Auth signup error:', error);
+        
+        // Rate limit handling
+        if (error.message?.includes('rate limit') || error.message?.includes('Too Many Requests')) {
+          return { 
+            error: { 
+              message: 'Has hecho demasiados intentos. Espera 5 minutos e intenta de nuevo, o usa un email diferente.' 
+            } 
+          };
+        }
+        
+        // Email ya existe
+        if (error.message?.includes('already') || error.message?.includes('exists')) {
+          return { 
+            error: { 
+              message: 'Este email ya está registrado. Intenta iniciar sesión o usa otro email.' 
+            } 
+          };
+        }
+        
         throw error;
       }
 
@@ -164,6 +188,9 @@ export const AuthProvider = ({ children }) => {
 
         console.log('Creating profile...', profileData);
         
+        // Añadir delay antes de crear perfil
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const { error: profileError } = await supabase
           .from('profiles')
           .upsert(profileData, { onConflict: 'id' });
@@ -180,7 +207,7 @@ export const AuthProvider = ({ children }) => {
             title: '✅ ¡Cuenta creada exitosamente!',
             description: data.session ? 
               'Ya puedes empezar a usar Car-Pes.' : 
-              'Revisa tu email para confirmar tu cuenta.',
+              'Revisa tu email para confirmar tu cuenta (opcional).',
           });
         }
       }
@@ -188,7 +215,19 @@ export const AuthProvider = ({ children }) => {
       return { data, error: null, needsEmailConfirmation: data.user && !data.session };
     } catch (error) {
       console.error('Signup process error:', error);
-      return { error };
+      
+      // Manejo específico de errores comunes
+      let errorMessage = error.message;
+      
+      if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+        errorMessage = 'Demasiados intentos. Espera unos minutos o usa un email diferente.';
+      } else if (errorMessage.includes('Invalid email')) {
+        errorMessage = 'Email inválido. Verifica que sea un email real.';
+      } else if (errorMessage.includes('Password')) {
+        errorMessage = 'La contraseña debe tener al menos 6 caracteres.';
+      }
+      
+      return { error: { message: errorMessage } };
     }
   };
           });
