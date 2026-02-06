@@ -37,6 +37,10 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
     }
   }, [user?.id, post.id]);
 
+  useEffect(() => {
+    setCommentsCount(post.comments_count || 0);
+  }, [post.comments_count]);
+
   const fetchReactions = async () => {
     try {
       const { data, error } = await supabase

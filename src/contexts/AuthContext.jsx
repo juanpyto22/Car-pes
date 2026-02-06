@@ -52,8 +52,40 @@ export const AuthProvider = ({ children }) => {
         }
       }
       
-      setProfile(data);
-      return data;
+      let profileData = data;
+
+      try {
+        const [
+          { count: followersCount },
+          { count: followingCount },
+          { count: postsCount }
+        ] = await Promise.all([
+          supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('following_id', userId),
+          supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('follower_id', userId),
+          supabase
+            .from('posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+        ]);
+
+        profileData = {
+          ...profileData,
+          followers_count: followersCount ?? profileData?.followers_count ?? 0,
+          following_count: followingCount ?? profileData?.following_count ?? 0,
+          posts_count: postsCount ?? profileData?.posts_count ?? 0
+        };
+      } catch (countError) {
+        console.warn('No se pudieron calcular los contadores del perfil:', countError);
+      }
+
+      setProfile(profileData);
+      return profileData;
     } catch (error) {
       console.error('Error al cargar perfil:', error);
       // Crear perfil temporal para evitar crashes
@@ -299,6 +331,8 @@ export const AuthProvider = ({ children }) => {
         .eq('id', user.id);
 
       if (error) throw error;
+
+      setProfile(prev => (prev ? { ...prev, ...updates } : prev));
 
       await fetchProfile(user.id);
 

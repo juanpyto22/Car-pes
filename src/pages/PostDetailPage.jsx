@@ -29,8 +29,13 @@ const PostDetailPage = () => {
           .single();
 
         if (error) throw error;
-        setPost(data);
-        setLikesCount(data.likes_count || 0);
+        const computedLikes = data.likes?.[0]?.count ?? data.likes_count ?? 0;
+        setPost({
+          ...data,
+          likes_count: computedLikes,
+          comments_count: data.comments?.[0]?.count ?? data.comments_count ?? 0
+        });
+        setLikesCount(computedLikes);
       } catch (error) {
         console.error('Error fetching post:', error);
       } finally {
@@ -82,12 +87,6 @@ const PostDetailPage = () => {
            }]);
         }
       }
-
-      // Actualizar contador en la tabla posts
-      await supabase
-        .from('posts')
-        .update({ likes_count: newLikesCount })
-        .eq('id', postId);
 
     } catch (error) {
       console.error('Error al dar like:', error);

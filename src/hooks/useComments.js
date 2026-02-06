@@ -16,7 +16,7 @@ export const useComments = (postId) => {
         .from('comments')
         .select(`
           *, 
-          profiles(
+          user:profiles(
             id,
             username,
             nombre,
@@ -65,7 +65,7 @@ export const useComments = (postId) => {
         .insert([{ post_id: postId, user_id: userId, contenido: content }])
         .select(`
           *,
-          profiles(
+          user:profiles(
             id,
             username,
             nombre,

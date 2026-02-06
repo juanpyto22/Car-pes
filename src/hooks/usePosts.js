@@ -37,7 +37,9 @@ export const usePosts = (options = {}) => {
             username,
             nombre,
             foto_perfil
-          )
+          ),
+          likes(count),
+          comments(count)
         `)
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -62,7 +64,9 @@ export const usePosts = (options = {}) => {
               username,
               nombre,
               foto_perfil
-            )
+            ),
+            likes(count),
+            comments(count)
           `)
           .order('created_at', { ascending: false })
           .limit(limit);
@@ -80,7 +84,7 @@ export const usePosts = (options = {}) => {
           console.warn('Posts query with join failed, loading without profiles:', fallbackResult.error.message);
           let simpleQuery = supabase
             .from('posts')
-            .select('*')
+            .select('*, likes(count), comments(count)')
             .order('created_at', { ascending: false })
             .limit(limit);
 
@@ -98,7 +102,11 @@ export const usePosts = (options = {}) => {
         }
       }
       
-      let processedData = data || [];
+      let processedData = (data || []).map(post => ({
+        ...post,
+        likes_count: post.likes?.[0]?.count ?? post.likes_count ?? 0,
+        comments_count: post.comments?.[0]?.count ?? post.comments_count ?? 0
+      }));
       
       // Intentar obtener likes del usuario actual (no fallar si la tabla no existe)
       try {

@@ -54,7 +54,8 @@ const ProfilePage = () => {
         .select('*')
         .eq('id', targetUserId)
         .maybeSingle();
-      
+
+      let profileData = userData;
       if (userError) {
         console.error('Error cargando perfil:', userError);
         // Si falla la query, intentar con campos mínimos
@@ -63,31 +64,59 @@ const ProfilePage = () => {
           .select('id, username, nombre, email, foto_perfil, bio, ubicacion, followers_count, following_count, created_at')
           .eq('id', targetUserId)
           .maybeSingle();
-        
-        if (fallbackData) {
-          setProfile(fallbackData);
-        } else {
-          setProfile(null);
-          setLoading(false);
-          return;
-        }
-      } else if (!userData) {
+        profileData = fallbackData;
+      }
+
+      if (!profileData) {
         setProfile(null);
         setLoading(false);
         return;
-      } else {
-        setProfile(userData);
       }
+
+      let followersCount = profileData.followers_count || 0;
+      let followingCount = profileData.following_count || 0;
+
+      try {
+        const [
+          { count: followersExact },
+          { count: followingExact }
+        ] = await Promise.all([
+          supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('following_id', targetUserId),
+          supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('follower_id', targetUserId)
+        ]);
+
+        followersCount = followersExact ?? followersCount;
+        followingCount = followingExact ?? followingCount;
+      } catch (countError) {
+        console.warn('No se pudieron calcular los contadores del perfil:', countError);
+      }
+
+      setProfile({
+        ...profileData,
+        followers_count: followersCount,
+        following_count: followingCount
+      });
 
       // Cargar posts del usuario
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select('*')
+        .select('*, likes(count), comments(count)')
         .eq('user_id', targetUserId)
         .order('created_at', { ascending: false });
 
       if (!postsError) {
-        setPosts(postsData || []);
+        const normalizedPosts = (postsData || []).map(post => ({
+          ...post,
+          likes_count: post.likes?.[0]?.count ?? post.likes_count ?? 0,
+          comments_count: post.comments?.[0]?.count ?? post.comments_count ?? 0
+        }));
+        setPosts(normalizedPosts);
       } else {
         console.error('Error cargando posts del perfil:', postsError);
         setPosts([]);
