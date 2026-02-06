@@ -19,9 +19,14 @@ const ExplorePage = () => {
     try {
       let query = supabase
         .from('posts')
-        .select('*, user:profiles(*)')
-        .order('likes_count', { ascending: false })
-        .limit(30);
+        .select(`
+          *,
+          user:profiles!posts_user_id_fkey(*),
+          likes(count),
+          comments(count)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(60);
 
       if (selectedFish !== 'Todos') {
         query = query.eq('tipo_pez', selectedFish);
@@ -31,10 +36,60 @@ const ExplorePage = () => {
         query = query.ilike('ubicacion', `%${searchLocation}%`);
       }
 
-      const { data, error } = await query;
+      let { data, error } = await query;
 
-      if (error) throw error;
-      setTrendingPosts(data || []);
+      if (error) {
+        console.warn('Explore query with FK hint failed, trying without:', error.message);
+        let fallbackQuery = supabase
+          .from('posts')
+          .select(`
+            *,
+            user:profiles(*),
+            likes(count),
+            comments(count)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(60);
+
+        if (selectedFish !== 'Todos') {
+          fallbackQuery = fallbackQuery.eq('tipo_pez', selectedFish);
+        }
+        
+        if (searchLocation && searchLocation.length > 2) {
+          fallbackQuery = fallbackQuery.ilike('ubicacion', `%${searchLocation}%`);
+        }
+
+        const fallbackResult = await fallbackQuery;
+        if (fallbackResult.error) {
+          console.warn('Explore query with join failed, loading without profiles:', fallbackResult.error.message);
+          let simpleQuery = supabase
+            .from('posts')
+            .select('*, likes(count), comments(count)')
+            .order('created_at', { ascending: false })
+            .limit(60);
+
+          if (selectedFish !== 'Todos') {
+            simpleQuery = simpleQuery.eq('tipo_pez', selectedFish);
+          }
+          
+          if (searchLocation && searchLocation.length > 2) {
+            simpleQuery = simpleQuery.ilike('ubicacion', `%${searchLocation}%`);
+          }
+
+          const simpleResult = await simpleQuery;
+          if (simpleResult.error) throw simpleResult.error;
+          data = simpleResult.data || [];
+        } else {
+          data = fallbackResult.data || [];
+        }
+      }
+
+      const normalized = (data || []).map(post => ({
+        ...post,
+        likes_count: post.likes?.[0]?.count ?? post.likes_count ?? 0,
+        comments_count: post.comments?.[0]?.count ?? post.comments_count ?? 0
+      }));
+      setTrendingPosts(normalized);
     } catch (error) {
       console.error('Error cargando explorar:', error);
       setTrendingPosts([]);
