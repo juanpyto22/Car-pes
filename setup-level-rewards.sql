@@ -73,13 +73,6 @@ CREATE TABLE IF NOT EXISTS public.withdrawal_requests (
 ALTER TABLE public.withdrawal_requests ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can read their own withdrawals" ON public.withdrawal_requests 
   FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Admins can read all withdrawals" ON public.withdrawal_requests 
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND is_admin = TRUE
-    )
-  );
 
 -- 5. TABLA: Level Up Log (Registro de cuando suben de nivel)
 CREATE TABLE IF NOT EXISTS public.level_up_log (
@@ -154,20 +147,20 @@ ON CONFLICT (achievement_id) DO NOTHING;
 -- ========================================
 INSERT INTO public.level_rewards (level, coins_earned, euro_value, reward_tier, reward_description)
 VALUES
-  (10, 5000, 0.50, 'bronze', 'Alcanzaste nivel 10 - ¡Primer hito!'),
-  (20, 10000, 1.00, 'bronze', 'Nivel 20 - Vas muy bien'),
-  (30, 15000, 1.50, 'silver', 'Nivel 30 - Ya eres experimentado'),
-  (40, 20000, 2.00, 'silver', 'Nivel 40 - Casi a la mitad'),
-  (50, 25000, 2.50, 'gold', 'Nivel 50 - ¡Oro!'),
-  (60, 30000, 3.00, 'gold', 'Nivel 60 - Siguiendo fuerte'),
-  (70, 35000, 3.50, 'gold', 'Nivel 70 - Casi platinum'),
-  (80, 40000, 4.00, 'platinum', 'Nivel 80 - Platinum alcanzado'),
-  (90, 45000, 4.50, 'platinum', 'Nivel 90 - Casi la perfección'),
-  (100, 50000, 5.00, 'platinum', 'Nivel 100 - LEYENDA'),
-  (110, 55000, 5.50, 'diamond', 'Nivel 110 - Diamond'),
-  (120, 60000, 6.00, 'diamond', 'Nivel 120 - Clase master'),
-  (150, 75000, 7.50, 'diamond', 'Nivel 150 - Elite'),
-  (200, 100000, 10.00, 'diamond', 'Nivel 200 - DIOS DE LA PESCA 👑')
+  (10, 5000, 0.50, 'bronze', 'Nivel 10 → Ganas 0.50€'),
+  (20, 5000, 1.00, 'bronze', 'Nivel 20 → Ganas 1.00€ (Total: 1.00€)'),
+  (30, 5000, 1.50, 'silver', 'Nivel 30 → Ganas 1.50€ (Total: 1.50€)'),
+  (40, 5000, 2.00, 'silver', 'Nivel 40 → Ganas 2.00€ (Total: 2.00€)'),
+  (50, 5000, 2.50, 'gold', 'Nivel 50 → Ganas 2.50€ (Total: 2.50€)'),
+  (60, 5000, 3.00, 'gold', 'Nivel 60 → Ganas 3.00€ (Total: 3.00€)'),
+  (70, 5000, 3.50, 'gold', 'Nivel 70 → Ganas 3.50€ (Total: 3.50€)'),
+  (80, 5000, 4.00, 'platinum', 'Nivel 80 → Ganas 4.00€ (Total: 4.00€)'),
+  (90, 5000, 4.50, 'platinum', 'Nivel 90 → Ganas 4.50€ (Total: 4.50€)'),
+  (100, 5000, 5.00, 'platinum', 'Nivel 100 → Ganas 5.00€ (Total: 5.00€) 👑'),
+  (110, 5000, 5.50, 'diamond', 'Nivel 110 → Ganas 5.50€ (Total: 5.50€)'),
+  (120, 5000, 6.00, 'diamond', 'Nivel 120 → Ganas 6.00€ (Total: 6.00€)'),
+  (150, 5000, 7.50, 'diamond', 'Nivel 150 → Ganas 7.50€ (Total: 7.50€)'),
+  (200, 5000, 10.00, 'diamond', 'Nivel 200 → Ganas 10.00€ (Total: 10.00€) LEYENDA')
 ON CONFLICT (level) DO NOTHING;
 
 -- ========================================
