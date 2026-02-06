@@ -201,6 +201,48 @@ export const useAdminStatistics = () => {
 };
 
 /**
+ * Hook: Buscar usuarios por nombre/email
+ */
+export const useSearchUsers = (query) => {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!query || query.length < 1) {
+      setUsers([]);
+      return;
+    }
+
+    const searchUsers = async () => {
+      try {
+        setLoading(true);
+        const searchLower = `%${query.toLowerCase()}%`;
+        
+        const { data, error: err } = await supabase
+          .from('profiles')
+          .select('id, username, email')
+          .or(`username.ilike.${searchLower},email.ilike.${searchLower}`)
+          .limit(10);
+
+        if (err) throw err;
+        setUsers(data || []);
+      } catch (err) {
+        console.error('Error searching users:', err);
+        setError(err.message);
+        setUsers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    searchUsers();
+  }, [query]);
+
+  return { users, loading, error };
+};
+
+/**
  * Hook: Verificar si usuario actual es admin
  * Usa la función RPC de Supabase para mayor seguridad
  */

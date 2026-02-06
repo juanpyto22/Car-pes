@@ -7,6 +7,7 @@ import {
   useAdminActiveBans,
   useAdminBanUser,
   useAdminStatistics,
+  useSearchUsers,
 } from '../hooks/useAdminPanel';
 import {
   StatCard,
@@ -31,6 +32,7 @@ export default function AdminPanel() {
   const { infractions, loading: infraLoading, deleteInfraction } = useAdminInfractions();
   const { bans, loading: bansLoading, liftBan } = useAdminActiveBans();
   const { banUser, loading: banUserLoading } = useAdminBanUser();
+  const { users: searchResults, loading: searchLoading } = useSearchUsers(searchTerm);
 
   // Filtrar y buscar infractions
   const filteredInfractions = useMemo(() => {
@@ -296,70 +298,49 @@ export default function AdminPanel() {
                 <Search className="w-5 h-5 text-white/40" />
                 <input
                   type="text"
-                  placeholder="Buscar usuario..."
+                  placeholder="Buscar usuario por nombre o email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="flex-1 bg-transparent text-white placeholder-white/40 focus:outline-none"
                 />
               </div>
 
-              {infraLoading ? (
+              {searchLoading ? (
                 <div className="text-center py-12">
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
                 </div>
-              ) : (
+              ) : searchResults.length > 0 ? (
                 <div className="space-y-2">
-                  {/* Mostrar usuarios únicos con infracciones */}
-                  {infractions
-                    ?.filter((infr) => {
-                      const searchLower = searchTerm.toLowerCase();
-                      return (
-                        infr.username?.toLowerCase().includes(searchLower) ||
-                        infr.email?.toLowerCase().includes(searchLower)
-                      );
-                    })
-                    .reduce((unique, infr) => {
-                      if (!unique.find((u) => u.user_id === infr.user_id)) {
-                        unique.push(infr);
-                      }
-                      return unique;
-                    }, [])
-                    .map((infr) => (
-                      <motion.button
-                        key={infr.user_id}
-                        onClick={() => openBanModal(infr.user_id, infr.username)}
-                        className="w-full text-left p-4 bg-slate-800/30 border border-white/10 hover:border-cyan-500/50 rounded-lg transition group"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="font-semibold text-white group-hover:text-cyan-400 transition">
-                              @{infr.username}
-                            </p>
-                            <p className="text-sm text-white/60">{infr.email}</p>
-                            <p className="text-xs text-white/40 mt-1">
-                              {infr.infraction_count || 1} infracción(es)
-                            </p>
-                          </div>
-                          <Plus className="w-5 h-5 text-white/40 group-hover:text-cyan-400 transition" />
+                  {searchResults.map((user) => (
+                    <motion.button
+                      key={user.id}
+                      onClick={() => openBanModal(user.id, user.username)}
+                      className="w-full text-left p-4 bg-slate-800/30 border border-white/10 hover:border-cyan-500/50 rounded-lg transition group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="font-semibold text-white group-hover:text-cyan-400 transition">
+                            @{user.username}
+                          </p>
+                          <p className="text-sm text-white/60">{user.email}</p>
                         </div>
-                      </motion.button>
-                    ))}
-
-                  {searchTerm &&
-                    infractions?.filter((infr) => {
-                      const searchLower = searchTerm.toLowerCase();
-                      return (
-                        infr.username?.toLowerCase().includes(searchLower) ||
-                        infr.email?.toLowerCase().includes(searchLower)
-                      );
-                    }).length === 0 && (
-                      <EmptyState
-                        icon={Search}
-                        title="Usuario no encontrado"
-                        description="No hay usuarios con infracciones que coincidan con la búsqueda"
-                      />
-                    )}
+                        <Plus className="w-5 h-5 text-white/40 group-hover:text-cyan-400 transition" />
+                      </div>
+                    </motion.button>
+                  ))}
                 </div>
+              ) : searchTerm ? (
+                <EmptyState
+                  icon={Search}
+                  title="Usuario no encontrado"
+                  description="No hay usuarios que coincidan con la búsqueda"
+                />
+              ) : (
+                <EmptyState
+                  icon={Users}
+                  title="Ingresa un nombre"
+                  description="Escribe en la barra de búsqueda para encontrar usuarios"
+                />
               )}
             </div>
           )}
