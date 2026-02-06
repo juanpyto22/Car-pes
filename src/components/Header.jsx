@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Menu, Bookmark, Map, Trophy, Users, Calendar, ShoppingBag, BarChart3, Settings } from 'lucide-react';
+import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Menu, Bookmark, Map, Trophy, Users, Calendar, ShoppingBag, BarChart3, Settings, Gift } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import SearchBar from '@/components/SearchBar';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -133,6 +133,10 @@ const Header = () => {
                     <DropdownMenuItem onClick={() => navigate(`/achievements`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
                       <Trophy className="mr-2 h-4 w-4" />
                       <span>Logros</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/rewards`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
+                      <Gift className="mr-2 h-4 w-4" />
+                      <span>Recompensas</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate(`/groups`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
                       <Users className="mr-2 h-4 w-4" />
