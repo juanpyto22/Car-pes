@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Users, UserPlus, UserCheck, Edit3, Grid, ImageOff, MessageCircle, Heart, Calendar, Lock, Clock } from 'lucide-react';
+import { MapPin, Users, UserPlus, UserCheck, Edit3, Grid, ImageOff, MessageCircle, Heart, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,6 @@ const ProfilePage = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [isPendingFollow, setIsPendingFollow] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   
   // Modal state
@@ -133,8 +132,7 @@ const ProfilePage = () => {
   const checkFollowStatus = async () => {
     console.log('Verificando estado de seguimiento:', {
       currentUser: currentUser.id,
-      targetUser: targetUserId,
-      isPrivate: profile?.is_private
+      targetUser: targetUserId
     });
     
     // Verificar si ya sigue
@@ -152,23 +150,6 @@ const ProfilePage = () => {
     
     setIsFollowing(!!followData);
     console.log('Ya sigue al usuario:', !!followData);
-
-    // Verificar si hay solicitud pendiente
-    const { data: pendingData, error: pendingError } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', targetUserId)
-      .eq('related_user_id', currentUser.id)
-      .eq('type', 'follow_request')
-      .maybeSingle();
-      
-    if (pendingError) {
-      console.error('Error verificando solicitudes pendientes:', pendingError);
-      return;
-    }
-    
-    setIsPendingFollow(!!pendingData);
-    console.log('Solicitud pendiente encontrada:', !!pendingData, pendingData);
   };
 
   const handleFollowToggle = async () => {
@@ -185,62 +166,6 @@ const ProfilePage = () => {
         if (error) throw error;
         setIsFollowing(false);
         setProfile(prev => ({...prev, followers_count: Math.max(0, (prev.followers_count || 0) - 1)}));
-      } else if (isPendingFollow) {
-        // Cancelar solicitud pendiente
-        const { error } = await supabase.from('notifications')
-          .delete()
-          .eq('user_id', targetUserId)
-          .eq('related_user_id', currentUser.id)
-          .eq('type', 'follow_request');
-        if (error) throw error;
-        setIsPendingFollow(false);
-        toast({ title: "Solicitud cancelada" });
-      } else if (profile?.is_private === true) {
-        // Enviar solicitud de seguimiento para cuenta privada
-        console.log('Enviando solicitud de seguimiento para cuenta privada:', {
-          targetUserId,
-          currentUserId: currentUser.id
-        });
-        
-        const { data, error: notifError } = await supabase.from('notifications').insert([{
-          user_id: targetUserId,
-          type: 'follow_request',
-          related_user_id: currentUser.id,
-          read: false
-        }]).select();
-        
-        if (notifError) {
-          console.error('Error completo de notificación:', notifError);
-          toast({ 
-            variant: "destructive", 
-            title: "Error al enviar solicitud", 
-            description: `Error de base de datos: ${notifError.message}. Código: ${notifError.code || 'N/A'}` 
-          });
-          
-          // Si el error es de RLS, dar instrucciones específicas
-          if (notifError.message?.includes('row-level security policy') || notifError.code === '42501') {
-            toast({
-              variant: "destructive",
-              title: "Problema de permisos",
-              description: "Las políticas de la base de datos no están configuradas correctamente. Por favor ejecuta el script SQL proporcionado."
-            });
-          }
-          throw notifError;
-        }
-        
-        if (!data || data.length === 0) {
-          console.error('No se creó ninguna notificación');
-          toast({ 
-            variant: "destructive", 
-            title: "Error", 
-            description: "No se pudo crear la solicitud. Verifica la configuración de la base de datos." 
-          });
-          return;
-        }
-        
-        console.log('Solicitud creada exitosamente:', data);
-        setIsPendingFollow(true);
-        toast({ title: "Solicitud enviada", description: "Esperando aprobación" });
       } else {
         // Seguir directamente (cuenta pública)
         const { error: followError } = await supabase.from('follows').insert([{ follower_id: currentUser.id, following_id: targetUserId }]);
@@ -345,7 +270,6 @@ const ProfilePage = () => {
                   <div>
                     <h1 className="text-2xl md:text-3xl font-bold text-white mb-1 flex items-center gap-2">
                       {profile.nombre || profile.username}
-                      {profile.is_private && <Lock className="w-5 h-5 text-amber-400" />}
                     </h1>
                     <p className="text-cyan-400 font-medium">@{profile.username}</p>
                   </div>
@@ -372,8 +296,6 @@ const ProfilePage = () => {
                           className={`min-w-[130px] rounded-xl font-bold transition-all ${
                             isFollowing 
                               ? 'bg-slate-800 hover:bg-red-900/80 hover:text-red-200 text-white border border-white/10' 
-                              : isPendingFollow
-                              ? 'bg-amber-600/20 hover:bg-red-900/50 text-amber-300 border border-amber-500/30'
                               : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20'
                           }`}
                         >
@@ -383,8 +305,6 @@ const ProfilePage = () => {
                             </span>
                           ) : isFollowing ? (
                             <span className="flex items-center"><UserCheck className="w-4 h-4 mr-2" /> Siguiendo</span>
-                          ) : isPendingFollow ? (
-                            <span className="flex items-center"><Clock className="w-4 h-4 mr-2" /> Solicitado</span>
                           ) : (
                             <span className="flex items-center"><UserPlus className="w-4 h-4 mr-2" /> Seguir</span>
                           )}

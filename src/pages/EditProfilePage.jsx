@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Save, X, Lock, Globe } from 'lucide-react';
+import { Camera, Save, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,6 @@ const EditProfilePage = () => {
     nombre: '',
     bio: '',
     ubicacion: '',
-    is_private: false,
   });
   const [loading, setLoading] = useState(false);
   const [photoFile, setPhotoFile] = useState(null);
@@ -29,7 +28,6 @@ const EditProfilePage = () => {
         nombre: profile.nombre || '',
         bio: profile.bio || '',
         ubicacion: profile.ubicacion || '',
-        is_private: profile.is_private || false,
       });
       setPreviewUrl(profile.foto_perfil || '');
     }
@@ -100,8 +98,7 @@ const EditProfilePage = () => {
         nombre: formData.nombre,
         bio: formData.bio,
         ubicacion: formData.ubicacion,
-        foto_perfil: photoUrl,
-        is_private: formData.is_private
+        foto_perfil: photoUrl
       });
       
       navigate('/profile');
@@ -193,42 +190,6 @@ const EditProfilePage = () => {
                       />
                   </div>
 
-                  {/* Privacidad de cuenta */}
-                  <div className="pt-4 border-t border-blue-900/50">
-                      <label className="block text-sm font-bold text-blue-200 mb-4">Privacidad de la cuenta</label>
-                      <div className="space-y-3">
-                          <button
-                              type="button"
-                              onClick={() => setFormData({...formData, is_private: false})}
-                              className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                                  !formData.is_private 
-                                      ? 'bg-cyan-600/20 border-cyan-500 text-white' 
-                                      : 'bg-slate-950 border-blue-900 text-blue-300 hover:border-blue-700'
-                              }`}
-                          >
-                              <Globe className={`w-5 h-5 ${!formData.is_private ? 'text-cyan-400' : 'text-blue-500'}`} />
-                              <div className="text-left">
-                                  <p className="font-bold">Cuenta Pública</p>
-                                  <p className="text-sm opacity-70">Cualquiera puede ver tus publicaciones y seguirte</p>
-                              </div>
-                          </button>
-                          <button
-                              type="button"
-                              onClick={() => setFormData({...formData, is_private: true})}
-                              className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                                  formData.is_private 
-                                      ? 'bg-cyan-600/20 border-cyan-500 text-white' 
-                                      : 'bg-slate-950 border-blue-900 text-blue-300 hover:border-blue-700'
-                              }`}
-                          >
-                              <Lock className={`w-5 h-5 ${formData.is_private ? 'text-cyan-400' : 'text-blue-500'}`} />
-                              <div className="text-left">
-                                  <p className="font-bold">Cuenta Privada</p>
-                                  <p className="text-sm opacity-70">Aprueba quién puede seguirte y ver tus publicaciones</p>
-                              </div>
-                          </button>
-                      </div>
-                  </div>
               </div>
 
               <div className="flex gap-4 pt-4">
