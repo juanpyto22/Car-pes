@@ -21,7 +21,7 @@ export const useNotifications = (currentUser) => {
         .from('notifications')
         .select(`
           *,
-          related_user:users!related_user_id(id, username, foto_perfil),
+          related_user:profiles!related_user_id(id, username, foto_perfil),
           post:posts!post_id(id)
         `)
         .eq('user_id', currentUser.id)
@@ -112,25 +112,25 @@ export const useNotifications = (currentUser) => {
 
       // Actualizar contador de seguidores del usuario actual
       const { data: userData } = await supabase
-        .from('users')
+        .from('profiles')
         .select('followers_count')
         .eq('id', currentUser.id)
         .single();
 
       await supabase
-        .from('users')
+        .from('profiles')
         .update({ followers_count: (userData?.followers_count || 0) + 1 })
         .eq('id', currentUser.id);
 
       // Actualizar contador de seguidos del solicitante
       const { data: followerData } = await supabase
-        .from('users')
+        .from('profiles')
         .select('following_count')
         .eq('id', notification.related_user_id)
         .single();
 
       await supabase
-        .from('users')
+        .from('profiles')
         .update({ following_count: (followerData?.following_count || 0) + 1 })
         .eq('id', notification.related_user_id);
 

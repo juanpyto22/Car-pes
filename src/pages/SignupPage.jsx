@@ -10,13 +10,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { useToast } from '@/components/ui/use-toast';
 import { EMAIL_SUGGESTIONS } from '@/utils/rateLimitingHelpers';
-import { useDemo } from '@/contexts/DemoContext';
 
 const SignupPage = () => {
   const navigate = useNavigate();
   const { signUp } = useAuth();
   const { toast } = useToast();
-  const { activateDemo } = useDemo();
   
   const [formData, setFormData] = useState({
     email: '',
@@ -37,15 +35,6 @@ const SignupPage = () => {
     setFormData(prev => ({ ...prev, email }));
     setRateLimited(false);
     setErrors(prev => ({ ...prev, email: undefined }));
-  };
-  
-  const handleDemoMode = () => {
-    activateDemo();
-    toast({
-      title: "🎮 Modo DEMO Activado",
-      description: "Ahora puedes probar todas las funciones sin registro",
-    });
-    navigate('/feed');
   };
 
   const validateForm = () => {
@@ -137,7 +126,7 @@ const SignupPage = () => {
         toast({
           variant: "destructive",
           title: "\u23f0 Rate Limiting Activo",
-          description: "Ve las sugerencias abajo o prueba el modo DEMO",
+          description: "Ve las sugerencias de emails alternativos abajo",
           duration: 8000,
         });
         
@@ -305,14 +294,6 @@ const SignupPage = () => {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      onClick={handleDemoMode}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs py-2"
-                    >
-                      <Lightbulb className="w-3 h-3 mr-1" />
-                      Probar DEMO
-                    </Button>
                     <Button
                       type="button"
                       onClick={() => setRateLimited(false)}

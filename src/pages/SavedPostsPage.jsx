@@ -37,7 +37,7 @@ const SavedPostsPage = () => {
               likes_count,
               comments_count,
               created_at,
-              user:users(id, username, foto_perfil)
+              user:profiles(id, username, foto_perfil)
             )
           `)
           .eq('user_id', user.id)

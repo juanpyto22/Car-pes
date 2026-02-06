@@ -146,7 +146,7 @@ const AchievementsPage = () => {
         .from('user_stats')
         .select(`
           *,
-          user:users(id, username, foto_perfil)
+          user:profiles(id, username, foto_perfil)
         `)
         .order('xp', { ascending: false })
         .limit(10);

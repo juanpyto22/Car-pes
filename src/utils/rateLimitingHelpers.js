@@ -34,7 +34,7 @@ export const RATE_LIMITING_TIPS = [
   "Usar emails únicos: usuario123@gmail.com, usuario456@gmail.com",
   "Esperar 2-3 minutos entre registros del mismo IP", 
   "Usar incognito/private browsing para 'nueva IP'",
-  "Usar modo DEMO mientras se configura la BD",
+  "Esperar unos minutos antes de volver a intentar",
   "Configurar Supabase auth settings (ver arriba)"
 ];
 

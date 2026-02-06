@@ -4,7 +4,6 @@ import { Upload, X, Fish, Weight, Ruler } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { usePosts } from '@/hooks/usePosts';
-import { useDemo } from '@/contexts/DemoContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Helmet } from 'react-helmet';
@@ -13,7 +12,6 @@ import LocationAutocomplete from '@/components/LocationAutocomplete';
 const CreatePostPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isDemoMode } = useDemo();
   const { uploadImage } = useImageUpload();
   const { createPost } = usePosts();
   const { toast } = useToast();
@@ -69,7 +67,7 @@ const CreatePostPage = () => {
       return;
     }
 
-    if (!isDemoMode && !file) {
+    if (!file) {
       toast({
         variant: "destructive",
         title: "Falta imagen",
@@ -81,9 +79,10 @@ const CreatePostPage = () => {
     setLoading(true);
 
     try {
-      let imageUrl = null;
+      let mediaUrl = null;
+      const isVideo = file?.type?.startsWith('video/');
 
-      // Subir imagen si no es modo demo
+      // Subir imagen
       if (file) {
         const uploadResult = await uploadImage(file, 'posts', user.id);
         
@@ -91,16 +90,18 @@ const CreatePostPage = () => {
           throw new Error(uploadResult.error || 'Error subiendo imagen');
         }
         
-        imageUrl = uploadResult.url;
+        mediaUrl = uploadResult.url;
       }
 
       // Crear el post usando el hook
       const result = await createPost({
-        content: formData.descripcion,
-        image_url: imageUrl,
-        location: formData.ubicacion,
-        fish_species: formData.tipo_pez !== 'Otro' ? formData.tipo_pez : null,
-        fish_weight: formData.peso || null
+        descripcion: formData.descripcion,
+        foto_url: !isVideo ? mediaUrl : null,
+        video_url: isVideo ? mediaUrl : null,
+        ubicacion: formData.ubicacion,
+        tipo_pez: formData.tipo_pez !== 'Otro' ? formData.tipo_pez : null,
+        peso: formData.peso || null,
+        tamano: formData.tamano || null
       });
 
       if (!result.success) {
@@ -109,9 +110,7 @@ const CreatePostPage = () => {
 
       toast({
         title: "✅ ¡Post publicado!",
-        description: isDemoMode ? 
-          "Tu post demo ha sido creado para mostrar la funcionalidad" :
-          "Tu captura ha sido compartida con la comunidad",
+        description: "Tu captura ha sido compartida con la comunidad",
       });
 
       navigate('/feed');

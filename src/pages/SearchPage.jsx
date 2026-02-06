@@ -31,13 +31,13 @@ const SearchPage = () => {
     try {
       const [usersRes, postsRes] = await Promise.all([
         supabase
-          .from('users')
+          .from('profiles')
           .select('id, username, nombre, foto_perfil, bio, followers_count')
           .or(`username.ilike.%${searchQuery}%,nombre.ilike.%${searchQuery}%`)
           .limit(20),
         supabase
           .from('posts')
-          .select('id, tipo_pez, foto_url, descripcion, ubicacion, likes_count, user:users(id, username, foto_perfil)')
+          .select('id, tipo_pez, foto_url, descripcion, ubicacion, likes_count, user:profiles(id, username, foto_perfil)')
           .or(`tipo_pez.ilike.%${searchQuery}%,descripcion.ilike.%${searchQuery}%,ubicacion.ilike.%${searchQuery}%`)
           .order('likes_count', { ascending: false })
           .limit(20)

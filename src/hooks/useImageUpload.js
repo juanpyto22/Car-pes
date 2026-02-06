@@ -1,19 +1,7 @@
 import { supabase } from '@/lib/customSupabaseClient';
-import { useDemo } from '@/contexts/DemoContext';
 
 export const useImageUpload = () => {
-  const { isDemoMode } = useDemo();
-
   const uploadImage = async (file, bucket = 'posts', folder = '') => {
-    if (isDemoMode) {
-      // Simular upload en modo demo
-      return {
-        success: true,
-        url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&h=600&fit=crop',
-        path: `demo/${Date.now()}`
-      };
-    }
-
     try {
       if (!file) throw new Error('No file provided');
 
@@ -52,11 +40,6 @@ export const useImageUpload = () => {
   };
 
   const deleteImage = async (path, bucket = 'posts') => {
-    if (isDemoMode) {
-      // Simular eliminación en modo demo
-      return { success: true };
-    }
-
     try {
       const { error } = await supabase.storage
         .from(bucket)

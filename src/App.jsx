@@ -30,8 +30,6 @@ import EventsCalendarPage from '@/pages/EventsCalendarPage';
 import MarketplacePage from '@/pages/MarketplacePage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import SettingsPage from '@/pages/SettingsPage';
-import DevTestPage from '@/pages/DevTestPage';
-import DemoBanner from '@/components/DemoBanner';
 
 // Components
 import Header from '@/components/Header';
@@ -53,7 +51,6 @@ const AppRoutes = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-cyan-500/30">
-      <DemoBanner />
       <Header />
       <Routes>
         {/* Public Routes */}
@@ -86,7 +83,6 @@ const AppRoutes = () => {
         <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
         <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-                <Route path="/dev-test" element={<DevTestPage />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </div>

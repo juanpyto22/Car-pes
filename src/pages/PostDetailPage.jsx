@@ -24,7 +24,7 @@ const PostDetailPage = () => {
       try {
         const { data, error } = await supabase
           .from('posts')
-          .select('*, user:users(*), likes(count), comments(count)')
+          .select('*, user:profiles(*), likes(count), comments(count)')
           .eq('id', postId)
           .single();
 

@@ -51,7 +51,7 @@ const StoryViewer = () => {
         .from('stories')
         .select(`
           *,
-          user:users!user_id(id, username, foto_perfil)
+          user:profiles!user_id(id, username, foto_perfil)
         `)
         .eq('user_id', userId)
         .gte('expires_at', new Date().toISOString())

@@ -162,7 +162,7 @@ export const AuthProvider = ({ children }) => {
           const timestamp = Date.now().toString().slice(-4);
           return { 
             error: { 
-              message: `⏰ Rate limiting activo. Intenta con:\n• Esperar 2-3 minutos\n• Usar email único: ejemplo${timestamp}@gmail.com\n• O usar modo DEMO mientras tanto` 
+              message: `⏰ Rate limiting activo. Intenta con:\n• Esperar 2-3 minutos\n• Usar email único: ejemplo${timestamp}@gmail.com` 
             } 
           };
         }
@@ -228,7 +228,7 @@ export const AuthProvider = ({ children }) => {
       
       if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
         const timestamp = Date.now().toString().slice(-4);
-        errorMessage = `⏰ Límite alcanzado. Soluciones:\n• Espera 2-3 minutos\n• Prueba: ejemplo${timestamp}@gmail.com\n• O usa el modo DEMO`;
+        errorMessage = `⏰ Límite alcanzado. Soluciones:\n• Espera 2-3 minutos\n• Prueba: ejemplo${timestamp}@gmail.com`;
       } else if (errorMessage.includes('Invalid email')) {
         errorMessage = '📧 Email inválido. Usa formato: usuario@dominio.com';
       } else if (errorMessage.includes('Password')) {
@@ -294,7 +294,7 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const { error } = await supabase
-        .from('users')
+        .from('profiles')
         .update(updates)
         .eq('id', user.id);
 

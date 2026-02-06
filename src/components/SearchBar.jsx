@@ -35,13 +35,13 @@ const SearchBar = () => {
       try {
         const [usersRes, postsRes] = await Promise.all([
           supabase
-            .from('users')
+            .from('profiles')
             .select('id, username, foto_perfil, bio')
             .ilike('username', `%${debouncedQuery}%`)
             .limit(4),
           supabase
             .from('posts')
-            .select('id, tipo_pez, foto_url, user:users(username)')
+            .select('id, tipo_pez, foto_url, user:profiles(username)')
             .ilike('tipo_pez', `%${debouncedQuery}%`)
             .limit(4)
         ]);

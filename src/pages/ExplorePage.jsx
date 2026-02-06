@@ -19,7 +19,7 @@ const ExplorePage = () => {
     try {
       let query = supabase
         .from('posts')
-        .select('*, user:users(*)')
+        .select('*, user:profiles(*)')
         .order('likes_count', { ascending: false })
         .limit(30);
 

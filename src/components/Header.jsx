@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Menu, Bookmark, Map, Trophy, Users, Calendar, ShoppingBag, BarChart3, Settings, TestTube2 } from 'lucide-react';
+import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Menu, Bookmark, Map, Trophy, Users, Calendar, ShoppingBag, BarChart3, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import SearchBar from '@/components/SearchBar';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -154,10 +154,6 @@ const Header = () => {
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Configuración</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/dev-test')} className="cursor-pointer hover:bg-green-800 focus:bg-green-800 focus:text-white py-3">
-                      <TestTube2 className="mr-2 h-4 w-4" />
-                      <span>🔧 Pruebas Dev</span>
-                    </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-white/10" />
                     <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer hover:bg-red-900/50 focus:bg-red-900/50 text-red-400 focus:text-red-300 py-3">
                       <LogOut className="mr-2 h-4 w-4" />
@@ -172,7 +168,6 @@ const Header = () => {
                 <div className="hidden sm:flex">
                    <NavLink to="/" icon={Home} label="Inicio" />
                    <NavLink to="/explore" icon={Compass} label="Explorar" />
-                   <NavLink to="/dev-test" icon={TestTube2} label="Pruebas" />
                 </div>
                 <Link to="/login">
                   <Button variant="ghost" className="text-blue-200 hover:text-white hover:bg-white/10 ml-2 rounded-xl">

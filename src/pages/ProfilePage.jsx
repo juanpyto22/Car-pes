@@ -49,7 +49,7 @@ const ProfilePage = () => {
       setLoading(true);
       
       const { data: userData, error: userError } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*, is_private')
         .eq('id', targetUserId)
         .maybeSingle();

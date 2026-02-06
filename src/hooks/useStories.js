@@ -29,7 +29,7 @@ export const useStories = (currentUser) => {
         .from('stories')
         .select(`
           *,
-          user:users!user_id(id, username, foto_perfil),
+          user:profiles!user_id(id, username, foto_perfil),
           likes_count:story_likes(count),
           user_liked:story_likes!inner(user_id)
         `)
@@ -293,7 +293,7 @@ export const useStories = (currentUser) => {
         .from('stories')
         .select(`
           *,
-          user:users!user_id(id, username, foto_perfil)
+          user:profiles!user_id(id, username, foto_perfil)
         `)
         .eq('user_id', userId)
         .gte('expires_at', new Date().toISOString())

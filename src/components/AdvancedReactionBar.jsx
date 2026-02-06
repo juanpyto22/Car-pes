@@ -36,6 +36,7 @@ const AdvancedReactionBar = ({
   const [shareText, setShareText] = useState('');
   const [reportReason, setReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
+  const postUser = post?.user || post?.profiles;
 
   // Get user's reaction to this post
   const userReaction = reactions?.find(r => r.user_id === user?.id);
@@ -212,15 +213,15 @@ const AdvancedReactionBar = ({
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                         <span className="text-xs font-bold text-white">
-                          {post.profiles?.nombre?.[0] || 'U'}
+                          {postUser?.nombre?.[0] || 'U'}
                         </span>
                       </div>
                       <span className="text-white text-sm font-medium">
-                        {post.profiles?.nombre || 'Usuario'}
+                        {postUser?.nombre || 'Usuario'}
                       </span>
                     </div>
                     <p className="text-blue-200 text-sm line-clamp-2">
-                      {post.contenido || 'Publicación'}
+                      {post.descripcion || 'Publicación'}
                     </p>
                   </div>
                 </div>

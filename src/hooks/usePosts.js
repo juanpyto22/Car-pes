@@ -1,58 +1,77 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
-import { useDemo } from '@/contexts/DemoContext';
 
-export const usePosts = (userId = null, limit = 10) => {
-  const { isDemoMode, mockPosts } = useDemo();
+export const usePosts = (options = {}) => {
+  const { userId = null, userIds = null, limit = 10 } = options;
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const userIdsKey = useMemo(() => {
+    if (!Array.isArray(userIds)) return null;
+    return userIds.length > 0 ? userIds.join(',') : '';
+  }, [userIds]);
+
   useEffect(() => {
-    if (isDemoMode) {
-      // Usar datos demo
-      setPosts(userId ? mockPosts.filter(p => p.user_id === userId) : mockPosts);
-      setLoading(false);
-      setError(null);
-    } else {
-      fetchPosts();
-    }
-  }, [userId, limit, isDemoMode]);
+    fetchPosts();
+  }, [userId, userIdsKey, limit]);
 
   const fetchPosts = async () => {
     try {
       setLoading(true);
+
+      if (Array.isArray(userIds) && userIds.length === 0) {
+        setPosts([]);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
       let query = supabase
         .from('posts')
         .select(`
           *,
-          profiles!user_id(
+          user:profiles(
             id,
             username,
             nombre,
             foto_perfil
-          ),
-          has_liked:likes!left(user_id)
+          )
         `)
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (userId) {
+      if (Array.isArray(userIds) && userIds.length > 0) {
+        query = query.in('user_id', userIds);
+      } else if (userId) {
         query = query.eq('user_id', userId);
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
       
-      // Procesar has_liked
+      // Obtener likes del usuario actual para cada post
       const { data: { user } } = await supabase.auth.getUser();
-      const processedData = (data || []).map(post => ({
-        ...post,
-        has_liked: post.has_liked?.some(like => like.user_id === user?.id) || false
-      }));
+      let processedData = data || [];
+      
+      if (user?.id && processedData.length > 0) {
+        const postIds = processedData.map(post => post.id);
+        const { data: userLikes } = await supabase
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', user.id)
+          .in('post_id', postIds);
+
+        const likedPostIds = new Set(userLikes?.map(like => like.post_id) || []);
+        
+        processedData = processedData.map(post => ({
+          ...post,
+          has_liked: likedPostIds.has(post.id)
+        }));
+      }
       
       setPosts(processedData);
+      setError(null);
     } catch (error) {
       console.error('Error fetching posts:', error);
       setError(error.message);
@@ -63,16 +82,6 @@ export const usePosts = (userId = null, limit = 10) => {
   };
 
   const toggleLike = async (postId) => {
-    if (isDemoMode) {
-      // Simular toggle de like en modo demo
-      setPosts(prev => prev.map(post => 
-        post.id === postId 
-          ? { ...post, has_liked: !post.has_liked, likes_count: post.likes_count + (post.has_liked ? -1 : 1) }
-          : post
-      ));
-      return;
-    }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -81,7 +90,7 @@ export const usePosts = (userId = null, limit = 10) => {
       if (!post) return;
 
       if (post.has_liked) {
-        // Quitar like
+        // Quitar like  
         await supabase
           .from('likes')
           .delete()
@@ -106,27 +115,6 @@ export const usePosts = (userId = null, limit = 10) => {
   };
 
   const createPost = async (postData) => {
-    if (isDemoMode) {
-      // Simular creación de post en modo demo
-      const newPost = {
-        id: Date.now().toString(),
-        user_id: 'demo-user-123',
-        ...postData,
-        likes_count: 0,
-        comments_count: 0,
-        has_liked: false,
-        created_at: new Date().toISOString(),
-        profiles: {
-          id: 'demo-user-123',
-          username: 'pescador_demo',
-          nombre: 'Usuario Demo',
-          foto_perfil: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face'
-        }
-      };
-      setPosts(prev => [newPost, ...prev]);
-      return { success: true, data: newPost };
-    }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -139,7 +127,7 @@ export const usePosts = (userId = null, limit = 10) => {
         })
         .select(`
           *,
-          profiles!user_id(
+          user:profiles(
             id,
             username,
             nombre,
@@ -150,7 +138,7 @@ export const usePosts = (userId = null, limit = 10) => {
       if (error) throw error;
 
       if (data) {
-        const newPost = { ...data[0], has_liked: false };
+        const newPost = { ...data[0], has_liked: false, likes_count: 0, comments_count: 0 };
         setPosts(prev => [newPost, ...prev]);
       }
 
@@ -161,5 +149,19 @@ export const usePosts = (userId = null, limit = 10) => {
     }
   };
 
-  return { posts, loading, error, refetch: fetchPosts, toggleLike, createPost };
+  const appendPosts = useCallback((newPosts = []) => {
+    if (!Array.isArray(newPosts) || newPosts.length === 0) return;
+    setPosts(prev => {
+      const existingIds = new Set(prev.map(post => post.id));
+      const merged = [...prev];
+      newPosts.forEach(post => {
+        if (!existingIds.has(post.id)) {
+          merged.push(post);
+        }
+      });
+      return merged;
+    });
+  }, []);
+
+  return { posts, loading, error, refetch: fetchPosts, toggleLike, createPost, appendPosts, setPosts };
 };

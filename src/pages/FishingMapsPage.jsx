@@ -38,12 +38,12 @@ const FishingMapsPage = () => {
         .from('fishing_spots')
         .select(`
           *,
-          creator:users!creator_id(id, username, foto_perfil),
+          creator:profiles!creator_id(id, username, foto_perfil),
           reviews:spot_reviews(count),
           avg_rating,
           recent_catches:catches(
             id,
-            user:users(username, foto_perfil),
+            user:profiles(username, foto_perfil),
             fish_species,
             created_at
           )

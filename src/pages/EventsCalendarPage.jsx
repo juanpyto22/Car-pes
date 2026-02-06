@@ -40,11 +40,11 @@ const EventsCalendarPage = () => {
         .from('fishing_events')
         .select(`
           *,
-          creator:users!creator_id(id, username, foto_perfil),
+          creator:profiles!creator_id(id, username, foto_perfil),
           participants:event_participants(
             user_id,
             status,
-            user:users(username, foto_perfil)
+            user:profiles(username, foto_perfil)
           ),
           participant_count:event_participants(count)
         `)

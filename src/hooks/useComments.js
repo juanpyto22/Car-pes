@@ -1,35 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
-import { useDemo } from '@/contexts/DemoContext';
 
 export const useComments = (postId) => {
-  const { isDemoMode, mockComments } = useDemo();
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (postId) {
-      if (isDemoMode) {
-        // Usar datos demo
-        setComments(mockComments.filter(c => c.post_id === postId));
-        setLoading(false);
-      } else {
-        getComments(postId);
-      }
-    }
-  }, [postId, isDemoMode]);
 
   const getComments = useCallback(async (id) => {
     if (!id) return;
     
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('comments')
         .select(`
           *, 
-          profiles!user_id(
+          profiles(
             id,
             username,
             nombre,
@@ -69,14 +56,22 @@ export const useComments = (postId) => {
         subscription.unsubscribe();
       };
     }
-  }, [postId]);
+  }, [postId, getComments]);
 
   const addComment = async (userId, content, postOwnerId) => {
     try {
       const { data: newComment, error } = await supabase
         .from('comments')
         .insert([{ post_id: postId, user_id: userId, contenido: content }])
-        .select('*, user:users(*)')
+        .select(`
+          *,
+          profiles(
+            id,
+            username,
+            nombre,
+            foto_perfil
+          )
+        `)
         .single();
 
       if (error) throw error;

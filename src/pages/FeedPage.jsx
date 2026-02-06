@@ -2,9 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { usePosts } from '@/hooks/usePosts';
-import { useDemo } from '@/contexts/DemoContext';
 import PostCard from '@/components/PostCard';
-import { Loader2, RefreshCw, Plus, TestTube2 } from 'lucide-react';
+import { Loader2, RefreshCw, Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Helmet } from 'react-helmet';
@@ -12,14 +11,17 @@ import StoriesBar from '@/components/StoriesBar';
 
 const FeedPage = () => {
   const { user, profile } = useAuth();
-  const { isDemoMode, enableDemoMode } = useDemo();
-  const { posts, loading, error, toggleLike, refetch } = usePosts();
   const navigate = useNavigate();
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [followedIds, setFollowedIds] = useState([]);
   const observer = useRef();
   const PAGE_SIZE = 10;
+
+  const { posts, loading, error, toggleLike, refetch, appendPosts } = usePosts({
+    userIds: followedIds,
+    limit: PAGE_SIZE
+  });
 
   // Cargar IDs de usuarios seguidos
   useEffect(() => {
@@ -47,33 +49,10 @@ const FeedPage = () => {
     fetchFollowedIds();
   }, [user?.id]);
 
-  // Cargar posts cuando cambien los IDs
   useEffect(() => {
-    if (followedIds.length === 0) {
-      return;
-    }
-
-    const fetchPosts = async () => {
-      try {
-        // El loading state se maneja en el hook usePosts
-        const { data, error } = await supabase
-          .from('posts')
-          .select('*, user:users(*), likes(count), comments(count)')
-          .in('user_id', followedIds)
-          .order('created_at', { ascending: false })
-          .range(0, PAGE_SIZE - 1);
-
-        if (error) throw error;
-
-        if (data.length < PAGE_SIZE) setHasMore(false);
-        // Los posts se manejan en el hook usePosts
-      } catch (error) {
-        console.error('Error cargando posts:', error);
-      }
-    };
-
-    fetchPosts();
-  }, [followedIds.join(',')]); // Usar join para evitar referencia nueva del array
+    if (followedIds.length === 0) return;
+    setHasMore(true);
+  }, [followedIds.join(',')]);
 
   const fetchMorePosts = async () => {
     if (loadingMore || !hasMore || followedIds.length === 0) return;
@@ -86,7 +65,15 @@ const FeedPage = () => {
 
       const { data, error } = await supabase
         .from('posts')
-        .select('*, user:users(*), likes(count), comments(count)')
+        .select(`
+          *,
+          user:profiles(
+            id,
+            username,
+            nombre,
+            foto_perfil
+          )
+        `)
         .in('user_id', followedIds)
         .order('created_at', { ascending: false })
         .range(from, to);
@@ -94,7 +81,7 @@ const FeedPage = () => {
       if (error) throw error;
 
       if (data.length < PAGE_SIZE) setHasMore(false);
-      setPosts(prev => [...prev, ...data]);
+      appendPosts(data);
     } catch (error) {
       console.error('Error cargando más posts:', error);
     } finally {
@@ -182,77 +169,28 @@ const FeedPage = () => {
           ) : posts.length === 0 ? (
             <div className="text-center py-20 bg-slate-900/50 backdrop-blur-sm rounded-3xl border border-white/10 px-6">
               <div className="w-24 h-24 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-cyan-500/20">
-                {!isDemoMode ? (
-                  <span className="text-5xl">🐟</span>
-                ) : (
-                  <span className="text-5xl">🎭</span>
-                )}
+                <span className="text-5xl">🐟</span>
               </div>
               
-              {!isDemoMode ? (
-                <>
-                  <h3 className="text-2xl font-bold text-white mb-3">¡Está muy tranquilo aquí!</h3>
-                  <p className="text-blue-300 mb-8 max-w-sm mx-auto">
-                    {error ? 
-                      'No se pudieron cargar los posts. Configura la base de datos o prueba el modo demo.' :
-                      'Sigue a otros pescadores o comparte tu primera captura para ver actividad en tu feed.'
-                    }
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Link to="/explore">
-                      <Button className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl shadow-lg shadow-cyan-900/20 w-full sm:w-auto">
-                        Explorar Comunidad
-                      </Button>
-                    </Link>
-                    <Link to="/create-post">
-                      <Button variant="outline" className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 rounded-xl w-full sm:w-auto">
-                        Crear mi primer post
-                      </Button>
-                    </Link>
-                    {error && (
-                      <>
-                        <Button 
-                          onClick={() => navigate('/dev-test')}
-                          variant="outline" 
-                          className="border-green-500/30 text-green-400 hover:bg-green-500/10 rounded-xl w-full sm:w-auto"
-                        >
-                          <TestTube2 className="w-4 h-4 mr-2" />
-                          Configurar DB
-                        </Button>
-                        <Button 
-                          onClick={enableDemoMode}
-                          variant="outline" 
-                          className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 rounded-xl w-full sm:w-auto"
-                        >
-                          🎭 Probar Demo
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-2xl font-bold text-white mb-3">🎭 Modo Demo Activo</h3>
-                  <p className="text-purple-300 mb-8 max-w-sm mx-auto">
-                    Estás viendo datos simulados. Todos los posts y acciones son temporales.
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Link to="/create-post">
-                      <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl shadow-lg shadow-purple-900/20 w-full sm:w-auto">
-                        Crear Post Demo
-                      </Button>
-                    </Link>
-                    <Button 
-                      onClick={() => navigate('/dev-test')}
-                      variant="outline" 
-                      className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 rounded-xl w-full sm:w-auto"
-                    >
-                      <TestTube2 className="w-4 h-4 mr-2" />
-                      Configurar Real
-                    </Button>
-                  </div>
-                </>
-              )}
+              <h3 className="text-2xl font-bold text-white mb-3">¡Está muy tranquilo aquí!</h3>
+              <p className="text-blue-300 mb-8 max-w-sm mx-auto">
+                {error ? 
+                  'No se pudieron cargar los posts. Verifica tu conexión a internet.' :
+                  'Sigue a otros pescadores o comparte tu primera captura para ver actividad en tu feed.'
+                }
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Link to="/explore">
+                  <Button className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl shadow-lg shadow-cyan-900/20 w-full sm:w-auto">
+                    Explorar Comunidad
+                  </Button>
+                </Link>
+                <Link to="/create-post">
+                  <Button variant="outline" className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 rounded-xl w-full sm:w-auto">
+                    Crear mi primer post
+                  </Button>
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="space-y-6">

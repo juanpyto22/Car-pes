@@ -32,7 +32,7 @@ const StoriesBar = () => {
         .from('stories')
         .select(`
           *,
-          profiles!user_id(id, username, foto_perfil, nombre)
+          profiles(id, username, foto_perfil, nombre)
         `)
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
