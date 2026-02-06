@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { AdminRoute } from '@/components/AdminRoute';
+import { useCheckUserBan } from '@/hooks/useCheckUserBan';
 
 // Pages
 import LandingPage from '@/pages/LandingPage';
@@ -32,15 +33,17 @@ import MarketplacePage from '@/pages/MarketplacePage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import SettingsPage from '@/pages/SettingsPage';
 import AdminPanel from '@/pages/AdminPanel';
+import BannedUserPage from '@/pages/BannedUserPage';
 
 // Components
 import Header from '@/components/Header';
 
 const AppRoutes = () => {
   const { user, loading } = useAuth();
+  const { isBanned, banType, reason, remainingHours, loading: banLoading } = useCheckUserBan();
 
   // Mostrar loading solo durante la verificación inicial de sesión
-  if (loading) {
+  if (loading || banLoading) {
     return (
         <div className="min-h-screen bg-slate-950 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
@@ -49,6 +52,11 @@ const AppRoutes = () => {
             </div>
         </div>
     );
+  }
+
+  // Si el usuario está autenticado y baneado, mostrar página de baneado
+  if (user && isBanned) {
+    return <BannedUserPage banType={banType} reason={reason} remainingHours={remainingHours} />;
   }
 
   return (

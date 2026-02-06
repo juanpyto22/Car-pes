@@ -262,6 +262,48 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Función: Verificar si usuario actual está baneado
+CREATE OR REPLACE FUNCTION public.get_current_user_ban_status()
+RETURNS TABLE(
+  is_banned BOOLEAN,
+  ban_type VARCHAR,
+  ban_reason TEXT,
+  ban_expires_at TIMESTAMP WITH TIME ZONE,
+  remaining_hours INT
+) AS $$
+DECLARE
+  v_user_id UUID;
+BEGIN
+  v_user_id := auth.uid();
+  
+  IF v_user_id IS NULL THEN
+    RETURN QUERY SELECT false, NULL::VARCHAR, NULL::TEXT, NULL::TIMESTAMP WITH TIME ZONE, NULL::INT;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT 
+    true,
+    ub.ban_type,
+    ub.reason,
+    ub.ban_expires_at,
+    CASE 
+      WHEN ub.ban_expires_at IS NULL THEN NULL
+      ELSE EXTRACT(HOUR FROM (ub.ban_expires_at - CURRENT_TIMESTAMP))::INT
+    END
+  FROM public.user_bans ub
+  WHERE ub.user_id = v_user_id 
+    AND ub.is_active = true
+    AND (ub.ban_expires_at IS NULL OR ub.ban_expires_at > CURRENT_TIMESTAMP)
+  LIMIT 1;
+
+  -- Si no hay ban activo
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, NULL::VARCHAR, NULL::TEXT, NULL::TIMESTAMP WITH TIME ZONE, NULL::INT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Comentarios
 COMMENT ON FUNCTION public.admin_get_all_infractions() IS 'Obtener todas las infracciones (solo admin)';
 COMMENT ON FUNCTION public.admin_get_all_active_bans() IS 'Obtener todos los bans activos (solo admin)';
@@ -269,3 +311,4 @@ COMMENT ON FUNCTION public.admin_lift_user_ban(UUID) IS 'Levantar un ban de usua
 COMMENT ON FUNCTION public.admin_delete_infraction(UUID) IS 'Eliminar una infracción (solo admin)';
 COMMENT ON FUNCTION public.admin_ban_user(UUID, VARCHAR, TEXT) IS 'Banear usuario manualmente (solo admin)';
 COMMENT ON FUNCTION public.admin_get_statistics() IS 'Obtener estadísticas del sistema (solo admin)';
+COMMENT ON FUNCTION public.get_current_user_ban_status() IS 'Verificar si el usuario autenticado está baneado';
