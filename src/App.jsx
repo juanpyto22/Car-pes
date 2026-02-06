@@ -28,6 +28,7 @@ import StoryViewerPage from '@/pages/StoryViewerPage';
 import CreateStoryPage from '@/pages/CreateStoryPage';
 import FishingMapsPage from '@/pages/FishingMapsPage';
 import AchievementsPage from '@/pages/AchievementsPage';
+import RewardsPage from '@/pages/RewardsPage';
 import GroupsPage from '@/pages/GroupsPage';
 import EventsCalendarPage from '@/pages/EventsCalendarPage';
 import MarketplacePage from '@/pages/MarketplacePage';
@@ -98,6 +99,7 @@ const AppRoutes = () => {
         <Route path="/create-story" element={<ProtectedRoute><CreateStoryPage /></ProtectedRoute>} />
         <Route path="/maps" element={<ProtectedRoute><FishingMapsPage /></ProtectedRoute>} />
         <Route path="/achievements" element={<ProtectedRoute><AchievementsPage /></ProtectedRoute>} />
+        <Route path="/rewards" element={<ProtectedRoute><RewardsPage /></ProtectedRoute>} />
         <Route path="/groups" element={<ProtectedRoute><GroupsPage /></ProtectedRoute>} />
         <Route path="/events" element={<ProtectedRoute><EventsCalendarPage /></ProtectedRoute>} />
         <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
