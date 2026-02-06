@@ -24,7 +24,6 @@ const FeedPage = () => {
   // Cargar IDs de usuarios seguidos
   useEffect(() => {
     if (!user?.id) {
-      setLoading(false);
       return;
     }
 
@@ -51,13 +50,12 @@ const FeedPage = () => {
   // Cargar posts cuando cambien los IDs
   useEffect(() => {
     if (followedIds.length === 0) {
-      setLoading(false);
       return;
     }
 
     const fetchPosts = async () => {
       try {
-        setLoading(true);
+        // El loading state se maneja en el hook usePosts
         const { data, error } = await supabase
           .from('posts')
           .select('*, user:users(*), likes(count), comments(count)')
@@ -68,11 +66,9 @@ const FeedPage = () => {
         if (error) throw error;
 
         if (data.length < PAGE_SIZE) setHasMore(false);
-        setPosts(data || []);
+        // Los posts se manejan en el hook usePosts
       } catch (error) {
         console.error('Error cargando posts:', error);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -121,24 +117,11 @@ const FeedPage = () => {
     if (followedIds.length === 0) return;
     
     try {
-      setLoading(true);
+      // Usar la función refetch del hook usePosts en lugar de manejar estado local
+      await refetch();
       setHasMore(true);
-      
-      const { data, error } = await supabase
-        .from('posts')
-        .select('*, user:users(*), likes(count), comments(count)')
-        .in('user_id', followedIds)
-        .order('created_at', { ascending: false })
-        .range(0, PAGE_SIZE - 1);
-
-      if (error) throw error;
-
-      if (data.length < PAGE_SIZE) setHasMore(false);
-      setPosts(data || []);
     } catch (error) {
       console.error('Error refrescando posts:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
