@@ -106,6 +106,9 @@ ADD COLUMN IF NOT EXISTS level_up_coins INT DEFAULT 0; -- Monedas acumuladas sin
 -- ========================================
 -- INSERTAR CATÁLOGO DE LOGROS
 -- ========================================
+-- Primero limpiar logros antiguos
+TRUNCATE TABLE public.achievements_library CASCADE;
+
 INSERT INTO public.achievements_library (achievement_id, name, description, xp_reward, icon, tier, condition_type, condition_value, is_repeatable)
 VALUES
   -- Logros de Posts (Primeros y Milestones)
@@ -224,12 +227,14 @@ VALUES
   ('unstoppable', 'Imparable', 'Publica 20 posts en un solo día', 1000, 'Zap', 'platinum', 'posts_per_day', 20, FALSE),
   ('octopus', 'Pulpo', 'Interactúa (comenta + dlike) 50+ veces en un día', 400, 'Star', 'gold', 'interactions_per_day', 50, FALSE),
   ('multi_tasker', 'Multitarea', 'Crea posts, historias y eventos en el mismo día', 300, 'Workflow', 'silver', 'multi_content_day', 1, FALSE),
-  ('comeback_kid', 'Niño de Regreso', 'Vuelve después de 30 días inactivo con un post viral', 750, 'RotateCw', 'gold', 'comeback', 1, FALSE)
-ON CONFLICT (achievement_id) DO NOTHING;
+  ('comeback_kid', 'Niño de Regreso', 'Vuelve después de 30 días inactivo con un post viral', 750, 'RotateCw', 'gold', 'comeback', 1, FALSE);
 
 -- ========================================
 -- INSERTAR RECOMPENSAS POR NIVEL (cada 10 niveles)
 -- ========================================
+-- Primero limpiar recompensas antiguas
+TRUNCATE TABLE public.level_rewards CASCADE;
+
 INSERT INTO public.level_rewards (level, coins_earned, euro_value, reward_tier, reward_description)
 VALUES
   (10, 5000, 0.50, 'bronze', 'Nivel 10 → Ganas 0.50€'),
@@ -245,8 +250,7 @@ VALUES
   (110, 5000, 5.50, 'diamond', 'Nivel 110 → Ganas 5.50€ (Total: 5.50€)'),
   (120, 5000, 6.00, 'diamond', 'Nivel 120 → Ganas 6.00€ (Total: 6.00€)'),
   (150, 5000, 7.50, 'diamond', 'Nivel 150 → Ganas 7.50€ (Total: 7.50€)'),
-  (200, 5000, 10.00, 'diamond', 'Nivel 200 → Ganas 10.00€ (Total: 10.00€) LEYENDA')
-ON CONFLICT (level) DO NOTHING;
+  (200, 5000, 10.00, 'diamond', 'Nivel 200 → Ganas 10.00€ (Total: 10.00€) LEYENDA');
 
 -- ========================================
 -- FUNCIONES RPC
