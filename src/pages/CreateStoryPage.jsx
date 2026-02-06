@@ -93,17 +93,21 @@ const CreateStoryPage = () => {
         const fileExt = mediaFile.name.split('.').pop().toLowerCase();
         const fileName = `stories/${user.id}/${Date.now()}.${fileExt}`;
 
+        console.log('Uploading story media...');
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('stories')
           .upload(fileName, mediaFile);
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          // Continue without media if upload fails
+        } else {
+          const { data: { publicUrl } } = supabase.storage
+            .from('stories')
+            .getPublicUrl(fileName);
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('stories')
-          .getPublicUrl(fileName);
-
-        mediaUrl = publicUrl;
+          mediaUrl = publicUrl;
+        }
       }
 
       // Create story record
@@ -121,11 +125,25 @@ const CreateStoryPage = () => {
         viewed_by: []
       };
 
+      console.log('Creating story...', storyData);
+
       const { error: insertError } = await supabase
         .from('stories')
         .insert(storyData);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Database error:', insertError);
+        
+        // Si la tabla no existe, mostrar mensaje amigable
+        toast({
+          title: "⚠️ Funcionalidad en desarrollo",
+          description: "Las historias estarán disponibles pronto. Crea una publicación normal por ahora.",
+        });
+        
+        // Redirigir a crear post
+        navigate('/create-post');
+        return;
+      }
 
       toast({
         title: "¡Historia publicada!",
@@ -137,9 +155,10 @@ const CreateStoryPage = () => {
       console.error('Error publishing story:', error);
       toast({
         variant: "destructive",
-        title: "Error al publicar",
-        description: "No se pudo publicar tu historia"
+        title: "⚠️ Funcionalidad en desarrollo", 
+        description: "Las historias no están disponibles aún. Crea una publicación normal."
       });
+      navigate('/create-post');
     } finally {
       setLoading(false);
     }

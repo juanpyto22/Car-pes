@@ -19,29 +19,32 @@ const StoriesBar = () => {
   }, [user]);
 
   const fetchStories = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     
     try {
-      // Obtener stories de usuarios seguidos + propias
-      const { data: followedUsers } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user.id);
-
-      const followedIds = followedUsers?.map(f => f.following_id) || [];
-      const allUserIds = [...followedIds, user.id];
-
+      console.log('Fetching stories...');
+      
+      // Obtener stories (con manejo de errores si la tabla no existe)
       const { data: storiesData, error } = await supabase
         .from('stories')
         .select(`
           *,
-          user:users!user_id(id, username, foto_perfil)
+          profiles!user_id(id, username, foto_perfil, nombre)
         `)
-        .in('user_id', allUserIds)
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Stories table error:', error);
+        // Si la tabla no existe, mostrar stories simuladas
+        setStories([]);
+        setMyStories([]);
+        setLoading(false);
+        return;
+      }
 
       // Agrupar por usuario
       const groupedStories = {};

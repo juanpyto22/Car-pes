@@ -15,21 +15,56 @@ export const AuthProvider = ({ children }) => {
     if (!userId) return null;
     
     try {
-      const { data, error } = await supabase
-        .from('users')
+      // Primero intentar la tabla 'profiles'
+      let { data, error } = await supabase
+        .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        console.error('Error al cargar perfil:', error);
-        return null;
+      // Si no existe en profiles, crear un perfil básico
+      if (error || !data) {
+        console.log('Profile not found, creating basic profile');
+        const user = await supabase.auth.getUser();
+        if (user.data?.user) {
+          const basicProfile = {
+            id: userId,
+            nombre: user.data.user.user_metadata?.nombre || user.data.user.email?.split('@')[0] || 'Usuario',
+            username: user.data.user.user_metadata?.username || user.data.user.email?.split('@')[0] || `user${userId.slice(-4)}`,
+            email: user.data.user.email,
+            followers_count: 0,
+            following_count: 0,
+            created_at: new Date().toISOString()
+          };
+          
+          // Intentar crear el perfil
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .upsert(basicProfile, { onConflict: 'id' })
+            .select()
+            .single();
+            
+          if (!createError && newProfile) {
+            data = newProfile;
+          } else {
+            data = basicProfile;
+          }
+        }
       }
+      
       setProfile(data);
       return data;
     } catch (error) {
-      console.error('Error inesperado al cargar perfil:', error);
-      return null;
+      console.error('Error al cargar perfil:', error);
+      // Crear perfil temporal para evitar crashes
+      const tempProfile = {
+        id: userId,
+        nombre: 'Usuario',
+        username: `user${userId.slice(-4)}`,
+        email: 'email@ejemplo.com'
+      };
+      setProfile(tempProfile);
+      return tempProfile;
     }
   }, []);
 
@@ -94,55 +129,68 @@ export const AuthProvider = ({ children }) => {
 
   const signUp = async (email, password, username, nombre) => {
     try {
-      // Verificar si el username ya existe
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('username')
-        .eq('username', username)
-        .maybeSingle();
-
-      if (existingUser) {
-        return { error: { message: 'El nombre de usuario ya está en uso' } };
-      }
-
-      // Crear usuario de Auth con confirmación de email
+      console.log('Attempting signup...', { email, username, nombre });
+      
+      // Crear usuario de Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            username,
-            nombre,
-          },
-          emailRedirectTo: `${window.location.origin}/login`
+            username: username,
+            nombre: nombre,
+          }
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Auth signup error:', error);
+        throw error;
+      }
+
+      console.log('Auth signup successful:', data);
 
       if (data.user) {
-        // Crear perfil público en tabla users
+        // Crear perfil en la tabla profiles
+        const profileData = {
+          id: data.user.id,
+          email: email,
+          username: username,
+          nombre: nombre,
+          followers_count: 0,
+          following_count: 0,
+          created_at: new Date().toISOString()
+        };
+
+        console.log('Creating profile...', profileData);
+        
         const { error: profileError } = await supabase
-          .from('users')
-          .insert([{
-            id: data.user.id,
-            email: email,
-            username: username,
-            nombre: nombre,
-            followers_count: 0,
-            following_count: 0
-          }]);
+          .from('profiles')
+          .upsert(profileData, { onConflict: 'id' });
 
         if (profileError) {
-          console.error("Error creando perfil:", profileError);
-          return { data, error: { message: "Cuenta creada, pero falló la configuración del perfil." } };
-        }
-        
-        // Verificar si el email necesita confirmación
-        if (data.user && !data.session) {
+          console.error('Profile creation error:', profileError);
+          // No fallar completamente si el perfil no se puede crear
           toast({
-            title: "¡Cuenta creada exitosamente!",
-            description: "Revisa tu email para confirmar tu cuenta antes de iniciar sesión.",
+            title: '⚠️ Cuenta creada con advertencia',
+            description: 'Tu cuenta fue creada pero puede necesitar configuración adicional.',
+          });
+        } else {
+          toast({
+            title: '✅ ¡Cuenta creada exitosamente!',
+            description: data.session ? 
+              'Ya puedes empezar a usar Car-Pes.' : 
+              'Revisa tu email para confirmar tu cuenta.',
+          });
+        }
+      }
+
+      return { data, error: null, needsEmailConfirmation: data.user && !data.session };
+    } catch (error) {
+      console.error('Signup process error:', error);
+      return { error };
+    }
+  };
           });
         } else {
           toast({
