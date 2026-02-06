@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Fish, Eye, Star, Filter, Plus } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { MapPin, Navigation, Fish, Eye, Star, Filter, Plus, Search, X, Map as MapIcon, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,26 +7,75 @@ import { supabase } from '@/lib/customSupabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { useToast } from '@/components/ui/use-toast';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import MarkerClusterGroup from 'leaflet.markercluster';
+import { fishingLocations, getLocationIcon } from '@/data/fishingLocations';
+import '@/styles/leaflet-custom.css';
+
+// Custom icon para los marcadores
+const createCustomIcon = (type, isSelected = false) => {
+  const defaultIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+  });
+
+  const typeIcons = {
+    'río': 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    'embalse': 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    'lago': 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    'mar': 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png',
+    'parque': 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+  };
+
+  return L.icon({
+    iconUrl: typeIcons[type] || defaultIcon.options.iconUrl,
+    iconSize: isSelected ? [35, 56] : [25, 41],
+    iconAnchor: isSelected ? [17, 56] : [12, 41],
+    popupAnchor: [1, -34],
+  });
+};
+
+// Componente para controlar el mapa desde fuera
+const MapController = ({ center, zoom }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (center && map) {
+      map.setView(center, zoom || 6);
+    }
+  }, [center, zoom, map]);
+
+  return null;
+};
 
 const FishingMapsPage = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const mapRef = useRef();
   
-  const [selectedSpot, setSelectedSpot] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState(null);
   const [spots, setSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAddSpot, setShowAddSpot] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mapCenter, setMapCenter] = useState([40.4168, -3.7038]); // Madrid
+  const [mapZoom, setMapZoom] = useState(6);
+  
+  // Filtros
   const [filters, setFilters] = useState({
-    fishTypes: [],
-    difficulty: 'all',
+    type: 'all', // 'all', 'río', 'embalse', 'lago', 'mar', 'parque'
+    country: 'España',
     rating: 0
   });
 
-  // Simulated map data - in real app would use Google Maps/Mapbox
-  const [mapCenter, setMapCenter] = useState({ lat: 40.4168, lng: -3.7038 }); // Madrid
-
+  // Fetch fishing spots desde Supabase
   useEffect(() => {
     fetchFishingSpots();
     getUserLocation();
@@ -40,7 +89,7 @@ const FishingMapsPage = () => {
           *,
           creator:profiles!creator_id(id, username, foto_perfil),
           reviews:spot_reviews(count),
-          avg_rating,
+          avg_rating:spot_reviews(count),
           recent_catches:catches(
             id,
             user:profiles(username, foto_perfil),
@@ -67,49 +116,73 @@ const FishingMapsPage = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
+          const location = [position.coords.latitude, position.coords.longitude];
           setUserLocation(location);
           setMapCenter(location);
+          setMapZoom(12);
         },
         (error) => {
-          console.log('Location access denied');
+          console.log('Location access denied, using default');
         }
       );
     }
   };
 
-  const SpotMarker = ({ spot, isSelected, onClick }) => (
-    <motion.div
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.95 }}
-      className={`absolute cursor-pointer transform -translate-x-1/2 -translate-y-full ${
-        isSelected ? 'z-20' : 'z-10'
-      }`}
-      style={{
-        left: `${((spot.longitude + 180) / 360) * 100}%`,
-        top: `${((90 - spot.latitude) / 180) * 100}%`
-      }}
-      onClick={() => onClick(spot)}
-    >
-      <div className={`relative ${isSelected ? 'animate-bounce' : ''}`}>
-        <div className={`w-10 h-10 rounded-full border-3 flex items-center justify-center shadow-lg ${
-          isSelected 
-            ? 'bg-cyan-500 border-white' 
-            : spot.avg_rating >= 4 
-              ? 'bg-green-500 border-green-300'
-              : 'bg-blue-500 border-blue-300'
-        }`}>
-          <Fish className="w-5 h-5 text-white" />
-        </div>
-        {isSelected && (
-          <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-ping" />
-        )}
-      </div>
-    </motion.div>
-  );
+  // Filtrar ubicaciones según búsqueda y filtros
+  const filteredLocations = useMemo(() => {
+    let result = [...fishingLocations];
+
+    // Filtrar por país
+    if (filters.country !== 'all') {
+      result = result.filter(loc => loc.country === filters.country);
+    }
+
+    // Filtrar por tipo
+    if (filters.type !== 'all') {
+      result = result.filter(loc => loc.type === filters.type);
+    }
+
+    // Filtrar por búsqueda
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(loc =>
+        loc.name.toLowerCase().includes(query) ||
+        loc.region.toLowerCase().includes(query) ||
+        loc.type.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [searchQuery, filters]);
+
+  // Obtener países únicos
+  const countries = useMemo(() => {
+    return ['all', ...new Set(fishingLocations.map(loc => loc.country))].sort();
+  }, []);
+
+  // Obtener tipos únicos
+  const types = useMemo(() => {
+    return ['all', ...new Set(fishingLocations.map(loc => loc.type))].sort();
+  }, []);
+
+  const handleSelectLocation = (location) => {
+    setSelectedLocation(location);
+    setMapCenter([location.latitude, location.longitude]);
+    setMapZoom(10);
+  };
+
+  const handleGoToLocation = (location) => {
+    if (userLocation) {
+      const url = `https://www.google.com/maps/dir/${userLocation[0]},${userLocation[1]}/${location.latitude},${location.longitude}`;
+      window.open(url, '_blank');
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Ubicación no disponible",
+        description: "Permite el acceso a tu ubicación para usar esta función"
+      });
+    }
+  };
 
   const SpotDetailsModal = ({ spot, onClose }) => (
     <AnimatePresence>
@@ -124,11 +197,11 @@ const FishingMapsPage = () => {
           initial={{ y: 100, opacity: 0, scale: 0.9 }}
           animate={{ y: 0, opacity: 1, scale: 1 }}
           exit={{ y: 100, opacity: 0, scale: 0.9 }}
-          className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden shadow-2xl"
+          className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl"
           onClick={e => e.stopPropagation()}
         >
-          {/* Header Image */}
-          {spot.image_url && (
+          {/* Header con imagen */}
+          {spot.image_url ? (
             <div className="relative h-48 overflow-hidden">
               <img 
                 src={spot.image_url} 
@@ -138,106 +211,81 @@ const FishingMapsPage = () => {
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
               <div className="absolute bottom-4 left-4 text-white">
                 <h3 className="text-xl font-bold">{spot.name}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="flex text-yellow-400">
-                    {[...Array(5)].map((_, i) => (
-                      <Star 
-                        key={i} 
-                        className={`w-4 h-4 ${i < spot.avg_rating ? 'fill-current' : ''}`} 
-                      />
-                    ))}
-                  </div>
-                  <span className="text-sm">({spot.reviews[0]?.count || 0} reseñas)</span>
-                </div>
               </div>
+            </div>
+          ) : (
+            <div className="p-6 border-b border-white/10">
+              <h3 className="text-xl font-bold text-white">{spot.name}</h3>
             </div>
           )}
 
           <div className="p-6 space-y-4">
             {/* Creator */}
-            <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10">
-                <AvatarImage src={spot.creator?.foto_perfil} />
-                <AvatarFallback>{spot.creator?.username?.[0]}</AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="text-white font-medium">@{spot.creator?.username}</p>
-                <p className="text-blue-400 text-sm">Creador del spot</p>
-              </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <h4 className="text-white font-semibold mb-2">Descripción</h4>
-              <p className="text-blue-200 text-sm leading-relaxed">
-                {spot.description || 'Sin descripción disponible'}
-              </p>
-            </div>
-
-            {/* Details */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h4 className="text-white font-semibold mb-2">Especies</h4>
-                <div className="flex flex-wrap gap-1">
-                  {spot.fish_species?.map(fish => (
-                    <span 
-                      key={fish} 
-                      className="px-2 py-1 bg-cyan-900/30 text-cyan-300 text-xs rounded-full"
-                    >
-                      {fish}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <h4 className="text-white font-semibold mb-2">Dificultad</h4>
-                <div className="flex items-center gap-1">
-                  {[...Array(3)].map((_, i) => (
-                    <div 
-                      key={i}
-                      className={`w-3 h-3 rounded-full ${
-                        i < spot.difficulty_level ? 'bg-orange-500' : 'bg-gray-600'
-                      }`} 
-                    />
-                  ))}
-                  <span className="text-sm text-blue-300 ml-2">
-                    {spot.difficulty_level === 1 ? 'Fácil' : 
-                     spot.difficulty_level === 2 ? 'Medio' : 'Difícil'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Catches */}
-            {spot.recent_catches?.length > 0 && (
-              <div>
-                <h4 className="text-white font-semibold mb-2">Capturas Recientes</h4>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {spot.recent_catches.slice(0, 3).map(catch_ => (
-                    <div key={catch_.id} className="flex items-center gap-3 p-2 bg-slate-800/50 rounded-lg">
-                      <Avatar className="w-6 h-6">
-                        <AvatarImage src={catch_.user?.foto_perfil} />
-                        <AvatarFallback className="text-xs">{catch_.user?.username?.[0]}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="text-white text-sm">{catch_.fish_species}</p>
-                        <p className="text-blue-400 text-xs">por @{catch_.user?.username}</p>
-                      </div>
-                    </div>
-                  ))}
+            {spot.creator && (
+              <div className="flex items-center gap-3">
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={spot.creator?.foto_perfil} />
+                  <AvatarFallback>{spot.creator?.username?.[0]}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="text-white font-medium">@{spot.creator?.username}</p>
+                  <p className="text-blue-400 text-sm">Creador del spot</p>
                 </div>
               </div>
             )}
+
+            {/* Description */}
+            {spot.description && (
+              <div>
+                <h4 className="text-white font-semibold mb-2">Descripción</h4>
+                <p className="text-blue-200 text-sm leading-relaxed">
+                  {spot.description}
+                </p>
+              </div>
+            )}
+
+            {/* Details */}
+            <div className="grid grid-cols-2 gap-4">
+              {spot.fish_species && spot.fish_species.length > 0 && (
+                <div>
+                  <h4 className="text-white font-semibold mb-2">Especies</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {spot.fish_species.map(fish => (
+                      <span 
+                        key={fish} 
+                        className="px-2 py-1 bg-cyan-900/30 text-cyan-300 text-xs rounded-full"
+                      >
+                        {fish}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {spot.difficulty_level !== undefined && (
+                <div>
+                  <h4 className="text-white font-semibold mb-2">Dificultad</h4>
+                  <div className="flex items-center gap-1">
+                    {[...Array(3)].map((_, i) => (
+                      <div 
+                        key={i}
+                        className={`w-3 h-3 rounded-full ${
+                          i < spot.difficulty_level ? 'bg-orange-500' : 'bg-gray-600'
+                        }`} 
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Actions */}
             <div className="flex gap-2 pt-4 border-t border-white/10">
               <Button 
                 className="flex-1 bg-cyan-600 hover:bg-cyan-500"
                 onClick={() => {
-                  // Navigate to spot or open directions
                   if (userLocation) {
-                    const url = `https://www.google.com/maps/dir/${userLocation.lat},${userLocation.lng}/${spot.latitude},${spot.longitude}`;
+                    const url = `https://www.google.com/maps/dir/${userLocation[0]},${userLocation[1]}/${spot.latitude || 40},${spot.longitude || -3}`;
                     window.open(url, '_blank');
                   }
                 }}
@@ -245,9 +293,108 @@ const FishingMapsPage = () => {
                 <Navigation className="w-4 h-4 mr-2" />
                 Ir al Spot
               </Button>
-              <Button variant="outline">
-                <Eye className="w-4 h-4 mr-2" />
-                Ver Posts
+              <Button 
+                variant="outline"
+                onClick={onClose}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+
+  const LocationDetailsModal = ({ location, onClose }) => (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ y: 100, opacity: 0, scale: 0.9 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: 100, opacity: 0, scale: 0.9 }}
+          className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="sticky top-0 z-10 bg-gradient-to-r from-slate-900 to-blue-900/50 border-b border-white/10 p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">{getLocationIcon(location.type)}</span>
+                  <span className="px-2 py-1 bg-cyan-900/30 text-cyan-300 text-xs rounded-full capitalize">
+                    {location.type}
+                  </span>
+                </div>
+                <h2 className="text-2xl font-bold text-white">{location.name}</h2>
+                <p className="text-blue-400 text-sm mt-1">{location.region}, {location.country}</p>
+              </div>
+              <button 
+                onClick={onClose}
+                className="text-white/60 hover:text-white transition"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 space-y-4">
+            {/* Descripción */}
+            {location.description && (
+              <div>
+                <h3 className="text-white font-semibold mb-2">Descripción</h3>
+                <p className="text-blue-200 text-sm leading-relaxed">
+                  {location.description}
+                </p>
+              </div>
+            )}
+
+            {/* Información del Lugar */}
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
+              <div>
+                <p className="text-blue-400 text-xs mb-1">Tipo</p>
+                <p className="text-white font-medium capitalize">{location.type}</p>
+              </div>
+              <div>
+                <p className="text-blue-400 text-xs mb-1">Región</p>
+                <p className="text-white font-medium">{location.region}</p>
+              </div>
+              <div>
+                <p className="text-blue-400 text-xs mb-1">País</p>
+                <p className="text-white font-medium">{location.country}</p>
+              </div>
+              <div>
+                <p className="text-blue-400 text-xs mb-1">Coordenadas</p>
+                <p className="text-white font-medium text-sm">
+                  {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                </p>
+              </div>
+            </div>
+
+            {/* Acciones */}
+            <div className="flex gap-2 pt-4">
+              <Button 
+                className="flex-1 bg-cyan-600 hover:bg-cyan-500"
+                onClick={() => handleGoToLocation(location)}
+              >
+                <Navigation className="w-4 h-4 mr-2" />
+                Ir al Lugar
+              </Button>
+              <Button 
+                variant="outline"
+                className="flex-1"
+                onClick={onClose}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cerrar
               </Button>
             </div>
           </div>
@@ -270,18 +417,26 @@ const FishingMapsPage = () => {
         <title>Mapa de Spots - Car-Pes</title>
       </Helmet>
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900">
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 flex flex-col">
         {/* Header */}
         <div className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-sm border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-4 py-4 w-full">
+            <div className="flex items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-white">Mapa de Spots</h1>
-                <p className="text-blue-400 text-sm">Descubre los mejores lugares de pesca</p>
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <MapIcon className="w-6 h-6 text-cyan-400" />
+                  Mapa de Spots
+                </h1>
+                <p className="text-blue-400 text-sm">Descubre los mejores lugares de pesca en España y Latinoamérica</p>
               </div>
               
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="hidden md:flex"
+                >
                   <Filter className="w-4 h-4 mr-2" />
                   Filtros
                 </Button>
@@ -295,112 +450,248 @@ const FishingMapsPage = () => {
                 </Button>
               </div>
             </div>
+
+            {/* Search Bar */}
+            <div className="mt-4 flex gap-2">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-blue-400" />
+                <input
+                  type="text"
+                  placeholder="Busca lugares de pesca..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-white/10 rounded-lg text-white placeholder-blue-400 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+              {searchQuery && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSearchQuery('')}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </div>
+
+          {/* Filters Panel */}
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="border-t border-white/10 bg-slate-900/50 p-4"
+            >
+              <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* País */}
+                <div>
+                  <label className="text-blue-400 text-sm font-semibold mb-2 block">País</label>
+                  <select
+                    value={filters.country}
+                    onChange={(e) => setFilters({ ...filters, country: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-white/10 rounded text-white text-sm"
+                  >
+                    <option value="all">Todos los países</option>
+                    {countries.filter(c => c !== 'all').map(country => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Tipo */}
+                <div>
+                  <label className="text-blue-400 text-sm font-semibold mb-2 block">Tipo de Lugar</label>
+                  <select
+                    value={filters.type}
+                    onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-800 border border-white/10 rounded text-white text-sm"
+                  >
+                    <option value="all">Todos los tipos</option>
+                    {types.map(type => (
+                      <option key={type} value={type}>
+                        {type === 'all' ? 'Todos' : type.charAt(0).toUpperCase() + type.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Resultados */}
+                <div className="flex items-end">
+                  <p className="text-blue-300 text-sm">
+                    <span className="font-semibold text-cyan-400">{filteredLocations.length}</span> lugares encontrados
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
 
-        {/* Map Container */}
-        <div className="relative h-[calc(100vh-140px)]">
-          {/* Simulated Map Background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-green-900/20 overflow-hidden">
-            {/* Map Grid Pattern */}
-            <div 
-              className="absolute inset-0 opacity-10"
-              style={{
-                backgroundImage: `
-                  linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-                  linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
-                `,
-                backgroundSize: '50px 50px'
-              }}
-            />
-            
-            {/* Water areas */}
-            <div className="absolute top-1/4 left-1/3 w-32 h-20 bg-blue-500/30 rounded-full blur-sm" />
-            <div className="absolute top-1/2 right-1/4 w-24 h-16 bg-blue-400/20 rounded-full blur-sm" />
-            <div className="absolute bottom-1/3 left-1/4 w-40 h-24 bg-cyan-500/20 rounded-full blur-sm" />
-          </div>
-
-          {/* User Location */}
-          {userLocation && (
-            <div 
-              className="absolute w-4 h-4 bg-red-500 rounded-full border-2 border-white shadow-lg z-30 transform -translate-x-1/2 -translate-y-1/2 animate-pulse"
-              style={{
-                left: `${((userLocation.lng + 180) / 360) * 100}%`,
-                top: `${((90 - userLocation.lat) / 180) * 100}%`
-              }}
-            />
-          )}
-
-          {/* Fishing Spots */}
-          {spots.map(spot => (
-            <SpotMarker
-              key={spot.id}
-              spot={spot}
-              isSelected={selectedSpot?.id === spot.id}
-              onClick={setSelectedSpot}
-            />
-          ))}
-
-          {/* Map Controls */}
-          <div className="absolute top-4 right-4 flex flex-col gap-2 z-30">
-            <Button
-              size="icon"
-              variant="outline"
-              className="bg-white/90 hover:bg-white"
-              onClick={getUserLocation}
+        {/* Main Content */}
+        <div className="flex-1 flex gap-4 overflow-hidden p-4">
+          {/* Map */}
+          <div className="flex-1 rounded-lg overflow-hidden border border-white/10">
+            <MapContainer
+              center={mapCenter}
+              zoom={mapZoom}
+              style={{ height: '100%', width: '100%' }}
+              zoomControl={true}
             >
-              <Navigation className="w-4 h-4" />
-            </Button>
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+
+              <MapController center={mapCenter} zoom={mapZoom} />
+
+              {/* Marcadores de ubicaciones de pesca */}
+              {filteredLocations.map((location) => (
+                <Marker
+                  key={`${location.name}-${location.latitude}`}
+                  position={[location.latitude, location.longitude]}
+                  icon={createCustomIcon(location.type, selectedLocation?.name === location.name)}
+                  eventHandlers={{
+                    click: () => handleSelectLocation(location),
+                  }}
+                >
+                  <Popup maxWidth={300}>
+                    <div className="bg-slate-800 rounded p-3 text-white">
+                      <h3 className="font-bold text-lg mb-1">{location.name}</h3>
+                      <p className="text-blue-300 text-sm mb-2">{location.region}, {location.country}</p>
+                      <p className="text-blue-200 text-xs mb-3">{getLocationIcon(location.type)} {location.type}</p>
+                      {location.description && (
+                        <p className="text-blue-100 text-xs mb-3">{location.description}</p>
+                      )}
+                      <button
+                        onClick={() => handleSelectLocation(location)}
+                        className="w-full px-2 py-1 bg-cyan-600 hover:bg-cyan-500 rounded text-sm text-white"
+                      >
+                        Ver Detalles
+                      </button>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+
+              {/* Usuario actual */}
+              {userLocation && (
+                <Marker
+                  position={userLocation}
+                  icon={L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                  })}
+                >
+                  <Popup>
+                    <div className="bg-slate-800 text-white p-2 rounded">
+                      Tu ubicación
+                    </div>
+                  </Popup>
+                </Marker>
+              )}
+            </MapContainer>
           </div>
 
-          {/* Spots List (Mobile) */}
-          <div className="absolute bottom-4 left-4 right-4 md:hidden z-30">
-            <div className="bg-slate-900/90 backdrop-blur-sm rounded-2xl p-4 max-h-40 overflow-y-auto">
-              <h3 className="text-white font-semibold mb-3">Spots Cercanos</h3>
-              <div className="space-y-2">
-                {spots.slice(0, 3).map(spot => (
-                  <div 
-                    key={spot.id}
-                    onClick={() => setSelectedSpot(spot)}
-                    className="flex items-center gap-3 p-2 bg-slate-800/50 rounded-lg cursor-pointer hover:bg-slate-800"
+          {/* Sidebar con lista */}
+          <div className="w-full md:w-96 bg-slate-900/60 backdrop-blur-sm border border-white/10 rounded-lg flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-white/10">
+              <h3 className="text-white font-semibold flex items-center gap-2">
+                <Layers className="w-4 h-4 text-cyan-400" />
+                Lugares Encontrados ({filteredLocations.length})
+              </h3>
+            </div>
+
+            {/* Lista */}
+            <div className="flex-1 overflow-y-auto space-y-2 p-4">
+              {filteredLocations.length > 0 ? (
+                filteredLocations.map((location) => (
+                  <motion.div
+                    key={`${location.name}-${location.latitude}`}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className={`p-3 rounded-lg cursor-pointer transition ${
+                      selectedLocation?.name === location.name
+                        ? 'bg-cyan-600/30 border border-cyan-500'
+                        : 'bg-slate-800/50 border border-white/5 hover:bg-slate-800/70'
+                    }`}
+                    onClick={() => handleSelectLocation(location)}
                   >
-                    <div className="w-8 h-8 bg-cyan-500 rounded-full flex items-center justify-center">
-                      <Fish className="w-4 h-4 text-white" />
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl flex-shrink-0">{getLocationIcon(location.type)}</span>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-white font-semibold truncate">{location.name}</h4>
+                        <p className="text-blue-400 text-xs">{location.region}</p>
+                        <p className="text-blue-300 text-xs mt-1 capitalize">{location.type}</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-white text-sm font-medium">{spot.name}</p>
-                      <p className="text-blue-400 text-xs">{spot.distance || '2.5km'} de distancia</p>
-                    </div>
-                    <div className="flex text-yellow-400">
-                      {[...Array(Math.floor(spot.avg_rating || 0))].map((_, i) => (
-                        <Star key={i} className="w-3 h-3 fill-current" />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center h-32 text-blue-400">
+                  <p className="text-center text-sm">
+                    No se encontraron lugares que coincidan con tu búsqueda
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Spot Detail Modal */}
-        {selectedSpot && (
-          <SpotDetailsModal 
-            spot={selectedSpot} 
-            onClose={() => setSelectedSpot(null)} 
+        {/* Selected Location Modal */}
+        {selectedLocation && (
+          <LocationDetailsModal 
+            location={selectedLocation} 
+            onClose={() => setSelectedLocation(null)} 
           />
         )}
 
-        {/* Add Spot Modal - TODO: Implement */}
+        {/* Add Spot Modal */}
         {showAddSpot && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 rounded-2xl p-6 w-full max-w-md">
-              <h3 className="text-xl font-bold text-white mb-4">Agregar Nuevo Spot</h3>
-              <p className="text-blue-300 mb-4">Funcionalidad en desarrollo...</p>
-              <Button onClick={() => setShowAddSpot(false)}>
-                Cerrar
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-slate-900 rounded-2xl p-6 w-full max-w-md border border-white/10"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white">Agregar Nuevo Spot</h3>
+                <button 
+                  onClick={() => setShowAddSpot(false)}
+                  className="text-white/60 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-blue-300 mb-6">
+                Comparte un lugar de pesca que conozcas. Los spots serán validados por la comunidad.
+              </p>
+              <div className="space-y-3">
+                <input 
+                  type="text"
+                  placeholder="Nombre del spot"
+                  className="w-full px-4 py-2 bg-slate-800 border border-white/10 rounded text-white placeholder-blue-400"
+                />
+                <textarea
+                  placeholder="Descripción..."
+                  rows="3"
+                  className="w-full px-4 py-2 bg-slate-800 border border-white/10 rounded text-white placeholder-blue-400"
+                />
+                <Button className="w-full bg-cyan-600 hover:bg-cyan-500">
+                  Crear Spot
+                </Button>
+              </div>
+              <Button 
+                variant="outline" 
+                className="w-full mt-3"
+                onClick={() => setShowAddSpot(false)}
+              >
+                Cancelar
               </Button>
-            </div>
+            </motion.div>
           </div>
         )}
       </div>
