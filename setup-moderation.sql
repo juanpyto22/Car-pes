@@ -54,6 +54,17 @@ SELECT
 FROM public.user_bans ub
 WHERE ub.is_active = true;
 
+-- Función helper: verificar si usuario es admin (DEBE ESTAR ANTES DE RLS)
+CREATE OR REPLACE FUNCTION public.is_admin_user(user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS(
+    SELECT 1 FROM public.profiles 
+    WHERE id = user_id AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- RLS Policies
 ALTER TABLE public.user_infractions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_bans ENABLE ROW LEVEL SECURITY;
@@ -71,17 +82,6 @@ CREATE POLICY "usuarios_ven_sus_baneos" ON public.user_bans
 
 CREATE POLICY "admin_ve_todos_baneos" ON public.user_bans
   FOR ALL USING (is_admin_user(auth.uid()));
-
--- Función helper: verificar si usuario es admin
-CREATE OR REPLACE FUNCTION public.is_admin_user(user_id UUID)
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS(
-    SELECT 1 FROM public.profiles 
-    WHERE id = user_id AND role = 'admin'
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Función: Verificar si usuario está baneado
 CREATE OR REPLACE FUNCTION public.check_user_ban(user_id UUID)

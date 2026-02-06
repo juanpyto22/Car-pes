@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { AdminRoute } from '@/components/AdminRoute';
 
 // Pages
 import LandingPage from '@/pages/LandingPage';
@@ -30,6 +31,7 @@ import EventsCalendarPage from '@/pages/EventsCalendarPage';
 import MarketplacePage from '@/pages/MarketplacePage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import SettingsPage from '@/pages/SettingsPage';
+import AdminPanel from '@/pages/AdminPanel';
 
 // Components
 import Header from '@/components/Header';
@@ -83,6 +85,7 @@ const AppRoutes = () => {
         <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
         <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+        <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </div>
