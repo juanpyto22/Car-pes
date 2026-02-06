@@ -106,8 +106,8 @@ ADD COLUMN IF NOT EXISTS level_up_coins INT DEFAULT 0; -- Monedas acumuladas sin
 -- ========================================
 -- INSERTAR CATÁLOGO DE LOGROS
 -- ========================================
--- Primero limpiar logros antiguos
-TRUNCATE TABLE public.achievements_library CASCADE;
+-- Primero limpiar logros antiguos - DELETE para evitar problemas con FK
+DELETE FROM public.achievements_library WHERE TRUE;
 
 INSERT INTO public.achievements_library (achievement_id, name, description, xp_reward, icon, tier, condition_type, condition_value, is_repeatable)
 VALUES
@@ -232,8 +232,8 @@ VALUES
 -- ========================================
 -- INSERTAR RECOMPENSAS POR NIVEL (cada 10 niveles)
 -- ========================================
--- Primero limpiar recompensas antiguas
-TRUNCATE TABLE public.level_rewards CASCADE;
+-- Primero limpiar recompensas antiguas - DELETE para evitar problemas con FK
+DELETE FROM public.level_rewards WHERE TRUE;
 
 INSERT INTO public.level_rewards (level, coins_earned, euro_value, reward_tier, reward_description)
 VALUES
