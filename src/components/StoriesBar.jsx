@@ -25,13 +25,22 @@ const StoriesBar = () => {
     }
     
     try {
-      // Obtener TODAS las stories activas (no expiradas) de todos los usuarios
+      // Primero obtener los IDs de usuarios que sigue
+      const { data: followsData } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id);
+
+      const followingIds = followsData?.map(f => f.following_id) || [];
+
+      // Obtener historias de usuarios que sigue + las propias
       const { data: storiesData, error } = await supabase
         .from('stories')
         .select(`
           *,
           user:profiles!user_id(id, username, foto_perfil, nombre)
         `)
+        .in('user_id', [...followingIds, user.id])
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 

@@ -15,13 +15,40 @@ export const useStories = (currentUser) => {
     }
 
     try {
-      // Obtener TODAS las stories activas (no expiradas) de todos los usuarios
+      // Primero obtener los IDs de usuarios que sigue
+      const { data: followsData } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', currentUser.id);
+
+      const followingIds = followsData?.map(f => f.following_id) || [];
+
+      // Si no sigue a nadie, mostrar solo sus historias
+      if (followingIds.length === 0) {
+        const { data: myStoriesOnly } = await supabase
+          .from('stories')
+          .select(`
+            *,
+            user:profiles!user_id(id, username, foto_perfil)
+          `)
+          .eq('user_id', currentUser.id)
+          .gte('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false });
+
+        setMyStories(myStoriesOnly || []);
+        setStories([]);
+        setLoading(false);
+        return;
+      }
+
+      // Obtener historias solo de usuarios que sigue (más la propia)
       const { data: storiesData, error } = await supabase
         .from('stories')
         .select(`
           *,
           user:profiles!user_id(id, username, foto_perfil)
         `)
+        .in('user_id', [...followingIds, currentUser.id])
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 
