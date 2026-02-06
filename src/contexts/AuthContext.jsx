@@ -230,20 +230,6 @@ export const AuthProvider = ({ children }) => {
       return { error: { message: errorMessage } };
     }
   };
-          });
-        } else {
-          toast({
-            title: "¡Cuenta creada exitosamente!",
-            description: "Ya puedes iniciar sesión con tus credenciales.",
-          });
-        }
-      }
-
-      return { data, error: null, needsEmailConfirmation: data.user && !data.session };
-    } catch (error) {
-      return { error };
-    }
-  };
 
   const signIn = async (email, password) => {
     try {
