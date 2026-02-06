@@ -126,37 +126,6 @@ const CreatePostPage = () => {
       setLoading(false);
     }
   };
-          video_url: isVideo ? publicUrl : null,
-          peso: formData.peso ? parseFloat(formData.peso) : null,
-          tamano: formData.tamano ? parseFloat(formData.tamano) : null,
-          tipo_pez: formData.tipo_pez,
-          ubicacion: formData.ubicacion,
-          likes_count: 0,
-          comments_count: 0
-        }]);
-
-      if (insertError) {
-        console.error('Database insert error:', insertError);
-        throw new Error('Error al guardar en la base de datos: ' + insertError.message);
-      }
-
-      toast({
-        title: "¡Publicado!",
-        description: "Tu captura se ha compartido exitosamente.",
-      });
-      navigate('/feed');
-
-    } catch (error) {
-      console.error('Error completo:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "No se pudo crear la publicación.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <>
