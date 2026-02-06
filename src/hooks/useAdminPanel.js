@@ -202,36 +202,35 @@ export const useAdminStatistics = () => {
 
 /**
  * Hook: Verificar si usuario actual es admin
+ * Usa la función RPC de Supabase para mayor seguridad
  */
 export const useIsAdmin = (userId) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
-
     const checkAdmin = async () => {
       try {
+        // Usar la función RPC is_current_user_admin() que verifica el usuario autenticado
         const { data, error } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', userId)
-          .single();
+          .rpc('is_current_user_admin');
 
-        if (error) throw error;
-        setIsAdmin(data?.role === 'admin');
+        if (error) {
+          console.error('Error checking admin status:', error);
+          setIsAdmin(false);
+        } else {
+          setIsAdmin(data === true);
+        }
       } catch (error) {
         console.error('Error checking admin status:', error);
+        setIsAdmin(false);
       } finally {
         setLoading(false);
       }
     };
 
     checkAdmin();
-  }, [userId]);
+  }, []);
 
   return { isAdmin, loading };
 };

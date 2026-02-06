@@ -10,7 +10,7 @@ import { LoadingSpinner } from './LoadingSpinner';
  */
 export const AdminRoute = ({ children }) => {
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, loading: adminLoading } = useIsAdmin(user?.id);
+  const { isAdmin, loading: adminLoading } = useIsAdmin();
   const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
