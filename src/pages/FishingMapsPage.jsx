@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { MapPin, Navigation, Fish, Eye, Star, Filter, Plus, Search, X, Map as MapIcon, Layers } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { MapPin, Navigation, Fish, Eye, Star, Filter, Plus, Search, X, Map as MapIcon, Layers, Zap, HelpCircle, Smartphone, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -64,9 +64,13 @@ const FishingMapsPage = () => {
   const [loading, setLoading] = useState(true);
   const [showAddSpot, setShowAddSpot] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [mapCenter, setMapCenter] = useState([40.4168, -3.7038]); // Madrid
   const [mapZoom, setMapZoom] = useState(6);
+  const [showSearchMenu, setShowSearchMenu] = useState(false);
+  const searchInputRef = useRef(null);
   
   // Filtros
   const [filters, setFilters] = useState({
@@ -128,8 +132,46 @@ const FishingMapsPage = () => {
     }
   };
 
-  // Filtrar ubicaciones según búsqueda y filtros
-  const filteredLocations = useMemo(() => {
+  // Actualizar sugerencias de búsqueda en tiempo real
+  useEffect(() => {
+    if (searchQuery.trim().length >= 1) {
+      const query = searchQuery.toLowerCase();
+      const suggestions = filteredLocations
+        .filter(loc =>
+          loc.name.toLowerCase().includes(query) ||
+          loc.region.toLowerCase().includes(query)
+        )
+        .slice(0, 6);
+      setSearchSuggestions(suggestions);
+      setShowSearchMenu(true);
+    } else {
+      setSearchSuggestions([]);
+      setShowSearchMenu(false);
+    }
+  }, [searchQuery, filteredLocations]);
+
+  // Atajos de teclado
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Cmd/Ctrl + K para enfoque en búsqueda
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      // ESC para cerrar menús
+      if (e.key === 'Escape') {
+        setShowSearchMenu(false);
+        setShowFilters(false);
+      }
+      // Enter en búsqueda para ir al primer resultado
+      if (e.key === 'Enter' && searchSuggestions.length > 0) {
+        handleSelectLocation(searchSuggestions[0]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchSuggestions]);
     let result = [...fishingLocations];
 
     // Filtrar por país
@@ -169,6 +211,8 @@ const FishingMapsPage = () => {
     setSelectedLocation(location);
     setMapCenter([location.latitude, location.longitude]);
     setMapZoom(10);
+    setShowSearchMenu(false);
+    setSearchQuery('');
   };
 
   const handleGoToLocation = (location) => {
@@ -182,6 +226,23 @@ const FishingMapsPage = () => {
         description: "Permite el acceso a tu ubicación para usar esta función"
       });
     }
+  };
+
+  // Filtros rápidos preestablecidos
+  const quickFilters = [
+    { label: '🏞️ Ríos', type: 'río', country: 'España' },
+    { label: '💧 Embalses', type: 'embalse', country: 'España' },
+    { label: '🌊 Mares', type: 'mar', country: 'España' },
+    { label: '🏔️ Patagonia', type: 'all', country: 'Argentina' },
+  ];
+
+  const applyQuickFilter = (quickFilter) => {
+    setFilters({
+      type: quickFilter.type,
+      country: quickFilter.country,
+      rating: 0
+    });
+    setShowFilters(false);
   };
 
   const SpotDetailsModal = ({ spot, onClose }) => (
@@ -418,115 +479,189 @@ const FishingMapsPage = () => {
       </Helmet>
 
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 flex flex-col">
-        {/* Header */}
+        {/* Header Mejorado */}
         <div className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-sm border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-4 py-4 w-full">
-            <div className="flex items-center justify-between gap-4">
-              <div>
+          <div className="max-w-7xl mx-auto px-4 py-3 w-full">
+            {/* Fila 1: Título + Acciones */}
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <div className="flex-1">
                 <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                   <MapIcon className="w-6 h-6 text-cyan-400" />
-                  Mapa de Spots
+                  Mapa de Pesca
                 </h1>
-                <p className="text-blue-400 text-sm">Descubre los mejores lugares de pesca en España y Latinoamérica</p>
+                <p className="text-blue-400 text-xs mt-0.5">Descubre 110+ lugares de pesca en España y Latinoamérica</p>
               </div>
               
               <div className="flex items-center gap-2">
                 <Button 
-                  variant="outline" 
                   size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="hidden md:flex"
+                  variant="ghost"
+                  onClick={() => setShowHelp(!showHelp)}
+                  className="text-blue-400 hover:text-white hover:bg-blue-900/20"
+                  title="Presiona ? para ayuda"
                 >
-                  <Filter className="w-4 h-4 mr-2" />
-                  Filtros
+                  <HelpCircle className="w-4 h-4" />
                 </Button>
                 <Button 
                   size="sm"
                   className="bg-cyan-600 hover:bg-cyan-500"
                   onClick={() => setShowAddSpot(true)}
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Agregar Spot
+                  <Plus className="w-4 h-4 mr-1" />
+                  Agregar
                 </Button>
               </div>
             </div>
 
-            {/* Search Bar */}
-            <div className="mt-4 flex gap-2">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-blue-400" />
-                <input
-                  type="text"
-                  placeholder="Busca lugares de pesca..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-white/10 rounded-lg text-white placeholder-blue-400 focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-              {searchQuery && (
-                <Button
+            {/* Fila 2: Búsqueda Mejorada */}
+            <div className="relative">
+              <div className="flex gap-2 items-center">
+                <div className="flex-1 relative">
+                  <div className="absolute left-3 top-3 flex items-center gap-2">
+                    <Search className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Busca Ebro, Asturias, mar... (Ctrl+K)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setShowSearchMenu(searchQuery.trim().length >= 1)}
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-800/70 border border-white/20 rounded-lg text-white placeholder-blue-400 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => {
+                        setSearchQuery('');
+                        setShowSearchMenu(false);
+                      }}
+                      className="absolute right-3 top-3 text-white/60 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  {/* Menú desplegable de sugerencias */}
+                  {showSearchMenu && searchSuggestions.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-white/20 rounded-lg shadow-2xl overflow-hidden z-50"
+                    >
+                      <div className="max-h-64 overflow-y-auto">
+                        {searchSuggestions.map((location, idx) => (
+                          <button
+                            key={`${location.name}-${location.latitude}`}
+                            onClick={() => handleSelectLocation(location)}
+                            className="w-full px-4 py-2.5 text-left border-b border-white/5 hover:bg-blue-900/30 transition flex items-center gap-3"
+                          >
+                            <span className="text-xl flex-shrink-0">{getLocationIcon(location.type)}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-white font-medium truncate">{location.name}</div>
+                              <div className="text-blue-400 text-xs">{location.region}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="px-4 py-1.5 bg-slate-800/50 text-blue-400 text-xs">
+                        {searchSuggestions.length} resultado{searchSuggestions.length > 1 ? 's' : ''} · Presiona Enter para ir al primero
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Botón de filtros */}
+                <Button 
                   size="sm"
-                  variant="ghost"
-                  onClick={() => setSearchQuery('')}
+                  variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="whitespace-nowrap"
                 >
-                  <X className="w-4 h-4" />
+                  <Zap className="w-4 h-4 mr-1" />
+                  Filtros
                 </Button>
+              </div>
+
+              {/* Filtros Rápidos */}
+              {showFilters && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-3 p-3 bg-slate-900/50 border border-white/10 rounded-lg space-y-3"
+                >
+                  {/* Filtros Rápidos Preestablecidos */}
+                  <div>
+                    <p className="text-blue-400 text-xs font-semibold mb-2">⚡ Rápidos</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {quickFilters.map((qf, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => applyQuickFilter(qf)}
+                          className="px-3 py-2 bg-cyan-600/20 hover:bg-cyan-600/40 border border-cyan-500/50 rounded text-cyan-300 text-sm font-medium transition"
+                        >
+                          {qf.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Divisor */}
+                  <div className="border-t border-white/10"></div>
+
+                  {/* Filtros Personalizados */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-blue-400 text-xs font-semibold mb-1.5 block">País</label>
+                      <select
+                        value={filters.country}
+                        onChange={(e) => setFilters({ ...filters, country: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-cyan-500"
+                      >
+                        <option value="all">Todos los países</option>
+                        {countries.filter(c => c !== 'all').map(country => (
+                          <option key={country} value={country}>
+                            {country}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-blue-400 text-xs font-semibold mb-1.5 block">Tipo de Lugar</label>
+                      <select
+                        value={filters.type}
+                        onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-800 border border-white/10 rounded text-white text-sm focus:outline-none focus:border-cyan-500"
+                      >
+                        <option value="all">Todos los tipos</option>
+                        {types.map(type => (
+                          <option key={type} value={type}>
+                            {type === 'all' ? 'Todos' : type.charAt(0).toUpperCase() + type.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Info de resultados */}
+                  <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                    <p className="text-blue-300 text-xs">
+                      <span className="font-semibold text-cyan-400">{filteredLocations.length}</span> lugares encontrados
+                    </p>
+                    <button
+                      onClick={() => {
+                        setFilters({ type: 'all', country: 'España', rating: 0 });
+                        setSearchQuery('');
+                      }}
+                      className="text-blue-400 hover:text-cyan-300 text-xs"
+                    >
+                      ↺ Resetear
+                    </button>
+                  </div>
+                </motion.div>
               )}
             </div>
           </div>
-
-          {/* Filters Panel */}
-          {showFilters && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="border-t border-white/10 bg-slate-900/50 p-4"
-            >
-              <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* País */}
-                <div>
-                  <label className="text-blue-400 text-sm font-semibold mb-2 block">País</label>
-                  <select
-                    value={filters.country}
-                    onChange={(e) => setFilters({ ...filters, country: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-white/10 rounded text-white text-sm"
-                  >
-                    <option value="all">Todos los países</option>
-                    {countries.filter(c => c !== 'all').map(country => (
-                      <option key={country} value={country}>
-                        {country}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Tipo */}
-                <div>
-                  <label className="text-blue-400 text-sm font-semibold mb-2 block">Tipo de Lugar</label>
-                  <select
-                    value={filters.type}
-                    onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-800 border border-white/10 rounded text-white text-sm"
-                  >
-                    <option value="all">Todos los tipos</option>
-                    {types.map(type => (
-                      <option key={type} value={type}>
-                        {type === 'all' ? 'Todos' : type.charAt(0).toUpperCase() + type.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Resultados */}
-                <div className="flex items-end">
-                  <p className="text-blue-300 text-sm">
-                    <span className="font-semibold text-cyan-400">{filteredLocations.length}</span> lugares encontrados
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
         </div>
 
         {/* Main Content */}
