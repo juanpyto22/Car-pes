@@ -35,7 +35,7 @@ const Header = () => {
       animate={{ y: 0 }}
       className="sticky top-0 z-50 bg-gradient-to-r from-blue-950/95 to-slate-950/95 backdrop-blur-xl border-b border-white/5 shadow-xl"
     >
-      <div className="max-w-7xl mx-auto px-4 py-3">
+      <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between gap-4">
           {/* Logo */}
           <Link to={user ? "/feed" : "/"} className="flex items-center gap-3 group shrink-0">
@@ -43,7 +43,7 @@ const Header = () => {
               whileHover={{ scale: 1.05 }}
               src={logoImg}
               alt="Car-Pes"
-              className="h-20 w-auto object-contain"
+              className="h-40 w-auto object-contain"
             />
             <motion.div
               whileHover={{ scale: 1.02 }}
