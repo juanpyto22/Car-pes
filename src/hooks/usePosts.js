@@ -27,11 +27,12 @@ export const usePosts = (options = {}) => {
         return;
       }
 
+      // Intentar query con join a profiles
       let query = supabase
         .from('posts')
         .select(`
           *,
-          user:profiles(
+          user:profiles!posts_user_id_fkey(
             id,
             username,
             nombre,
@@ -47,27 +48,78 @@ export const usePosts = (options = {}) => {
         query = query.eq('user_id', userId);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      let { data, error: queryError } = await query;
       
-      // Obtener likes del usuario actual para cada post
-      const { data: { user } } = await supabase.auth.getUser();
+      // Si falla el join con FK explícita, intentar sin FK hint
+      if (queryError) {
+        console.warn('Posts query with FK hint failed, trying without:', queryError.message);
+        let fallbackQuery = supabase
+          .from('posts')
+          .select(`
+            *,
+            user:profiles(
+              id,
+              username,
+              nombre,
+              foto_perfil
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+
+        if (Array.isArray(userIds) && userIds.length > 0) {
+          fallbackQuery = fallbackQuery.in('user_id', userIds);
+        } else if (userId) {
+          fallbackQuery = fallbackQuery.eq('user_id', userId);
+        }
+
+        const fallbackResult = await fallbackQuery;
+        
+        // Si sigue fallando, cargar posts sin el join
+        if (fallbackResult.error) {
+          console.warn('Posts query with join failed, loading without profiles:', fallbackResult.error.message);
+          let simpleQuery = supabase
+            .from('posts')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+          if (Array.isArray(userIds) && userIds.length > 0) {
+            simpleQuery = simpleQuery.in('user_id', userIds);
+          } else if (userId) {
+            simpleQuery = simpleQuery.eq('user_id', userId);
+          }
+
+          const simpleResult = await simpleQuery;
+          if (simpleResult.error) throw simpleResult.error;
+          data = simpleResult.data || [];
+        } else {
+          data = fallbackResult.data || [];
+        }
+      }
+      
       let processedData = data || [];
       
-      if (user?.id && processedData.length > 0) {
-        const postIds = processedData.map(post => post.id);
-        const { data: userLikes } = await supabase
-          .from('likes')
-          .select('post_id')
-          .eq('user_id', user.id)
-          .in('post_id', postIds);
+      // Intentar obtener likes del usuario actual (no fallar si la tabla no existe)
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id && processedData.length > 0) {
+          const postIds = processedData.map(post => post.id);
+          const { data: userLikes } = await supabase
+            .from('likes')
+            .select('post_id')
+            .eq('user_id', user.id)
+            .in('post_id', postIds);
 
-        const likedPostIds = new Set(userLikes?.map(like => like.post_id) || []);
-        
-        processedData = processedData.map(post => ({
-          ...post,
-          has_liked: likedPostIds.has(post.id)
-        }));
+          const likedPostIds = new Set(userLikes?.map(like => like.post_id) || []);
+          
+          processedData = processedData.map(post => ({
+            ...post,
+            has_liked: likedPostIds.has(post.id)
+          }));
+        }
+      } catch (likesError) {
+        console.warn('Could not fetch likes:', likesError.message);
       }
       
       setPosts(processedData);

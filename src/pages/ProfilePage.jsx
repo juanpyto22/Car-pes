@@ -48,36 +48,54 @@ const ProfilePage = () => {
     try {
       setLoading(true);
       
+      // Usar solo * para evitar errores si alguna columna no existe
       const { data: userData, error: userError } = await supabase
         .from('profiles')
-        .select('*, is_private')
+        .select('*')
         .eq('id', targetUserId)
         .maybeSingle();
       
-      if (userError) throw userError;
-      
-      if (!userData) {
+      if (userError) {
+        console.error('Error cargando perfil:', userError);
+        // Si falla la query, intentar con campos mínimos
+        const { data: fallbackData } = await supabase
+          .from('profiles')
+          .select('id, username, nombre, email, foto_perfil, bio, ubicacion, followers_count, following_count, created_at')
+          .eq('id', targetUserId)
+          .maybeSingle();
+        
+        if (fallbackData) {
+          setProfile(fallbackData);
+        } else {
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+      } else if (!userData) {
         setProfile(null);
         setLoading(false);
         return;
+      } else {
+        setProfile(userData);
       }
-      
-      setProfile(userData);
 
+      // Cargar posts del usuario
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select('*')
         .eq('user_id', targetUserId)
         .order('created_at', { ascending: false });
 
-      if (postsError) throw postsError;
-      setPosts(postsData || []);
+      if (!postsError) {
+        setPosts(postsData || []);
+      } else {
+        console.error('Error cargando posts del perfil:', postsError);
+        setPosts([]);
+      }
 
     } catch (error) {
       console.error('Error en fetchProfileData:', error);
       toast({ variant: "destructive", title: "Error", description: "No se pudo cargar el perfil" });
-      setProfile(null);
-      setPosts([]);
     } finally {
       setLoading(false);
     }
