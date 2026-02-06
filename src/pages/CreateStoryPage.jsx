@@ -110,19 +110,12 @@ const CreateStoryPage = () => {
         }
       }
 
-      // Create story record
+      // Create story record con nombres correctos de columnas
       const storyData = {
         user_id: user.id,
-        media_url: mediaUrl,
-        media_type: mediaType,
-        text_content: textContent || null,
-        text_color: textColor,
-        text_size: textSize,
-        text_bold: textBold,
-        background_gradient: mediaType === 'text' ? mediaPreview : null,
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 horas
-        views_count: 0,
-        viewed_by: []
+        image_url: mediaUrl,
+        content: textContent || null,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       };
 
       console.log('Creating story...', storyData);

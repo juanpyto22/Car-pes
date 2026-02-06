@@ -32,19 +32,17 @@ const StoriesBar = () => {
         .eq('follower_id', user.id);
 
       const followingIds = followsData?.map(f => f.following_id) || [];
+      const userIds = [...followingIds, user.id];
 
       // Obtener historias de usuarios que sigue + las propias
-      const { data: storiesData, error } = await supabase
+      let { data: storiesData, error } = await supabase
         .from('stories')
-        .select(`
-          *,
-          user:profiles!user_id(id, username, foto_perfil, nombre)
-        `)
-        .in('user_id', [...followingIds, user.id])
+        .select('*')
+        .in('user_id', userIds)
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 
-      if (error) {
+      if (error || !storiesData) {
         console.error('Stories table error:', error);
         setStories([]);
         setMyStories([]);
@@ -52,23 +50,29 @@ const StoriesBar = () => {
         return;
       }
 
+      // Obtener datos de perfiles para los usuarios
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', userIds);
+
+      const profilesMap = {};
+      (profilesData || []).forEach(p => {
+        profilesMap[p.id] = p;
+      });
+
       // Agrupar por usuario
       const groupedStories = {};
       (storiesData || []).forEach(story => {
         const uid = story.user_id;
         if (!groupedStories[uid]) {
           groupedStories[uid] = {
-            user: story.user || { id: uid, username: 'usuario' },
+            user: profilesMap[uid] || { id: uid, username: 'usuario' },
             stories: [],
             hasUnseen: false
           };
         }
         groupedStories[uid].stories.push(story);
-        
-        // Verificar si hay stories no vistas
-        if (!story.viewed_by?.includes(user.id)) {
-          groupedStories[uid].hasUnseen = true;
-        }
       });
 
       const grouped = Object.values(groupedStories);

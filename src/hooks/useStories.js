@@ -56,7 +56,7 @@ export const useStories = (currentUser) => {
 
       // Agrupar stories por usuario
       const groupedStories = {};
-      storiesData?.forEach(story => {
+      (storiesData || []).forEach(story => {
         const userId = story.user_id;
         if (!groupedStories[userId]) {
           groupedStories[userId] = {
@@ -69,11 +69,6 @@ export const useStories = (currentUser) => {
         
         groupedStories[userId].stories.push(story);
         
-        // Verificar si hay stories no vistas
-        if (!story.viewed_by?.includes(currentUser.id)) {
-          groupedStories[userId].hasUnseen = true;
-        }
-
         // Actualizar tiempo de la última story
         const storyTime = new Date(story.created_at);
         if (!groupedStories[userId].lastStoryTime || storyTime > groupedStories[userId].lastStoryTime) {

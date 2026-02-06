@@ -1,105 +1,94 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { X, ChevronLeft, ChevronRight, Heart, Send, MoreHorizontal } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
-import { formatDistanceToNow } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { useToast } from '@/components/ui/use-toast';
+import { Helmet } from 'react-helmet';
 
-const StoryViewer = () => {
+const StoryViewerPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
   const { toast } = useToast();
-  
+
   const [stories, setStories] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [liked, setLiked] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
   const [progress, setProgress] = useState(0);
-  const [isPaused, setPaused] = useState(false);
-  const [showReplyInput, setShowReplyInput] = useState(false);
-  const [replyText, setReplyText] = useState('');
-  
   const progressRef = useRef();
-  const videoRef = useRef();
-  const STORY_DURATION = 5000; // 5 segundos
-  
-  const currentStory = stories[currentIndex];
+  const STORY_DURATION = 5000;
 
   useEffect(() => {
-    fetchUserStories();
+    if (userId) {
+      fetchUserStories();
+      fetchUserProfile();
+    }
   }, [userId]);
 
   useEffect(() => {
-    if (stories.length > 0 && !isPaused) {
+    if (stories.length > 0) {
       startProgress();
     }
     return () => {
-      if (progressRef.current) {
-        clearInterval(progressRef.current);
-      }
+      if (progressRef.current) clearInterval(progressRef.current);
     };
-  }, [currentIndex, stories, isPaused]);
+  }, [currentIndex, stories]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      setUserProfile(data);
+    } catch (error) {
+      console.error('Error fetching user:', error);
+    }
+  };
 
   const fetchUserStories = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('stories')
-        .select(`
-          *,
-          user:profiles!user_id(id, username, foto_perfil)
-        `)
+        .select('*')
         .eq('user_id', userId)
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      
+
       if (!data || data.length === 0) {
+        toast({
+          title: "Sin historias",
+          description: "Este usuario no tiene historias disponibles"
+        });
         navigate('/feed');
         return;
       }
 
       setStories(data);
-      
-      // Marcar como vista la primera story
-      if (data[0] && user?.id) {
-        markAsViewed(data[0].id);
-      }
+      setCurrentIndex(0);
     } catch (error) {
       console.error('Error fetching stories:', error);
+      toast({
+        variant: "destructive",
+        title: "Error al cargar historias"
+      });
       navigate('/feed');
     } finally {
       setLoading(false);
     }
   };
 
-  const markAsViewed = async (storyId) => {
-    if (!user?.id) return;
-
-    try {
-      const story = stories.find(s => s.id === storyId);
-      const viewedBy = story?.viewed_by || [];
-      
-      if (!viewedBy.includes(user.id)) {
-        await supabase
-          .from('stories')
-          .update({ 
-            viewed_by: [...viewedBy, user.id],
-            views_count: (story.views_count || 0) + 1
-          })
-          .eq('id', storyId);
-      }
-    } catch (error) {
-      console.error('Error marking story as viewed:', error);
-    }
-  };
-
   const startProgress = () => {
+    if (progressRef.current) clearInterval(progressRef.current);
+    
     setProgress(0);
     const startTime = Date.now();
     
@@ -108,301 +97,170 @@ const StoryViewer = () => {
       const newProgress = (elapsed / STORY_DURATION) * 100;
       
       if (newProgress >= 100) {
-        nextStory();
+        handleNext();
       } else {
         setProgress(newProgress);
       }
     }, 50);
   };
 
-  const nextStory = () => {
-    if (progressRef.current) {
-      clearInterval(progressRef.current);
-    }
-    
-    if (currentIndex < stories.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-      markAsViewed(stories[currentIndex + 1].id);
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+      setLiked(false);
     } else {
       navigate('/feed');
     }
   };
 
-  const previousStory = () => {
-    if (progressRef.current) {
-      clearInterval(progressRef.current);
-    }
-    
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
+  const handleNext = () => {
+    if (currentIndex < stories.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+      setLiked(false);
+    } else {
+      navigate('/feed');
     }
   };
 
-  const togglePause = () => {
-    setPaused(!isPaused);
-    if (videoRef.current) {
-      if (isPaused) {
-        videoRef.current.play();
-      } else {
-        videoRef.current.pause();
+  const handleLike = async () => {
+    if (!currentUser) return;
+    setLiked(!liked);
+
+    if (!liked) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: userId,
+          type: 'story_like',
+          related_user_id: currentUser.id,
+          story_id: stories[currentIndex].id,
+          read: false
+        });
+      } catch (error) {
+        console.error('Error liking story:', error);
       }
     }
   };
 
-  const sendReply = async () => {
-    if (!replyText.trim() || !currentStory) return;
-
-    try {
-      // Enviar como mensaje directo
-      await supabase.from('messages').insert({
-        sender_id: user.id,
-        receiver_id: currentStory.user_id,
-        contenido: `📖 Respondió a tu historia: ${replyText}`,
-        story_id: currentStory.id
-      });
-
-      toast({ title: "Respuesta enviada" });
-      setReplyText('');
-      setShowReplyInput(false);
-    } catch (error) {
-      console.error('Error sending reply:', error);
-      toast({ 
-        variant: "destructive",
-        title: "Error al enviar respuesta" 
-      });
-    }
-  };
-
-  const likeStory = async () => {
-    if (!currentStory || !user?.id) return;
-    
-    try {
-      const { data: existingLike } = await supabase
-        .from('story_likes')
-        .select('id')
-        .eq('story_id', currentStory.id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (existingLike) {
-        // Unlike
-        await supabase
-          .from('story_likes')
-          .delete()
-          .eq('id', existingLike.id);
-      } else {
-        // Like
-        await supabase
-          .from('story_likes')
-          .insert({
-            story_id: currentStory.id,
-            user_id: user.id
-          });
-
-        // Enviar notificación si no es propia
-        if (currentStory.user_id !== user.id) {
-          await supabase.from('notifications').insert({
-            user_id: currentStory.user_id,
-            type: 'story_like',
-            related_user_id: user.id,
-            story_id: currentStory.id,
-            read: false
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error toggling like:', error);
-    }
-  };
-
-  if (loading || !currentStory) {
+  if (loading) {
     return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-cyan-500 border-t-transparent"></div>
+      <div className="w-full h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
+  if (stories.length === 0) {
+    return null;
+  }
+
+  const currentStory = stories[currentIndex];
+  const progressPercent = ((currentIndex + 1) / stories.length) * 100;
+
   return (
-    <div className="fixed inset-0 bg-black z-50">
-      {/* Progress bars */}
-      <div className="absolute top-4 left-4 right-4 flex gap-1 z-10">
-        {stories.map((_, index) => (
-          <div key={index} className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-white transition-all duration-100 ease-out"
-              style={{
-                width: index < currentIndex ? '100%' : 
-                       index === currentIndex ? `${progress}%` : '0%'
-              }}
-            />
-          </div>
-        ))}
-      </div>
+    <>
+      <Helmet>
+        <title>Historia - {userProfile?.username}</title>
+      </Helmet>
 
-      {/* Header */}
-      <div className="absolute top-12 left-4 right-4 flex items-center justify-between z-10">
-        <div className="flex items-center gap-3">
-          <Avatar className="w-10 h-10 border-2 border-white/50">
-            <AvatarImage src={currentStory.user.foto_perfil} />
-            <AvatarFallback>{currentStory.user.username?.[0]}</AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="text-white font-medium">{currentStory.user.username}</p>
-            <p className="text-white/70 text-sm">
-              {formatDistanceToNow(new Date(currentStory.created_at), { 
-                addSuffix: true, 
-                locale: es 
-              })}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-white hover:bg-white/20"
-            onClick={togglePause}
-          >
-            <MoreHorizontal className="w-5 h-5" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-white hover:bg-white/20"
-            onClick={() => navigate('/feed')}
-          >
-            <X className="w-5 h-5" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Story Content */}
-      <div 
-        className="relative w-full h-full flex items-center justify-center"
-        onClick={togglePause}
-      >
-        {currentStory.media_type === 'text' || (!currentStory.media_url && currentStory.background_gradient) ? (
-          <div 
-            className="w-full h-full flex items-center justify-center p-8"
-            style={{ background: currentStory.background_gradient || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-          >
-            <p 
-              className="text-center max-w-lg"
-              style={{
-                fontSize: `${currentStory.text_size || 24}px`,
-                color: currentStory.text_color || '#ffffff',
-                fontWeight: currentStory.text_bold ? 'bold' : 'normal'
-              }}
-            >
-              {currentStory.text_content}
-            </p>
-          </div>
-        ) : currentStory.media_type === 'video' ? (
-          <video
-            ref={videoRef}
-            src={currentStory.media_url}
-            className="w-full h-full object-contain"
-            autoPlay
-            muted
-            onEnded={nextStory}
-            onLoadedData={startProgress}
-          />
-        ) : currentStory.media_url ? (
-          <img
-            src={currentStory.media_url}
-            alt="Story"
-            className="w-full h-full object-contain"
-            onLoad={startProgress}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-slate-800">
-            <p className="text-white/50">Sin contenido</p>
-          </div>
-        )}
-        
-        {/* Text overlay if exists on media stories */}
-        {currentStory.text_content && currentStory.media_url && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div 
-              className="bg-black/30 backdrop-blur-sm rounded-2xl p-6 max-w-sm text-center"
-              style={{
-                fontSize: `${currentStory.text_size || 16}px`,
-                color: currentStory.text_color || '#ffffff',
-                fontWeight: currentStory.text_bold ? 'bold' : 'normal'
-              }}
-            >
-              {currentStory.text_content}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Navigation */}
-      <div className="absolute inset-0 flex">
-        <button 
-          className="flex-1"
-          onClick={previousStory}
-          disabled={currentIndex === 0}
-        />
-        <button 
-          className="flex-1"
-          onClick={nextStory}
-        />
-      </div>
-
-      {/* Bottom Actions */}
-      {currentStory.user_id !== user?.id && (
-        <div className="absolute bottom-4 left-4 right-4">
-          <AnimatePresence>
-            {showReplyInput ? (
-              <motion.div
-                initial={{ y: 100, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 100, opacity: 0 }}
-                className="flex gap-2 bg-white/10 backdrop-blur-sm rounded-full p-2"
+      <div className="fixed inset-0 bg-black z-50 flex flex-col overflow-hidden">
+        {/* Header con barras de progreso */}
+        <div className="absolute top-0 left-0 right-0 z-10 p-4 space-y-3">
+          {/* Progress bars */}
+          <div className="flex gap-1">
+            {stories.map((_, index) => (
+              <div
+                key={index}
+                className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden"
               >
-                <input
-                  type="text"
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  placeholder="Responder..."
-                  className="flex-1 bg-transparent text-white placeholder-white/70 outline-none px-3"
-                  autoFocus
-                  onKeyDown={(e) => e.key === 'Enter' && sendReply()}
+                <div
+                  className="h-full bg-white transition-all duration-100"
+                  style={{
+                    width: index < currentIndex ? '100%' : 
+                           index === currentIndex ? `${progress}%` : '0%'
+                  }}
                 />
-                <Button size="sm" onClick={sendReply} className="rounded-full">
-                  <Send className="w-4 h-4" />
-                </Button>
-              </motion.div>
-            ) : (
-              <div className="flex items-center justify-between">
-                <Button 
-                  variant="ghost"
-                  size="sm"
-                  className="text-white hover:bg-white/20 rounded-full px-6"
-                  onClick={() => setShowReplyInput(true)}
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  Responder
-                </Button>
-                
-                <Button 
-                  variant="ghost"
-                  size="sm"
-                  className="text-white hover:bg-white/20 rounded-full"
-                  onClick={likeStory}
-                >
-                  <Heart className="w-5 h-5" />
-                </Button>
               </div>
-            )}
-          </AnimatePresence>
+            ))}
+          </div>
+
+          {/* User info */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Avatar className="w-10 h-10 border-2 border-cyan-400">
+                <AvatarImage src={userProfile?.foto_perfil} />
+                <AvatarFallback>
+                  {userProfile?.username?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="text-white">
+                <p className="font-bold text-sm">{userProfile?.nombre || userProfile?.username}</p>
+                <p className="text-xs text-gray-300">
+                  {new Date(currentStory.created_at).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })}
+                </p>
+              </div>
+            </div>
+
+            {/* Close button */}
+            <button
+              onClick={() => navigate('/feed')}
+              className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
-      )}
-    </div>
+
+        {/* Story content */}
+        <div className="flex-1 flex items-center justify-center relative overflow-hidden">
+          {currentStory.image_url ? (
+            <img
+              src={currentStory.image_url}
+              alt="Story"
+              className="max-w-full max-h-full object-contain"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
+              <p className="text-white text-2xl text-center px-8 max-w-lg">
+                {currentStory.content}
+              </p>
+            </div>
+          )}
+
+          {/* Left navigation */}
+          {currentIndex > 0 && (
+            <button
+              onClick={handlePrevious}
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full hover:bg-white/20 transition-colors text-white z-20"
+            >
+              <ChevronLeft className="w-8 h-8" />
+            </button>
+          )}
+
+          {/* Right navigation */}
+          {currentIndex < stories.length - 1 && (
+            <button
+              onClick={handleNext}
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full hover:bg-white/20 transition-colors text-white z-20"
+            >
+              <ChevronRight className="w-8 h-8" />
+            </button>
+          )}
+
+          {/* Like button */}
+          <button
+            onClick={handleLike}
+            className="absolute bottom-6 right-6 p-3 rounded-full bg-white/20 hover:bg-white/30 transition-colors text-white z-20"
+          >
+            <Heart
+              className="w-6 h-6"
+              fill={liked ? 'currentColor' : 'none'}
+              color={liked ? '#ff4444' : 'white'}
+            />
+          </button>
+        </div>
+      </div>
+    </>
   );
 };
 
-export default StoryViewer;
+export default StoryViewerPage;
