@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.achievements_library (
 
 -- Agregar RLS
 ALTER TABLE public.achievements_library ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Achievements library is public readable" ON public.achievements_library;
 CREATE POLICY "Achievements library is public readable" ON public.achievements_library FOR SELECT USING (true);
 
 -- 2. TABLA: Level Rewards (Recompensas por Nivel)
@@ -34,6 +35,7 @@ CREATE TABLE IF NOT EXISTS public.level_rewards (
 
 -- Agregar RLS
 ALTER TABLE public.level_rewards ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Level rewards are public readable" ON public.level_rewards;
 CREATE POLICY "Level rewards are public readable" ON public.level_rewards FOR SELECT USING (true);
 
 -- 3. TABLA: User Bank Accounts (para Cashout)
@@ -50,6 +52,8 @@ CREATE TABLE IF NOT EXISTS public.user_bank_accounts (
 );
 
 ALTER TABLE public.user_bank_accounts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can read their own bank accounts" ON public.user_bank_accounts;
+DROP POLICY IF EXISTS "Users can insert their own bank accounts" ON public.user_bank_accounts;
 CREATE POLICY "Users can read their own bank accounts" ON public.user_bank_accounts 
   FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert their own bank accounts" ON public.user_bank_accounts 
@@ -71,6 +75,7 @@ CREATE TABLE IF NOT EXISTS public.withdrawal_requests (
 );
 
 ALTER TABLE public.withdrawal_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can read their own withdrawals" ON public.withdrawal_requests;
 CREATE POLICY "Users can read their own withdrawals" ON public.withdrawal_requests 
   FOR SELECT USING (auth.uid() = user_id);
 
@@ -86,6 +91,7 @@ CREATE TABLE IF NOT EXISTS public.level_up_log (
 );
 
 ALTER TABLE public.level_up_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can read their own level up log" ON public.level_up_log;
 CREATE POLICY "Users can read their own level up log" ON public.level_up_log 
   FOR SELECT USING (auth.uid() = user_id);
 
