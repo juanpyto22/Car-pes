@@ -2,18 +2,21 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Mail, Lock, User, UserCircle, AlertCircle } from 'lucide-react';
+import { Mail, Lock, User, UserCircle, AlertCircle, Clock, Lightbulb } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { useToast } from '@/components/ui/use-toast';
+import { EMAIL_SUGGESTIONS } from '@/utils/rateLimitingHelpers';
+import { useDemo } from '@/contexts/DemoContext';
 
 const SignupPage = () => {
   const navigate = useNavigate();
   const { signUp } = useAuth();
   const { toast } = useToast();
+  const { activateDemo } = useDemo();
   
   const [formData, setFormData] = useState({
     email: '',
@@ -25,6 +28,25 @@ const SignupPage = () => {
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [rateLimited, setRateLimited] = useState(false);
+
+  // Funciones helper para rate limiting
+  const generateUniqueEmails = () => EMAIL_SUGGESTIONS();
+  
+  const handleEmailSuggestion = (email) => {
+    setFormData(prev => ({ ...prev, email }));
+    setRateLimited(false);
+    setErrors(prev => ({ ...prev, email: undefined }));
+  };
+  
+  const handleDemoMode = () => {
+    activateDemo();
+    toast({
+      title: "🎮 Modo DEMO Activado",
+      description: "Ahora puedes probar todas las funciones sin registro",
+    });
+    navigate('/feed');
+  };
 
   const validateForm = () => {
     const newErrors = {};
@@ -100,10 +122,25 @@ const SignupPage = () => {
     if (error) {
       let errorMessage = error.message || 'Error desconocido';
       
-      // Mapear errores específicos
-      if (errorMessage.includes('rate limit') || errorMessage.includes('Too Many Requests')) {
-        errorMessage = "Has hecho demasiados intentos. Espera 5 minutos o usa un email diferente.";
-        setErrors({ email: 'Rate limit alcanzado' });
+      // Detectar rate limiting y ofrecer soluciones
+      if (errorMessage.includes('rate limit') || 
+          errorMessage.includes('Too Many Requests') ||
+          errorMessage.includes('L\u00edmite alcanzado') ||
+          errorMessage.includes('429')) {
+        
+        setRateLimited(true);
+        setErrors({ 
+          email: 'Rate limit - prueba emails sugeridos abajo',
+          general: 'Demasiados intentos desde tu ubicaci\u00f3n' 
+        });
+        
+        toast({
+          variant: "destructive",
+          title: "\u23f0 Rate Limiting Activo",
+          description: "Ve las sugerencias abajo o prueba el modo DEMO",
+          duration: 8000,
+        });
+        
       } else if (errorMessage.includes('already registered') || errorMessage.includes('already taken')) {
         errorMessage = "Este email ya está registrado. Intenta iniciar sesión.";
         setErrors({ email: 'Email ya registrado' });
@@ -237,6 +274,56 @@ const SignupPage = () => {
                 </div>
                 {errors.email && <p className="text-red-400 text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> {errors.email}</p>}
               </div>
+
+              {/* Rate Limiting Helper */}
+              {rateLimited && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="bg-orange-900/30 backdrop-blur-sm rounded-xl p-4 border border-orange-700/50"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Clock className="w-4 h-4 text-orange-400" />
+                    <h3 className="text-sm font-semibold text-orange-300">Rate Limiting Detectado</h3>
+                  </div>
+                  
+                  <p className="text-xs text-orange-200 mb-3">
+                    📧 Prueba uno de estos emails únicos (se auto-generan):
+                  </p>
+                  
+                  <div className="grid grid-cols-1 gap-2 mb-3">
+                    {generateUniqueEmails().map((email, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => handleEmailSuggestion(email)}
+                        className="text-left p-2 bg-blue-900/30 hover:bg-blue-800/40 rounded-lg text-xs text-cyan-300 hover:text-cyan-200 transition-colors border border-blue-800/30 hover:border-cyan-500/50"
+                      >
+                        📧 {email}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      onClick={handleDemoMode}
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs py-2"
+                    >
+                      <Lightbulb className="w-3 h-3 mr-1" />
+                      Probar DEMO
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => setRateLimited(false)}
+                      variant="outline"
+                      className="px-3 py-2 text-xs border-blue-700 text-blue-300 hover:bg-blue-900/30"
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
 
               <div>
                 <Label htmlFor="password" className="text-blue-100 mb-1.5 block">Contraseña</Label>
