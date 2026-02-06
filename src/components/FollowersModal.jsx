@@ -41,11 +41,51 @@ const FollowersModal = ({ isOpen, onClose, userId, type = 'followers', username 
           .eq('follower_id', userId);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      let { data, error } = await query;
 
-      const userList = data.map(item => type === 'followers' ? item.follower : item.following).filter(Boolean);
-      setUsers(userList);
+      // Fallback: si falla el FK, intentar con queries separadas
+      if (error || !data || data.length === 0) {
+        console.log('Intentando fallback...');
+        
+        if (type === 'followers') {
+          const { data: followsData } = await supabase
+            .from('follows')
+            .select('follower_id')
+            .eq('following_id', userId);
+          
+          if (followsData && followsData.length > 0) {
+            const followerIds = followsData.map(f => f.follower_id);
+            const { data: profilesData } = await supabase
+              .from('profiles')
+              .select('*')
+              .in('id', followerIds);
+            
+            setUsers(profilesData || []);
+          } else {
+            setUsers([]);
+          }
+        } else {
+          const { data: followsData } = await supabase
+            .from('follows')
+            .select('following_id')
+            .eq('follower_id', userId);
+          
+          if (followsData && followsData.length > 0) {
+            const followingIds = followsData.map(f => f.following_id);
+            const { data: profilesData } = await supabase
+              .from('profiles')
+              .select('*')
+              .in('id', followingIds);
+            
+            setUsers(profilesData || []);
+          } else {
+            setUsers([]);
+          }
+        }
+      } else {
+        const userList = data.map(item => type === 'followers' ? item.follower : item.following).filter(Boolean);
+        setUsers(userList);
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
       setUsers([]);
