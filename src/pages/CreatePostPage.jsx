@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, X, Fish, Weight, Ruler } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/customSupabaseClient';
+import { useImageUpload } from '@/hooks/useImageUpload';
+import { usePosts } from '@/hooks/usePosts';
+import { useDemo } from '@/contexts/DemoContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Helmet } from 'react-helmet';
@@ -11,6 +13,9 @@ import LocationAutocomplete from '@/components/LocationAutocomplete';
 const CreatePostPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isDemoMode } = useDemo();
+  const { uploadImage } = useImageUpload();
+  const { createPost } = usePosts();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -64,11 +69,11 @@ const CreatePostPage = () => {
       return;
     }
 
-    if (!file) {
+    if (!isDemoMode && !file) {
       toast({
         variant: "destructive",
         title: "Falta imagen",
-        description: "Debes subir una foto o video de tu captura",
+        description: "Debes subir una foto de tu captura",
       });
       return;
     }
@@ -76,43 +81,51 @@ const CreatePostPage = () => {
     setLoading(true);
 
     try {
-      const fileExt = file.name.split('.').pop().toLowerCase();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-      const isVideo = file.type.startsWith('video/');
-      
-      let publicUrl = null;
+      let imageUrl = null;
 
-      // Intentar subir al storage de Supabase
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('posts')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) {
-        console.error('Storage upload error:', uploadError);
-        throw uploadError;
+      // Subir imagen si no es modo demo
+      if (file) {
+        const uploadResult = await uploadImage(file, 'posts', user.id);
+        
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error || 'Error subiendo imagen');
+        }
+        
+        imageUrl = uploadResult.url;
       }
 
-      // Obtener URL pública
-      const { data: urlData } = supabase.storage
-        .from('posts')
-        .getPublicUrl(fileName);
-      
-      publicUrl = urlData?.publicUrl;
+      // Crear el post usando el hook
+      const result = await createPost({
+        content: formData.descripcion,
+        image_url: imageUrl,
+        location: formData.ubicacion,
+        fish_species: formData.tipo_pez !== 'Otro' ? formData.tipo_pez : null,
+        fish_weight: formData.peso || null
+      });
 
-      if (!publicUrl) {
-        throw new Error('No se pudo obtener la URL del archivo');
+      if (!result.success) {
+        throw new Error(result.error || 'Error creando post');
       }
 
-      // Crear el post en la base de datos
-      const { error: insertError } = await supabase
-        .from('posts')
-        .insert([{
-          user_id: user.id,
-          descripcion: formData.descripcion,
-          foto_url: isVideo ? null : publicUrl,
+      toast({
+        title: "✅ ¡Post publicado!",
+        description: isDemoMode ? 
+          "Tu post demo ha sido creado para mostrar la funcionalidad" :
+          "Tu captura ha sido compartida con la comunidad",
+      });
+
+      navigate('/feed');
+    } catch (error) {
+      console.error('Error creando post:', error);
+      toast({
+        variant: "destructive",
+        title: "Error al publicar",
+        description: error.message || "No se pudo publicar tu post. Intenta de nuevo.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
           video_url: isVideo ? publicUrl : null,
           peso: formData.peso ? parseFloat(formData.peso) : null,
           tamano: formData.tamano ? parseFloat(formData.tamano) : null,

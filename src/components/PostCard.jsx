@@ -4,6 +4,7 @@ import { Heart, MessageCircle, Share2, MoreVertical, MapPin, Ruler, Weight, Fish
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -18,8 +19,9 @@ import { useToast } from '@/components/ui/use-toast';
 import AdvancedReactionBar from '@/components/AdvancedReactionBar';
 import { useAdvancedSocial } from '@/hooks/useAdvancedSocial';
 
-const PostCard = ({ post, onDelete }) => {
+const PostCard = ({ post, onDelete, onToggleLike }) => {
   const { user } = useAuth();
+  const { isDemoMode } = useDemo();
   const { toast } = useToast();
   const { renderEnhancedText, parseHashtags, parseMentions } = useAdvancedSocial(user);
   
