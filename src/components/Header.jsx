@@ -41,7 +41,7 @@ const Header = () => {
               <img
                 src={logoImg}
                 alt="Car-Pes"
-                className="h-9 md:h-11 w-auto object-contain relative z-10"
+                className="h-14 md:h-16 w-auto object-contain relative z-10"
               />
             </div>
             <span className="hidden sm:block text-lg md:text-xl font-black bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent tracking-tight">
