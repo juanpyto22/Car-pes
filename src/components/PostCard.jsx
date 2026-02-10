@@ -15,7 +15,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
-import AdvancedReactionBar from '@/components/AdvancedReactionBar';
 import { useAdvancedSocial } from '@/hooks/useAdvancedSocial';
 
 const PostCard = ({ post, onDelete, onToggleLike }) => {
@@ -25,7 +24,6 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
   
   const [liked, setLiked] = useState(post.has_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
-  const [reactions, setReactions] = useState([]);
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -34,7 +32,6 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
 
   useEffect(() => {
     if (user?.id) {
-      fetchReactions();
       checkSaved();
     }
   }, [user?.id, post.id]);
@@ -42,20 +39,6 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
   useEffect(() => {
     setCommentsCount(post.comments_count || 0);
   }, [post.comments_count]);
-
-  const fetchReactions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('post_reactions')
-        .select('*')
-        .eq('post_id', post.id);
-      
-      if (error) throw error;
-      setReactions(data || []);
-    } catch (error) {
-      console.error('Error fetching reactions:', error);
-    }
-  };
 
   const checkSaved = async () => {
     if (!user?.id) return;
@@ -336,15 +319,6 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
             </Link>
         )}
 
-        {/* Advanced Reaction Bar */}
-        <AdvancedReactionBar
-          post={post}
-          reactions={reactions}
-          onReactionUpdate={fetchReactions}
-          onShare={() => console.log('Shared!')}
-          onComment={() => window.location.href = `/post/${post.id}`}
-          className="mt-4"
-        />
       </div>
     </motion.div>
   );

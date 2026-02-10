@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Helmet } from 'react-helmet';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const STORY_DURATION = 15000;
+const STORY_DURATION = 8000;
 
 const StoryViewerPage = () => {
   const { userId } = useParams();
@@ -299,10 +299,11 @@ const StoryViewerPage = () => {
     } else if (currentGroupIndex > 0) {
       setDirection(-1);
       const prevGroupIdx = currentGroupIndex - 1;
+      const prevGroupStories = storyGroups[prevGroupIdx]?.stories || [];
       setCurrentGroupIndex(prevGroupIdx);
-      setCurrentStoryIndex(0);
+      setCurrentStoryIndex(Math.max(0, prevGroupStories.length - 1));
     }
-  }, [currentStoryIndex, currentGroupIndex]);
+  }, [currentStoryIndex, currentGroupIndex, storyGroups]);
 
   // Navigate to NEXT story or next user group
   const handleNext = useCallback(() => {
@@ -457,6 +458,38 @@ const StoryViewerPage = () => {
   const storyId = currentStory?.id;
   const isVideo = currentStory?.image_url?.match(/\.(mp4|webm|mov)$/i);
 
+  // Helper: render text-only story content (supports JSON from CameraPage + plain text)
+  const renderTextContent = (content) => {
+    let text = content || '';
+    let bg = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+    let color = '#ffffff';
+    let size = 24;
+    let bold = false;
+
+    // Try parsing JSON content from CameraPage
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed && typeof parsed === 'object' && parsed.text) {
+        text = parsed.text;
+        bg = parsed.bg || bg;
+        color = parsed.color || color;
+        size = parsed.size || size;
+        bold = parsed.bold || false;
+      }
+    } catch {
+      // Not JSON — plain text story from old CreateStoryPage
+    }
+
+    return (
+      <div className="w-full h-full flex items-center justify-center p-8" style={{ background: bg }}>
+        <p className="text-center leading-relaxed drop-shadow-lg max-w-sm break-words"
+          style={{ color, fontSize: `${Math.min(size * 1.2, 48)}px`, fontWeight: bold ? 'bold' : '600' }}>
+          {text}
+        </p>
+      </div>
+    );
+  };
+
   // Helper: render a story preview card (side panels)
   const renderSidePreview = (group, side) => {
     if (!group) return <div className="w-full h-full" />;
@@ -598,11 +631,7 @@ const StoryViewerPage = () => {
                     <img key={currentStory.image_url} src={currentStory.image_url} alt="Story" className="w-full h-full object-cover" />
                   )
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 p-8">
-                    <p className="text-white text-2xl md:text-3xl text-center font-semibold leading-relaxed drop-shadow-lg max-w-sm">
-                      {currentStory.content}
-                    </p>
-                  </div>
+                  renderTextContent(currentStory.content)
                 )}
                 {currentStory.image_url && currentStory.content && (
                   <div className="absolute inset-x-0 bottom-32 flex justify-center px-6 pointer-events-none">
@@ -840,9 +869,7 @@ const StoryViewerPage = () => {
                     <img key={currentStory.image_url} src={currentStory.image_url} alt="Story" className="w-full h-full object-cover" />
                   )
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 p-8">
-                    <p className="text-white text-2xl text-center font-semibold leading-relaxed drop-shadow-lg max-w-sm">{currentStory.content}</p>
-                  </div>
+                  renderTextContent(currentStory.content)
                 )}
                 {currentStory.image_url && currentStory.content && (
                   <div className="absolute inset-x-0 bottom-32 flex justify-center px-6 pointer-events-none">
@@ -853,22 +880,31 @@ const StoryViewerPage = () => {
                 )}
               </div>
 
-              {/* Mobile navigation arrows */}
-              {currentGroupIndex > 0 && (
+              {/* Mobile navigation arrows — navigate individual stories */}
+              {(currentStoryIndex > 0 || currentGroupIndex > 0) && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); goToPrevGroup(); }}
+                  onClick={(e) => { e.stopPropagation(); handlePrevious(); }}
                   className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
               )}
-              {currentGroupIndex < storyGroups.length - 1 && (
+              {(currentStoryIndex < currentStories.length - 1 || currentGroupIndex < storyGroups.length - 1) && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); goToNextGroup(); }}
+                  onClick={(e) => { e.stopPropagation(); handleNext(); }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform"
                 >
                   <ChevronRight className="w-6 h-6" />
                 </button>
+              )}
+
+              {/* Story counter */}
+              {currentStories.length > 1 && (
+                <div className="absolute top-16 right-3 z-30">
+                  <span className="text-white/60 text-[10px] font-bold bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-full">
+                    {currentStoryIndex + 1}/{currentStories.length}
+                  </span>
+                </div>
               )}
 
               {/* Bottom actions */}

@@ -1,542 +1,365 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  BarChart3, TrendingUp, Calendar, Fish, MapPin, 
-  Target, Trophy, Users, Clock, Star, Activity,
-  PieChart, LineChart
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useState, useEffect, useMemo } from 'react';
+import { BarChart3, TrendingUp, Heart, MessageCircle, Eye, Users, Fish, Calendar, Award, ArrowUp, ArrowDown, Minus, Activity } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
-import { useToast } from '@/components/ui/use-toast';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  startOfWeek, endOfWeek, startOfMonth, endOfMonth, 
-  subMonths, format, eachDayOfInterval, subDays 
-} from 'date-fns';
+import { format, subDays, startOfDay, differenceInDays, eachDayOfInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const AnalyticsPage = () => {
   const { user, profile } = useAuth();
-  const { toast } = useToast();
-  
   const [loading, setLoading] = useState(true);
-  const [timeframe, setTimeframe] = useState('month'); // week, month, year
-  const [analytics, setAnalytics] = useState({
-    overview: {},
-    catchStats: {},
-    postStats: {},
-    socialStats: {},
-    trends: {},
-    achievements: {},
-    locations: []
+  const [stats, setStats] = useState({
+    totalPosts: 0,
+    totalLikes: 0,
+    totalComments: 0,
+    totalFollowers: 0,
+    totalFollowing: 0,
+    postsThisWeek: 0,
+    likesThisWeek: 0,
+    followersThisWeek: 0,
+    recentPosts: [],
+    topPosts: [],
+    dailyActivity: [],
+    weeklyComparison: { posts: 0, likes: 0, followers: 0 },
   });
+  const [period, setPeriod] = useState('7d');
 
   useEffect(() => {
-    if (user?.id) {
-      fetchAnalytics();
+    if (user) fetchAnalytics();
+  }, [user, period]);
+
+  const getPeriodDays = () => {
+    switch (period) {
+      case '7d': return 7;
+      case '30d': return 30;
+      case '90d': return 90;
+      default: return 7;
     }
-  }, [user, timeframe]);
+  };
 
   const fetchAnalytics = async () => {
-    if (!user?.id) return;
-    
     setLoading(true);
     try {
-      // Calculate date range based on timeframe
-      const now = new Date();
-      let startDate, endDate;
-      
-      switch (timeframe) {
-        case 'week':
-          startDate = startOfWeek(now);
-          endDate = endOfWeek(now);
-          break;
-        case 'month':
-          startDate = startOfMonth(now);
-          endDate = endOfMonth(now);
-          break;
-        case 'year':
-          startDate = new Date(now.getFullYear(), 0, 1);
-          endDate = new Date(now.getFullYear(), 11, 31);
-          break;
-        default:
-          startDate = startOfMonth(now);
-          endDate = endOfMonth(now);
+      const days = getPeriodDays();
+      const periodStart = subDays(new Date(), days).toISOString();
+      const prevPeriodStart = subDays(new Date(), days * 2).toISOString();
+
+      // Fetch posts
+      const [postsRes, likesRes, commentsRes, followersRes, followingRes] = await Promise.allSettled([
+        supabase.from('posts').select('id, created_at, imagen_url, contenido').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('likes').select('id, created_at, post_id').eq('post_id', null), // placeholder - we'll count per-post below
+        supabase.from('comments').select('id, created_at, post_id').eq('post_id', null), // placeholder
+        supabase.from('follows').select('id, created_at').eq('followed_id', user.id),
+        supabase.from('follows').select('id, created_at').eq('follower_id', user.id),
+      ]);
+
+      const allPosts = postsRes.status === 'fulfilled' && postsRes.value.data ? postsRes.value.data : [];
+      const followers = followersRes.status === 'fulfilled' && followersRes.value.data ? followersRes.value.data : [];
+      const following = followingRes.status === 'fulfilled' && followingRes.value.data ? followingRes.value.data : [];
+
+      // Get likes and comments for user's posts
+      const postIds = allPosts.map(p => p.id);
+      let allLikes = [];
+      let allComments = [];
+
+      if (postIds.length > 0) {
+        const [likesData, commentsData] = await Promise.allSettled([
+          supabase.from('likes').select('id, created_at, post_id').in('post_id', postIds),
+          supabase.from('comments').select('id, created_at, post_id').in('post_id', postIds),
+        ]);
+        if (likesData.status === 'fulfilled' && likesData.value.data) allLikes = likesData.value.data;
+        if (commentsData.status === 'fulfilled' && commentsData.value.data) allComments = commentsData.value.data;
       }
 
-      // Fetch user posts and stats
-      const { data: posts, error: postsError } = await supabase
-        .from('posts')
-        .select('*, likes(count), comments(count)')
-        .eq('user_id', user.id)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
+      // Period calculations
+      const postsInPeriod = allPosts.filter(p => new Date(p.created_at) >= new Date(periodStart));
+      const postsInPrevPeriod = allPosts.filter(p => new Date(p.created_at) >= new Date(prevPeriodStart) && new Date(p.created_at) < new Date(periodStart));
+      const likesInPeriod = allLikes.filter(l => new Date(l.created_at) >= new Date(periodStart));
+      const likesInPrevPeriod = allLikes.filter(l => new Date(l.created_at) >= new Date(prevPeriodStart) && new Date(l.created_at) < new Date(periodStart));
+      const followersInPeriod = followers.filter(f => new Date(f.created_at) >= new Date(periodStart));
+      const followersInPrevPeriod = followers.filter(f => new Date(f.created_at) >= new Date(prevPeriodStart) && new Date(f.created_at) < new Date(periodStart));
 
-      if (postsError) throw postsError;
+      // Top posts (most liked)
+      const postLikeCounts = {};
+      const postCommentCounts = {};
+      allLikes.forEach(l => { postLikeCounts[l.post_id] = (postLikeCounts[l.post_id] || 0) + 1; });
+      allComments.forEach(c => { postCommentCounts[c.post_id] = (postCommentCounts[c.post_id] || 0) + 1; });
 
-      // Fetch fishing sessions/catches
-      const { data: catches, error: catchesError } = await supabase
-        .from('fishing_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('date', startDate.toISOString())
-        .lte('date', endDate.toISOString());
+      const topPosts = allPosts
+        .map(p => ({ ...p, likeCount: postLikeCounts[p.id] || 0, commentCount: postCommentCounts[p.id] || 0 }))
+        .sort((a, b) => b.likeCount - a.likeCount)
+        .slice(0, 5);
 
-      if (catchesError && catchesError.code !== 'PGRST116') throw catchesError;
-
-      // Fetch social activity
-      const { data: followers, error: followersError } = await supabase
-        .from('follows')
-        .select('created_at')
-        .eq('following_id', user.id)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
-
-      if (followersError) throw followersError;
-
-      const { data: following, error: followingError } = await supabase
-        .from('follows')
-        .select('created_at')
-        .eq('follower_id', user.id)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
-
-      if (followingError) throw followingError;
-
-      // Process analytics data
-      const analyticsData = {
-        overview: {
-          totalPosts: posts?.length || 0,
-          totalLikes: posts?.reduce((sum, post) => sum + (post.likes?.[0]?.count || 0), 0) || 0,
-          totalComments: posts?.reduce((sum, post) => sum + (post.comments?.[0]?.count || 0), 0) || 0,
-          newFollowers: followers?.length || 0,
-          newFollowing: following?.length || 0,
-          totalCatches: catches?.length || 0,
-          avgCatchSize: catches?.length ? 
-            catches.reduce((sum, c) => sum + (c.weight || 0), 0) / catches.length : 0
-        },
-        
-        postStats: {
-          dailyPosts: generateDailyData(posts || [], startDate, endDate),
-          topPosts: (posts || [])
-            .sort((a, b) => (b.likes?.[0]?.count || 0) - (a.likes?.[0]?.count || 0))
-            .slice(0, 5),
-          avgLikesPerPost: posts?.length ? 
-            posts.reduce((sum, post) => sum + (post.likes?.[0]?.count || 0), 0) / posts.length : 0,
-          avgCommentsPerPost: posts?.length ?
-            posts.reduce((sum, post) => sum + (post.comments?.[0]?.count || 0), 0) / posts.length : 0
-        },
-
-        catchStats: {
-          dailyCatches: generateDailyData(catches || [], startDate, endDate),
-          speciesDistribution: getSpeciesDistribution(catches || []),
-          locations: getLocationStats(catches || []),
-          avgWeight: catches?.length ?
-            catches.reduce((sum, c) => sum + (c.weight || 0), 0) / catches.length : 0,
-          bestCatch: catches?.reduce((best, current) => 
-            (current.weight || 0) > (best?.weight || 0) ? current : best, null)
-        },
-
-        socialStats: {
-          followerGrowth: generateDailyData(followers || [], startDate, endDate),
-          followingGrowth: generateDailyData(following || [], startDate, endDate),
-          engagement: posts?.length ? 
-            (posts.reduce((sum, post) => sum + (post.likes?.[0]?.count || 0) + (post.comments?.[0]?.count || 0), 0) / posts.length).toFixed(2) : 0
-        }
-      };
-
-      setAnalytics(analyticsData);
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-      toast({
-        variant: "destructive",
-        title: "Error al cargar estadísticas"
+      // Daily activity chart data
+      const dayRange = eachDayOfInterval({
+        start: subDays(new Date(), days - 1),
+        end: new Date(),
       });
+
+      const dailyActivity = dayRange.map(day => {
+        const dayStr = format(day, 'yyyy-MM-dd');
+        const dayPosts = allPosts.filter(p => format(new Date(p.created_at), 'yyyy-MM-dd') === dayStr).length;
+        const dayLikes = allLikes.filter(l => format(new Date(l.created_at), 'yyyy-MM-dd') === dayStr).length;
+        return { date: day, posts: dayPosts, likes: dayLikes, label: format(day, 'd MMM', { locale: es }) };
+      });
+
+      setStats({
+        totalPosts: allPosts.length,
+        totalLikes: allLikes.length,
+        totalComments: allComments.length,
+        totalFollowers: followers.length,
+        totalFollowing: following.length,
+        postsThisWeek: postsInPeriod.length,
+        likesThisWeek: likesInPeriod.length,
+        followersThisWeek: followersInPeriod.length,
+        recentPosts: allPosts.slice(0, 5),
+        topPosts,
+        dailyActivity,
+        weeklyComparison: {
+          posts: postsInPrevPeriod.length > 0 ? ((postsInPeriod.length - postsInPrevPeriod.length) / postsInPrevPeriod.length * 100) : postsInPeriod.length > 0 ? 100 : 0,
+          likes: likesInPrevPeriod.length > 0 ? ((likesInPeriod.length - likesInPrevPeriod.length) / likesInPrevPeriod.length * 100) : likesInPeriod.length > 0 ? 100 : 0,
+          followers: followersInPrevPeriod.length > 0 ? ((followersInPeriod.length - followersInPrevPeriod.length) / followersInPrevPeriod.length * 100) : followersInPeriod.length > 0 ? 100 : 0,
+        },
+      });
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const generateDailyData = (data, startDate, endDate) => {
-    const days = eachDayOfInterval({ start: startDate, end: endDate });
-    return days.map(day => {
-      const dayData = data.filter(item => {
-        const itemDate = new Date(item.created_at || item.date);
-        return itemDate.toDateString() === day.toDateString();
-      });
-      return {
-        date: format(day, 'dd/MM'),
-        value: dayData.length
-      };
-    });
-  };
-
-  const getSpeciesDistribution = (catches) => {
-    const distribution = {};
-    catches.forEach(c => {
-      const species = c.species || 'Desconocido';
-      distribution[species] = (distribution[species] || 0) + 1;
-    });
-    return Object.entries(distribution).map(([species, count]) => ({ species, count }));
-  };
-
-  const getLocationStats = (catches) => {
-    const locations = {};
-    catches.forEach(c => {
-      const location = c.location || 'Ubicación desconocida';
-      locations[location] = (locations[location] || 0) + 1;
-    });
-    return Object.entries(locations)
-      .map(([location, visits]) => ({ location, visits }))
-      .sort((a, b) => b.visits - a.visits)
-      .slice(0, 5);
-  };
-
-  const StatCard = ({ icon: Icon, title, value, subtitle, trend, color = "cyan" }) => (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      className={`bg-gradient-to-br ${
-        color === 'green' ? 'from-green-900/30 to-emerald-900/30 border-green-500/30' :
-        color === 'blue' ? 'from-blue-900/30 to-cyan-900/30 border-blue-500/30' :
-        color === 'purple' ? 'from-purple-900/30 to-pink-900/30 border-purple-500/30' :
-        color === 'orange' ? 'from-orange-900/30 to-yellow-900/30 border-orange-500/30' :
-        'from-cyan-900/30 to-blue-900/30 border-cyan-500/30'
-      } border rounded-2xl p-6 shadow-lg`}
-    >
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-3 rounded-xl ${
-          color === 'green' ? 'bg-green-500/20' :
-          color === 'blue' ? 'bg-blue-500/20' :
-          color === 'purple' ? 'bg-purple-500/20' :
-          color === 'orange' ? 'bg-orange-500/20' :
-          'bg-cyan-500/20'
-        }`}>
-          <Icon className={`w-6 h-6 ${
-            color === 'green' ? 'text-green-400' :
-            color === 'blue' ? 'text-blue-400' :
-            color === 'purple' ? 'text-purple-400' :
-            color === 'orange' ? 'text-orange-400' :
-            'text-cyan-400'
-          }`} />
-        </div>
-        
-        {trend && (
-          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-            trend > 0 ? 'bg-green-500/20 text-green-400' : 
-            trend < 0 ? 'bg-red-500/20 text-red-400' : 'bg-slate-500/20 text-slate-400'
-          }`}>
-            <TrendingUp className={`w-3 h-3 ${trend < 0 ? 'rotate-180' : ''}`} />
-            {Math.abs(trend)}%
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <h3 className="text-2xl font-bold text-white">{value?.toLocaleString()}</h3>
-        <p className="text-sm font-medium text-blue-200">{title}</p>
-        {subtitle && <p className="text-xs text-blue-400">{subtitle}</p>}
-      </div>
-    </motion.div>
-  );
-
-  const SimpleChart = ({ data, title, color = "cyan" }) => (
-    <div className="bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-      <h3 className="text-lg font-bold text-white mb-4">{title}</h3>
-      <div className="h-40 flex items-end justify-between gap-2">
-        {data.slice(-7).map((item, index) => {
-          const maxValue = Math.max(...data.map(d => d.value));
-          const height = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
-          
-          return (
-            <div key={index} className="flex flex-col items-center gap-2 flex-1">
-              <div 
-                className={`w-full rounded-t-lg transition-all duration-500 delay-${index * 100} ${
-                  color === 'green' ? 'bg-gradient-to-t from-green-600 to-green-400' :
-                  color === 'blue' ? 'bg-gradient-to-t from-blue-600 to-blue-400' :
-                  color === 'purple' ? 'bg-gradient-to-t from-purple-600 to-purple-400' :
-                  'bg-gradient-to-t from-cyan-600 to-cyan-400'
-                }`}
-                style={{ height: `${height}%`, minHeight: '4px' }}
-              />
-              <div className="text-center">
-                <div className="text-xs font-bold text-white">{item.value}</div>
-                <div className="text-xs text-blue-400">{item.date}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  const TopItemsList = ({ items, title, valueKey, nameKey }) => (
-    <div className="bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-      <h3 className="text-lg font-bold text-white mb-4">{title}</h3>
-      <div className="space-y-3">
-        {items.slice(0, 5).map((item, index) => (
-          <div key={index} className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                index === 0 ? 'bg-yellow-500 text-black' :
-                index === 1 ? 'bg-slate-300 text-black' :
-                index === 2 ? 'bg-orange-600 text-white' :
-                'bg-slate-700 text-white'
-              }`}>
-                {index + 1}
-              </div>
-              <span className="text-white text-sm truncate">{item[nameKey]}</span>
-            </div>
-            <span className="text-cyan-400 font-bold">{item[valueKey]}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-cyan-500 border-t-transparent"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-2 border-cyan-500 border-t-transparent" />
       </div>
     );
   }
 
+  const avgLikesPerPost = stats.totalPosts > 0 ? (stats.totalLikes / stats.totalPosts).toFixed(1) : '0';
+  const maxDailyLikes = Math.max(...stats.dailyActivity.map(d => d.likes), 1);
+  const maxDailyPosts = Math.max(...stats.dailyActivity.map(d => d.posts), 1);
+
   return (
     <>
-      <Helmet>
-        <title>Estadísticas - Car-Pes</title>
-      </Helmet>
-
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 pb-20">
-        <div className="max-w-7xl mx-auto px-4 py-8">
+      <Helmet><title>Estadísticas - Car-Pes</title></Helmet>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 pb-24">
+        <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">Estadísticas</h1>
-              <p className="text-blue-400">Analiza tu progreso y actividad</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-white">Estadísticas</h1>
+              <p className="text-blue-400 text-sm">Tu actividad y rendimiento en Car-Pes</p>
             </div>
-            
-            <div className="flex gap-2">
-              {['week', 'month', 'year'].map((period) => (
-                <Button
-                  key={period}
-                  variant={timeframe === period ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTimeframe(period)}
-                  className={timeframe === period ? "bg-cyan-600" : ""}
+            <div className="flex bg-slate-900/50 border border-white/10 rounded-xl p-1">
+              {[{ id: '7d', label: '7D' }, { id: '30d', label: '30D' }, { id: '90d', label: '90D' }].map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => setPeriod(p.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    period === p.id ? 'bg-cyan-600 text-white' : 'text-blue-400 hover:text-white'
+                  }`}
                 >
-                  {period === 'week' ? 'Semana' : 
-                   period === 'month' ? 'Mes' : 'Año'}
-                </Button>
+                  {p.label}
+                </button>
               ))}
             </div>
-          </div>
+          </motion.div>
 
-          {/* Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Main Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
             <StatCard
-              icon={Fish}
-              title="Capturas Totales"
-              value={analytics.overview.totalCatches}
-              subtitle={`Promedio: ${analytics.catchStats.avgWeight?.toFixed(1) || 0}kg`}
-              color="green"
+              icon={BarChart3} label="Publicaciones"
+              value={stats.totalPosts}
+              periodValue={stats.postsThisWeek}
+              change={stats.weeklyComparison.posts}
+              color="cyan" delay={0}
             />
-            
             <StatCard
-              icon={BarChart3}
-              title="Publicaciones"
-              value={analytics.overview.totalPosts}
-              subtitle={`${analytics.postStats.avgLikesPerPost?.toFixed(1) || 0} likes promedio`}
-              color="blue"
+              icon={Heart} label="Likes recibidos"
+              value={stats.totalLikes}
+              periodValue={stats.likesThisWeek}
+              change={stats.weeklyComparison.likes}
+              color="red" delay={0.05}
             />
-            
             <StatCard
-              icon={Users}
-              title="Nuevos Seguidores"
-              value={analytics.overview.newFollowers}
-              subtitle={`${analytics.socialStats.engagement || 0}% engagement`}
-              color="purple"
+              icon={Users} label="Seguidores"
+              value={stats.totalFollowers}
+              periodValue={stats.followersThisWeek}
+              change={stats.weeklyComparison.followers}
+              color="blue" delay={0.1}
             />
-            
             <StatCard
-              icon={Trophy}
-              title="Mejor Captura"
-              value={analytics.catchStats.bestCatch?.weight?.toFixed(1) || 0}
-              subtitle={analytics.catchStats.bestCatch?.species || "Sin capturas"}
-              color="orange"
+              icon={MessageCircle} label="Comentarios"
+              value={stats.totalComments}
+              periodValue={null}
+              change={null}
+              color="purple" delay={0.15}
             />
           </div>
 
-          {/* Tabs */}
-          <Tabs defaultValue="catches" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-8">
-              <TabsTrigger value="catches">Capturas</TabsTrigger>
-              <TabsTrigger value="posts">Publicaciones</TabsTrigger>
-              <TabsTrigger value="social">Social</TabsTrigger>
-              <TabsTrigger value="locations">Ubicaciones</TabsTrigger>
-            </TabsList>
+          {/* Secondary Stats */}
+          <div className="grid grid-cols-3 gap-3 mb-8">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+              className="bg-slate-900/50 border border-white/10 rounded-2xl p-4 text-center"
+            >
+              <p className="text-2xl font-bold text-cyan-400">{avgLikesPerPost}</p>
+              <p className="text-xs text-blue-400 mt-1">Media likes/post</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+              className="bg-slate-900/50 border border-white/10 rounded-2xl p-4 text-center"
+            >
+              <p className="text-2xl font-bold text-blue-400">{stats.totalFollowing}</p>
+              <p className="text-xs text-blue-400 mt-1">Siguiendo</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+              className="bg-slate-900/50 border border-white/10 rounded-2xl p-4 text-center"
+            >
+              <p className="text-2xl font-bold text-purple-400">
+                {stats.totalFollowers > 0 ? (stats.totalLikes / stats.totalFollowers).toFixed(1) : '0'}
+              </p>
+              <p className="text-xs text-blue-400 mt-1">Engagement rate</p>
+            </motion.div>
+          </div>
 
-            {/* Catches Tab */}
-            <TabsContent value="catches" className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SimpleChart
-                  data={analytics.catchStats.dailyCatches}
-                  title="Capturas Diarias"
-                  color="green"
-                />
-                
-                <TopItemsList
-                  items={analytics.catchStats.speciesDistribution}
-                  title="Especies Más Capturadas"
-                  valueKey="count"
-                  nameKey="species"
-                />
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Activity Chart */}
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}
+              className="bg-slate-900/50 border border-white/10 rounded-2xl p-5"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-white flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-cyan-500" /> Actividad
+                </h3>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-cyan-500" /> Posts</span>
+                  <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400" /> Likes</span>
+                </div>
               </div>
 
-              {/* Best Catch Card */}
-              {analytics.catchStats.bestCatch && (
-                <div className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border border-yellow-500/30 rounded-2xl p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-4 bg-yellow-500/20 rounded-2xl">
-                      <Trophy className="w-8 h-8 text-yellow-400" />
+              {/* Chart */}
+              <div className="h-40 flex items-end gap-1">
+                {stats.dailyActivity.map((day, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                    {/* Tooltip */}
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                      {day.label}: {day.posts}p, {day.likes}❤️
                     </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-white mb-1">Mejor Captura del Período</h3>
-                      <p className="text-yellow-200">
-                        {analytics.catchStats.bestCatch.species} - {analytics.catchStats.bestCatch.weight}kg
-                      </p>
-                      <p className="text-yellow-300/70 text-sm">
-                        {analytics.catchStats.bestCatch.location} • {format(new Date(analytics.catchStats.bestCatch.date), 'd MMM yyyy', { locale: es })}
-                      </p>
-                    </div>
+                    {/* Likes bar */}
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${(day.likes / maxDailyLikes) * 100}%` }}
+                      transition={{ delay: 0.4 + i * 0.02 }}
+                      className="w-full bg-red-400/30 rounded-t-sm min-h-[2px]"
+                    />
+                    {/* Posts bar */}
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${(day.posts / maxDailyPosts) * 100}%` }}
+                      transition={{ delay: 0.4 + i * 0.02 }}
+                      className="w-full bg-cyan-500/50 rounded-t-sm min-h-[2px]"
+                    />
                   </div>
+                ))}
+              </div>
+              <div className="flex justify-between mt-2">
+                <span className="text-[10px] text-blue-600">{stats.dailyActivity[0]?.label}</span>
+                <span className="text-[10px] text-blue-600">{stats.dailyActivity[stats.dailyActivity.length - 1]?.label}</span>
+              </div>
+            </motion.div>
+
+            {/* Top Posts */}
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.35 }}
+              className="bg-slate-900/50 border border-white/10 rounded-2xl p-5"
+            >
+              <h3 className="font-bold text-white flex items-center gap-2 mb-4">
+                <Award className="w-4 h-4 text-yellow-400" /> Mejores Publicaciones
+              </h3>
+              {stats.topPosts.length > 0 ? (
+                <div className="space-y-3">
+                  {stats.topPosts.map((post, i) => (
+                    <div key={post.id} className="flex items-center gap-3">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
+                        i === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                        i === 1 ? 'bg-slate-400/20 text-slate-300' :
+                        i === 2 ? 'bg-orange-500/20 text-orange-400' :
+                        'bg-slate-700/50 text-blue-500'
+                      }`}>
+                        #{i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm truncate">
+                          {post.contenido?.substring(0, 40) || 'Foto'}
+                          {post.contenido?.length > 40 ? '...' : ''}
+                        </p>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-red-400 flex items-center gap-0.5">
+                            <Heart className="w-3 h-3" /> {post.likeCount}
+                          </span>
+                          <span className="text-blue-400 flex items-center gap-0.5">
+                            <MessageCircle className="w-3 h-3" /> {post.commentCount}
+                          </span>
+                        </div>
+                      </div>
+                      {post.imagen_url && (
+                        <img src={post.imagen_url} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                      )}
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                <p className="text-center text-blue-500 text-sm py-8">Aún no tienes publicaciones</p>
               )}
-            </TabsContent>
-
-            {/* Posts Tab */}
-            <TabsContent value="posts" className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SimpleChart
-                  data={analytics.postStats.dailyPosts}
-                  title="Publicaciones Diarias"
-                  color="blue"
-                />
-                
-                <div className="bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-lg font-bold text-white mb-4">Métricas de Engagement</h3>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-blue-200">Total de Likes</span>
-                      <span className="text-cyan-400 font-bold">{analytics.overview.totalLikes}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-blue-200">Total de Comentarios</span>
-                      <span className="text-cyan-400 font-bold">{analytics.overview.totalComments}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-blue-200">Likes por Post</span>
-                      <span className="text-cyan-400 font-bold">{analytics.postStats.avgLikesPerPost?.toFixed(1) || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-blue-200">Comentarios por Post</span>
-                      <span className="text-cyan-400 font-bold">{analytics.postStats.avgCommentsPerPost?.toFixed(1) || 0}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Social Tab */}
-            <TabsContent value="social" className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SimpleChart
-                  data={analytics.socialStats.followerGrowth}
-                  title="Nuevos Seguidores"
-                  color="purple"
-                />
-                
-                <SimpleChart
-                  data={analytics.socialStats.followingGrowth}
-                  title="Nuevos Seguidos"
-                  color="blue"
-                />
-              </div>
-              
-              <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-2xl p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <Activity className="w-8 h-8 text-purple-400" />
-                  <h2 className="text-xl font-bold text-white">Actividad Social</h2>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-purple-400">{analytics.overview.newFollowers}</p>
-                    <p className="text-purple-200 text-sm">Nuevos Seguidores</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-pink-400">{analytics.overview.newFollowing}</p>
-                    <p className="text-purple-200 text-sm">Nuevos Seguidos</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-cyan-400">{analytics.socialStats.engagement}%</p>
-                    <p className="text-purple-200 text-sm">Engagement</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-yellow-400">{analytics.overview.totalLikes + analytics.overview.totalComments}</p>
-                    <p className="text-purple-200 text-sm">Interacciones</p>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Locations Tab */}
-            <TabsContent value="locations" className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <TopItemsList
-                  items={analytics.catchStats.locations}
-                  title="Ubicaciones Más Visitadas"
-                  valueKey="visits"
-                  nameKey="location"
-                />
-                
-                <div className="bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-lg font-bold text-white mb-4">Exploración</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <MapPin className="w-5 h-5 text-cyan-400" />
-                        <span className="text-blue-200">Spots Únicos Visitados</span>
-                      </div>
-                      <span className="text-cyan-400 font-bold">{analytics.catchStats.locations.length}</span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Target className="w-5 h-5 text-green-400" />
-                        <span className="text-blue-200">Spot Favorito</span>
-                      </div>
-                      <span className="text-green-400 font-bold text-sm">
-                        {analytics.catchStats.locations[0]?.location || 'N/A'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Map placeholder */}
-              <div className="bg-slate-900/30 border border-white/10 rounded-2xl p-8 text-center">
-                <MapPin className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">Mapa de Ubicaciones</h3>
-                <p className="text-blue-400">Visualización de tus spots de pesca más visitados</p>
-                <p className="text-blue-500 text-sm mt-2">Funcionalidad disponible próximamente</p>
-              </div>
-            </TabsContent>
-          </Tabs>
+            </motion.div>
+          </div>
         </div>
       </div>
     </>
+  );
+};
+
+// ─── Stat Card ─────────────────────────────────────────────
+const StatCard = ({ icon: Icon, label, value, periodValue, change, color, delay = 0 }) => {
+  const colorClasses = {
+    cyan: 'from-cyan-500/10 to-cyan-500/5 border-cyan-500/20 text-cyan-400',
+    red: 'from-red-500/10 to-red-500/5 border-red-500/20 text-red-400',
+    blue: 'from-blue-500/10 to-blue-500/5 border-blue-500/20 text-blue-400',
+    purple: 'from-purple-500/10 to-purple-500/5 border-purple-500/20 text-purple-400',
+  };
+
+  const iconColors = {
+    cyan: 'text-cyan-500',
+    red: 'text-red-400',
+    blue: 'text-blue-400',
+    purple: 'text-purple-400',
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay }}
+      className={`bg-gradient-to-br ${colorClasses[color]} border rounded-2xl p-4`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <Icon className={`w-5 h-5 ${iconColors[color]}`} />
+        {change !== null && change !== undefined && (
+          <div className={`flex items-center gap-0.5 text-[10px] font-semibold ${
+            change > 0 ? 'text-green-400' : change < 0 ? 'text-red-400' : 'text-blue-500'
+          }`}>
+            {change > 0 ? <ArrowUp className="w-3 h-3" /> : change < 0 ? <ArrowDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+            {Math.abs(change).toFixed(0)}%
+          </div>
+        )}
+      </div>
+      <p className="text-2xl font-bold text-white">{value.toLocaleString()}</p>
+      <p className="text-xs text-blue-400 mt-0.5">{label}</p>
+      {periodValue !== null && periodValue !== undefined && (
+        <p className="text-[10px] text-blue-500 mt-1">+{periodValue} este periodo</p>
+      )}
+    </motion.div>
   );
 };
 

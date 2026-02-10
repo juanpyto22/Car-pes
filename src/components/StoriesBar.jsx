@@ -95,9 +95,55 @@ const StoriesBar = () => {
   const StoryCircle = ({ storyGroup, isOwn = false }) => {
     const hasStories = storyGroup?.stories?.length > 0;
 
+    // For own stories: tapping the avatar opens stories (if any), tapping "+" creates new
+    // For other users: tapping opens their stories
+    if (isOwn) {
+      return (
+        <div className="flex-shrink-0">
+          <motion.div
+            whileTap={{ scale: 0.95 }}
+            className="flex flex-col items-center gap-1.5 px-1.5 py-2"
+          >
+            <div className="relative">
+              <Link to={hasStories ? `/story/${storyGroup.user.id}` : '/camera'}>
+                <div className={`rounded-full p-[2.5px] ${
+                  hasStories 
+                    ? 'bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600' 
+                    : ''
+                }`}>
+                  <div className="bg-slate-950 rounded-full p-[2px]">
+                    <Avatar className="w-16 h-16 md:w-[68px] md:h-[68px]">
+                      <AvatarImage 
+                        src={profile?.foto_perfil} 
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white text-lg">
+                        {profile?.username?.[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                </div>
+              </Link>
+              
+              {/* Always show "+" button to add more stories */}
+              <Link to="/camera">
+                <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-slate-950 hover:bg-blue-400 transition-colors z-10">
+                  <Plus className="w-3.5 h-3.5 text-white" />
+                </div>
+              </Link>
+            </div>
+            
+            <span className="text-[11px] text-center text-gray-300 max-w-[72px] truncate leading-tight">
+              Tu historia
+            </span>
+          </motion.div>
+        </div>
+      );
+    }
+
     return (
       <Link
-        to={hasStories ? `/story/${storyGroup.user.id}` : '/create-story'}
+        to={`/story/${storyGroup.user.id}`}
         className="flex-shrink-0"
       >
         <motion.div
@@ -112,30 +158,18 @@ const StoriesBar = () => {
             <div className="bg-slate-950 rounded-full p-[2px]">
               <Avatar className="w-16 h-16 md:w-[68px] md:h-[68px]">
                 <AvatarImage 
-                  src={isOwn ? profile?.foto_perfil : storyGroup?.user?.foto_perfil} 
+                  src={storyGroup?.user?.foto_perfil} 
                   className="object-cover"
                 />
                 <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white text-lg">
-                  {isOwn 
-                    ? profile?.username?.[0]?.toUpperCase() 
-                    : storyGroup?.user?.username?.[0]?.toUpperCase()
-                  }
+                  {storyGroup?.user?.username?.[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </div>
-            
-            {isOwn && !hasStories && (
-              <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-slate-950">
-                <Plus className="w-3.5 h-3.5 text-white" />
-              </div>
-            )}
           </div>
           
           <span className="text-[11px] text-center text-gray-300 max-w-[72px] truncate leading-tight">
-            {isOwn 
-              ? 'Tu historia'
-              : storyGroup?.user?.username
-            }
+            {storyGroup?.user?.username}
           </span>
         </motion.div>
       </Link>
