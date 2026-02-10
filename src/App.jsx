@@ -40,6 +40,7 @@ import BannedUserPage from '@/pages/BannedUserPage';
 
 // Components
 import Header from '@/components/Header';
+import MobileBottomNav from '@/components/MobileBottomNav';
 import AchievementUnlockedNotification from '@/components/AchievementUnlockedNotification';
 
 const AppRoutes = () => {
@@ -111,6 +112,9 @@ const AppRoutes = () => {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav />
+
       {/* Achievement Notification */}
       <AchievementUnlockedNotification 
         achievement={unlockedAchievement}

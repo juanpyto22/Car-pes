@@ -18,9 +18,10 @@ const CreateStoryPage = () => {
   const fileInputRef = useRef();
   const textAreaRef = useRef();
 
-  const [mediaFile, setMediaFile] = useState(null);
+  const [mediaFiles, setMediaFiles] = useState([]); // Support multiple files
   const [mediaPreview, setMediaPreview] = useState(null);
   const [mediaType, setMediaType] = useState('');
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [textContent, setTextContent] = useState('');
   const [textColor, setTextColor] = useState('#ffffff');
   const [textSize, setTextSize] = useState(24);
@@ -43,21 +44,35 @@ const CreateStoryPage = () => {
   ];
 
   const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 50 * 1024 * 1024) { // 50MB limit
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    const validFiles = [];
+    for (const file of files) {
+      if (file.size > 50 * 1024 * 1024) {
         toast({
           variant: "destructive",
           title: "Archivo muy grande",
-          description: "El archivo debe ser menor a 50MB"
+          description: `${file.name} supera los 50MB`
         });
-        return;
+        continue;
       }
+      validFiles.push(file);
+    }
 
-      const type = file.type.startsWith('video/') ? 'video' : 'image';
-      setMediaType(type);
-      setMediaFile(file);
-      setMediaPreview(URL.createObjectURL(file));
+    if (validFiles.length === 0) return;
+
+    const type = validFiles[0].type.startsWith('video/') ? 'video' : 'image';
+    setMediaType(type);
+    setMediaFiles(validFiles);
+    setCurrentMediaIndex(0);
+    setMediaPreview(URL.createObjectURL(validFiles[0]));
+    
+    if (validFiles.length > 1) {
+      toast({
+        title: `${validFiles.length} archivos seleccionados`,
+        description: "Se creará una historia por cada archivo"
+      });
     }
   };
 
@@ -74,7 +89,7 @@ const CreateStoryPage = () => {
   const publishStory = async () => {
     if (!user?.id) return;
     
-    if (!mediaFile && !textContent.trim()) {
+    if (mediaFiles.length === 0 && !textContent.trim()) {
       toast({
         variant: "destructive",
         title: "Contenido faltante",
@@ -86,59 +101,73 @@ const CreateStoryPage = () => {
     setLoading(true);
 
     try {
-      let mediaUrl = null;
+      // If multiple media files, create one story per file
+      if (mediaFiles.length > 0) {
+        for (let i = 0; i < mediaFiles.length; i++) {
+          const mediaFile = mediaFiles[i];
+          let mediaUrl = null;
 
-      // Upload media if exists
-      if (mediaFile) {
-        const fileExt = mediaFile.name.split('.').pop().toLowerCase();
-        const fileName = `stories/${user.id}/${Date.now()}.${fileExt}`;
+          const fileExt = mediaFile.name.split('.').pop().toLowerCase();
+          const fileName = `stories/${user.id}/${Date.now()}_${i}.${fileExt}`;
 
-        console.log('Uploading story media...');
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('stories')
-          .upload(fileName, mediaFile);
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('stories')
+            .upload(fileName, mediaFile);
 
-        if (uploadError) {
-          console.error('Upload error:', uploadError);
-          // Continue without media if upload fails
-        } else {
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            continue;
+          }
+
           const { data: { publicUrl } } = supabase.storage
             .from('stories')
             .getPublicUrl(fileName);
 
           mediaUrl = publicUrl;
+
+          const storyData = {
+            user_id: user.id,
+            image_url: mediaUrl,
+            content: i === 0 ? (textContent || null) : null,
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          };
+
+          const { error: insertError } = await supabase
+            .from('stories')
+            .insert(storyData);
+
+          if (insertError) {
+            console.error('DB error:', insertError);
+          }
+        }
+      } else {
+        // Text-only story
+        const storyData = {
+          user_id: user.id,
+          image_url: null,
+          content: textContent || null,
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        };
+
+        const { error: insertError } = await supabase
+          .from('stories')
+          .insert(storyData);
+
+        if (insertError) {
+          toast({
+            variant: "destructive",
+            title: "Error al crear historia",
+            description: insertError.message
+          });
+          setLoading(false);
+          return;
         }
       }
 
-      // Create story record con nombres correctos de columnas
-      const storyData = {
-        user_id: user.id,
-        image_url: mediaUrl,
-        content: textContent || null,
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      };
-
-      console.log('Creating story...', storyData);
-
-      const { error: insertError } = await supabase
-        .from('stories')
-        .insert(storyData);
-
-      if (insertError) {
-        console.error('Database error:', insertError);
-        
-        toast({
-          variant: "destructive",
-          title: "Error al crear historia",
-          description: insertError.message || "No se pudo guardar la historia"
-        });
-        
-        setLoading(false);
-        return;
-      }
-
       toast({
-        title: "¡Historia publicada!",
+        title: mediaFiles.length > 1 
+          ? `¡${mediaFiles.length} historias publicadas!` 
+          : "¡Historia publicada!",
         description: "Tu historia estará visible por 24 horas"
       });
 
@@ -147,10 +176,9 @@ const CreateStoryPage = () => {
       console.error('Error publishing story:', error);
       toast({
         variant: "destructive",
-        title: "Error", 
+        title: "Error",
         description: error.message || "No se pudo publicar la historia"
       });
-      setLoading(false);
     } finally {
       setLoading(false);
     }
@@ -204,7 +232,7 @@ const CreateStoryPage = () => {
       )}
 
       {/* Text overlay for media stories */}
-      {(mediaType === 'image' || mediaType === 'video') && textContent && (
+      {(mediaType === 'image' || mediaType === 'video') && textContent && mediaFiles.length > 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div 
             className="bg-black/30 backdrop-blur-sm rounded-2xl p-4 max-w-sm text-center"
@@ -216,6 +244,26 @@ const CreateStoryPage = () => {
           >
             {textContent}
           </div>
+        </div>
+      )}
+
+      {/* Multiple files indicator */}
+      {mediaFiles.length > 1 && (
+        <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+          {mediaFiles.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => {
+                setCurrentMediaIndex(i);
+                setMediaPreview(URL.createObjectURL(mediaFiles[i]));
+                const type = mediaFiles[i].type.startsWith('video/') ? 'video' : 'image';
+                setMediaType(type);
+              }}
+              className={`w-2 h-2 rounded-full transition-all ${
+                i === currentMediaIndex ? 'bg-white w-4' : 'bg-white/50'
+              }`}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -244,10 +292,10 @@ const CreateStoryPage = () => {
 
             <Button
               onClick={publishStory}
-              disabled={loading || (!mediaFile && !textContent.trim())}
+              disabled={loading || (mediaFiles.length === 0 && !textContent.trim())}
               className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
             >
-              {loading ? 'Publicando...' : 'Compartir'}
+              {loading ? 'Publicando...' : mediaFiles.length > 1 ? `Compartir ${mediaFiles.length}` : 'Compartir'}
             </Button>
           </div>
 
@@ -260,7 +308,7 @@ const CreateStoryPage = () => {
             {/* Controls */}
             <div className="space-y-6">
               <AnimatePresence mode="wait">
-                {!mediaFile && !showTextEditor ? (
+                {mediaFiles.length === 0 && !showTextEditor ? (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -313,6 +361,7 @@ const CreateStoryPage = () => {
                       ref={fileInputRef}
                       type="file"
                       accept="image/*,video/*"
+                      multiple
                       onChange={handleFileSelect}
                       className="hidden"
                     />
@@ -331,11 +380,12 @@ const CreateStoryPage = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setMediaFile(null);
+                          setMediaFiles([]);
                           setMediaPreview(null);
                           setMediaType('');
                           setShowTextEditor(false);
                           setTextContent('');
+                          setCurrentMediaIndex(0);
                         }}
                         className="text-white hover:bg-white/10"
                       >

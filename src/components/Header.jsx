@@ -35,19 +35,19 @@ const Header = () => {
       animate={{ y: 0 }}
       className="sticky top-0 z-50 bg-gradient-to-r from-blue-950/95 to-slate-950/95 backdrop-blur-xl border-b border-white/5 shadow-xl"
     >
-      <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="max-w-7xl mx-auto px-4 py-2 md:py-4">
         <div className="flex items-center justify-between gap-4">
           {/* Logo */}
-          <Link to={user ? "/feed" : "/"} className="flex items-center gap-3 group shrink-0">
+          <Link to={user ? "/feed" : "/"} className="flex items-center gap-2 group shrink-0">
             <motion.img
               whileHover={{ scale: 1.05 }}
               src={logoImg}
               alt="Car-Pes"
-              className="h-40 w-auto object-contain"
+              className="h-10 md:h-16 w-auto object-contain"
             />
             <motion.div
               whileHover={{ scale: 1.02 }}
-              className="text-3xl font-black bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-600 bg-clip-text text-transparent hidden sm:block"
+              className="text-xl md:text-3xl font-black bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-600 bg-clip-text text-transparent"
             >
               Car-Pes
             </motion.div>
@@ -71,7 +71,7 @@ const Header = () => {
                   <NavLink to="/notifications" icon={Bell} label="Notificaciones" badge={notifCount} />
                 </div>
                 
-                <Link to="/create-post" className="hidden sm:block">
+                <Link to="/create-post" className="hidden md:block">
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -99,21 +99,6 @@ const Header = () => {
                     </motion.button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56 bg-slate-900/95 border-blue-800 text-white backdrop-blur-xl">
-                    <div className="md:hidden block px-2 py-2 border-b border-white/10 mb-2">
-                       <p className="text-xs text-blue-400 font-bold uppercase mb-2">Menú</p>
-                       <div className="grid grid-cols-4 gap-2">
-                          <Link to="/feed" className="flex justify-center p-2 rounded hover:bg-white/5"><Home className="w-5 h-5"/></Link>
-                          <Link to="/explore" className="flex justify-center p-2 rounded hover:bg-white/5"><Compass className="w-5 h-5"/></Link>
-                          <Link to="/messages" className="flex justify-center p-2 rounded hover:bg-white/5 relative">
-                             <MessageCircle className="w-5 h-5"/>
-                             {msgCount > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"/>}
-                          </Link>
-                          <Link to="/notifications" className="flex justify-center p-2 rounded hover:bg-white/5 relative">
-                             <Bell className="w-5 h-5"/>
-                             {notifCount > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"/>}
-                          </Link>
-                       </div>
-                    </div>
                     <DropdownMenuItem onClick={() => navigate(`/profile`)} className="cursor-pointer hover:bg-blue-800 focus:bg-blue-800 focus:text-white py-3">
                       <User className="mr-2 h-4 w-4" />
                       <span>Mi Perfil</span>
@@ -193,8 +178,8 @@ const Header = () => {
           </nav>
         </div>
         
-        {/* Mobile Search Bar - Visible only on mobile */}
-        <div className="md:hidden mt-3 pb-1">
+        {/* Mobile Search Bar - Hidden on mobile since explore handles it */}
+        <div className="hidden md:hidden mt-3 pb-1">
             <SearchBar />
         </div>
       </div>

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { X, ChevronLeft, ChevronRight, Heart, MessageCircle } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Heart, MessageCircle, Send, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,100 +9,225 @@ import { useToast } from '@/components/ui/use-toast';
 import { Helmet } from 'react-helmet';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const STORY_DURATION = 15000;
+
 const StoryViewerPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
 
-  const [stories, setStories] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // All story groups (each group = one user's stories)
+  const [storyGroups, setStoryGroups] = useState([]);
+  const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
+  const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState({});
   const [likeCounts, setLikeCounts] = useState({});
-  const [userProfile, setUserProfile] = useState(null);
   const [progress, setProgress] = useState(0);
-  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
-  const progressRef = useRef();
-  const inputRef = useRef();
-  const STORY_DURATION = 5000;
+  const [isMuted, setIsMuted] = useState(true);
+  const [touchStartX, setTouchStartX] = useState(null);
+  const [touchStartY, setTouchStartY] = useState(null);
+  const [isHolding, setIsHolding] = useState(false);
+  const [direction, setDirection] = useState(0); // -1 left, 1 right for animations
 
-  useEffect(() => {
-    if (userId) {
-      fetchUserStories();
-      fetchUserProfile();
-    }
-  }, [userId]);
+  // Refs
+  const progressTimerRef = useRef(null);
+  const progressStartTimeRef = useRef(null);
+  const progressElapsedRef = useRef(0);
+  const inputRef = useRef(null);
+  const videoRef = useRef(null);
+  const holdTimerRef = useRef(null);
+  const containerRef = useRef(null);
 
+  // Current group and story helpers
+  const currentGroup = storyGroups[currentGroupIndex];
+  const currentStories = currentGroup?.stories || [];
+  const currentStory = currentStories[currentStoryIndex];
+  const currentProfile = currentGroup?.user;
+  const prevGroup = storyGroups[currentGroupIndex - 1];
+  const nextGroup = storyGroups[currentGroupIndex + 1];
+
+  // Fetch all story groups
   useEffect(() => {
-    if (stories.length > 0) {
+    fetchAllStoryGroups();
+    return () => clearProgressTimer();
+  }, [userId, currentUser]);
+
+  // Start progress when story changes
+  useEffect(() => {
+    if (currentStory && !loading) {
+      progressElapsedRef.current = 0;
       startProgress();
-      fetchStoriesLikes();
+      fetchStoryLikes();
+      markAsViewed();
     }
-    return () => {
-      if (progressRef.current) clearInterval(progressRef.current);
-    };
-  }, [currentIndex, stories]);
+    return () => clearProgressTimer();
+  }, [currentGroupIndex, currentStoryIndex, loading, storyGroups]);
 
-  const fetchUserProfile = async () => {
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      setUserProfile(data);
-    } catch (error) {
-      console.error('Error fetching user:', error);
+  // Pause/resume
+  useEffect(() => {
+    if (isPaused || showComments || isHolding) {
+      pauseProgress();
+    } else if (currentStory && !loading) {
+      resumeProgress();
+    }
+  }, [isPaused, showComments, isHolding]);
+
+  // Keyboard controls
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (showComments && e.key !== 'Escape') return;
+      switch (e.key) {
+        case 'ArrowLeft': handlePrevious(); break;
+        case 'ArrowRight': handleNext(); break;
+        case 'Escape':
+          if (showComments) setShowComments(false);
+          else navigate('/feed');
+          break;
+        case ' ':
+          e.preventDefault();
+          setIsPaused(p => !p);
+          break;
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentGroupIndex, currentStoryIndex, storyGroups, showComments]);
+
+  const clearProgressTimer = () => {
+    if (progressTimerRef.current) {
+      cancelAnimationFrame(progressTimerRef.current);
+      progressTimerRef.current = null;
     }
   };
 
-  const fetchUserStories = async () => {
+  const startProgress = () => {
+    clearProgressTimer();
+    progressElapsedRef.current = 0;
+    progressStartTimeRef.current = Date.now();
+    setProgress(0);
+    tickProgress();
+  };
+
+  const pauseProgress = () => {
+    clearProgressTimer();
+    if (progressStartTimeRef.current) {
+      progressElapsedRef.current += Date.now() - progressStartTimeRef.current;
+      progressStartTimeRef.current = null;
+    }
+  };
+
+  const resumeProgress = () => {
+    clearProgressTimer();
+    progressStartTimeRef.current = Date.now();
+    tickProgress();
+  };
+
+  const tickProgress = () => {
+    progressTimerRef.current = requestAnimationFrame(() => {
+      if (!progressStartTimeRef.current) return;
+      const totalElapsed = progressElapsedRef.current + (Date.now() - progressStartTimeRef.current);
+      const pct = (totalElapsed / STORY_DURATION) * 100;
+      if (pct >= 100) {
+        setProgress(100);
+        handleNext();
+      } else {
+        setProgress(pct);
+        tickProgress();
+      }
+    });
+  };
+
+  const fetchAllStoryGroups = async () => {
+    if (!currentUser) { setLoading(false); return; }
     try {
       setLoading(true);
-      const { data, error } = await supabase
+
+      // Get following IDs
+      const { data: followsData } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', currentUser.id);
+
+      const followingIds = followsData?.map(f => f.following_id) || [];
+      const userIds = [...new Set([...followingIds, currentUser.id])];
+      
+      // Always include the target userId
+      if (userId && !userIds.includes(userId)) {
+        userIds.push(userId);
+      }
+
+      // Fetch all active stories
+      const { data: storiesData, error } = await supabase
         .from('stories')
         .select('*')
-        .eq('user_id', userId)
+        .in('user_id', userIds)
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        toast({
-          title: "Sin historias",
-          description: "Este usuario no tiene historias disponibles"
-        });
+      if (error || !storiesData || storiesData.length === 0) {
+        toast({ title: "Sin historias", description: "No hay historias disponibles" });
         navigate('/feed');
         return;
       }
 
-      setStories(data);
-      setCurrentIndex(0);
-    } catch (error) {
-      console.error('Error fetching stories:', error);
-      toast({
-        variant: "destructive",
-        title: "Error al cargar historias"
+      // Fetch profiles
+      const storyUserIds = [...new Set(storiesData.map(s => s.user_id))];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', storyUserIds);
+
+      const profilesMap = {};
+      (profilesData || []).forEach(p => { profilesMap[p.id] = p; });
+
+      // Group by user
+      const grouped = {};
+      storiesData.forEach(story => {
+        const uid = story.user_id;
+        if (!grouped[uid]) {
+          grouped[uid] = {
+            user: profilesMap[uid] || { id: uid, username: 'usuario' },
+            stories: []
+          };
+        }
+        grouped[uid].stories.push(story);
       });
+
+      // Put own stories first, then target userId, then others
+      const groups = Object.values(grouped);
+      groups.sort((a, b) => {
+        if (a.user.id === userId) return -1;
+        if (b.user.id === userId) return 1;
+        if (a.user.id === currentUser.id) return -1;
+        if (b.user.id === currentUser.id) return 1;
+        return 0;
+      });
+
+      setStoryGroups(groups);
+
+      // Find starting group index for the target userId
+      const startIdx = groups.findIndex(g => g.user.id === userId);
+      setCurrentGroupIndex(startIdx >= 0 ? startIdx : 0);
+      setCurrentStoryIndex(0);
+    } catch (error) {
+      console.error('Error fetching story groups:', error);
       navigate('/feed');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchStoriesLikes = async () => {
-    if (!currentUser?.id) return;
-    
+  const fetchStoryLikes = async () => {
+    if (!currentUser?.id || !currentStory) return;
+    const storyId = currentStory.id;
     try {
-      const storyId = stories[currentIndex]?.id;
-      if (!storyId) return;
-
-      // Obtener likes del usuario para esta historia
       const { data: userLike } = await supabase
         .from('story_likes')
         .select('id')
@@ -110,403 +235,708 @@ const StoryViewerPage = () => {
         .eq('user_id', currentUser.id)
         .maybeSingle();
 
-      setLiked(prev => ({
-        ...prev,
-        [storyId]: !!userLike
-      }));
+      setLiked(prev => ({ ...prev, [storyId]: !!userLike }));
 
-      // Obtener conteo total de likes
       const { count } = await supabase
         .from('story_likes')
         .select('*', { count: 'exact', head: true })
         .eq('story_id', storyId);
 
-      setLikeCounts(prev => ({
-        ...prev,
-        [storyId]: count || 0
-      }));
+      setLikeCounts(prev => ({ ...prev, [storyId]: count || 0 }));
     } catch (error) {
       console.error('Error fetching likes:', error);
     }
   };
 
-  const fetchComments = async () => {
-    if (!stories[currentIndex]) return;
+  const markAsViewed = async () => {
+    if (!currentUser?.id || !currentStory) return;
+    try {
+      const storyId = currentStory.id;
+      const { data: story } = await supabase
+        .from('stories')
+        .select('viewed_by, views_count')
+        .eq('id', storyId)
+        .single();
 
+      if (!story) return;
+      const viewedBy = story.viewed_by || [];
+      if (viewedBy.includes(currentUser.id)) return;
+
+      await supabase
+        .from('stories')
+        .update({
+          viewed_by: [...viewedBy, currentUser.id],
+          views_count: (story.views_count || 0) + 1
+        })
+        .eq('id', storyId);
+    } catch (error) {
+      console.error('Error marking viewed:', error);
+    }
+  };
+
+  const fetchComments = async () => {
+    if (!currentStory) return;
     setLoadingComments(true);
     try {
       const { data, error } = await supabase
         .from('story_comments')
-        .select(`
-          *,
-          user:user_id(id, username, foto_perfil)
-        `)
-        .eq('story_id', stories[currentIndex].id)
+        .select(`*, user:user_id(id, username, foto_perfil)`)
+        .eq('story_id', currentStory.id)
         .order('created_at', { ascending: true });
-
       if (error) throw error;
       setComments(data || []);
     } catch (error) {
       console.error('Error fetching comments:', error);
-      toast({
-        variant: "destructive",
-        title: "Error al cargar comentarios"
-      });
     } finally {
       setLoadingComments(false);
     }
   };
 
-  const startProgress = () => {
-    if (progressRef.current) clearInterval(progressRef.current);
-    
-    setProgress(0);
-    const startTime = Date.now();
-    
-    progressRef.current = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const newProgress = (elapsed / STORY_DURATION) * 100;
-      
-      if (newProgress >= 100) {
-        handleNext();
-      } else {
-        setProgress(newProgress);
-      }
-    }, 50);
-  };
+  // Navigate to PREVIOUS story or previous user group
+  const handlePrevious = useCallback(() => {
+    if (currentStoryIndex > 0) {
+      setCurrentStoryIndex(prev => prev - 1);
+    } else if (currentGroupIndex > 0) {
+      setDirection(-1);
+      const prevGroupIdx = currentGroupIndex - 1;
+      setCurrentGroupIndex(prevGroupIdx);
+      setCurrentStoryIndex(0);
+    }
+  }, [currentStoryIndex, currentGroupIndex]);
 
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
+  // Navigate to NEXT story or next user group
+  const handleNext = useCallback(() => {
+    if (currentStoryIndex < currentStories.length - 1) {
+      setCurrentStoryIndex(prev => prev + 1);
+    } else if (currentGroupIndex < storyGroups.length - 1) {
+      setDirection(1);
+      setCurrentGroupIndex(prev => prev + 1);
+      setCurrentStoryIndex(0);
     } else {
       navigate('/feed');
     }
-  };
+  }, [currentStoryIndex, currentStories.length, currentGroupIndex, storyGroups.length, navigate]);
 
-  const handleNext = () => {
-    if (currentIndex < stories.length - 1) {
-      setCurrentIndex(currentIndex + 1);
+  // Jump to previous user group (arrow button)
+  const goToPrevGroup = useCallback(() => {
+    if (currentGroupIndex > 0) {
+      setDirection(-1);
+      setCurrentGroupIndex(prev => prev - 1);
+      setCurrentStoryIndex(0);
+    }
+  }, [currentGroupIndex]);
+
+  // Jump to next user group (arrow button)
+  const goToNextGroup = useCallback(() => {
+    if (currentGroupIndex < storyGroups.length - 1) {
+      setDirection(1);
+      setCurrentGroupIndex(prev => prev + 1);
+      setCurrentStoryIndex(0);
     } else {
       navigate('/feed');
     }
-  };
+  }, [currentGroupIndex, storyGroups.length, navigate]);
 
   const handleLike = async () => {
     if (!currentUser) {
-      toast({
-        variant: "destructive",
-        title: "Inicia sesión para dar like"
-      });
+      toast({ variant: "destructive", title: "Inicia sesión para dar like" });
       return;
     }
+    const storyId = currentStory.id;
+    const ownerId = currentGroup.user.id;
+    const isLiked = liked[storyId];
 
-    const storyId = stories[currentIndex].id;
-    const isCurrentlyLiked = liked[storyId];
+    setLiked(prev => ({ ...prev, [storyId]: !isLiked }));
+    setLikeCounts(prev => ({ ...prev, [storyId]: (prev[storyId] || 0) + (isLiked ? -1 : 1) }));
 
     try {
-      if (isCurrentlyLiked) {
-        // Unlike
-        await supabase
-          .from('story_likes')
-          .delete()
-          .eq('story_id', storyId)
-          .eq('user_id', currentUser.id);
-
-        setLiked(prev => ({ ...prev, [storyId]: false }));
-        setLikeCounts(prev => ({ ...prev, [storyId]: (prev[storyId] || 1) - 1 }));
+      if (isLiked) {
+        await supabase.from('story_likes').delete().eq('story_id', storyId).eq('user_id', currentUser.id);
       } else {
-        // Like
-        await supabase
-          .from('story_likes')
-          .insert({
-            story_id: storyId,
-            user_id: currentUser.id
-          });
-
-        setLiked(prev => ({ ...prev, [storyId]: true }));
-        setLikeCounts(prev => ({ ...prev, [storyId]: (prev[storyId] || 0) + 1 }));
-
-        // Notificación
-        if (userId !== currentUser.id) {
+        await supabase.from('story_likes').insert({ story_id: storyId, user_id: currentUser.id });
+        if (ownerId !== currentUser.id) {
           await supabase.from('notifications').insert({
-            user_id: userId,
-            type: 'story_like',
-            related_user_id: currentUser.id,
-            story_id: storyId,
-            read: false
+            user_id: ownerId, type: 'story_like', related_user_id: currentUser.id, story_id: storyId, read: false
           });
         }
       }
     } catch (error) {
-      console.error('Error liking story:', error);
-      toast({
-        variant: "destructive",
-        title: "Error al dar like"
-      });
+      setLiked(prev => ({ ...prev, [storyId]: isLiked }));
+      setLikeCounts(prev => ({ ...prev, [storyId]: (prev[storyId] || 0) + (isLiked ? 1 : -1) }));
+      toast({ variant: "destructive", title: "Error al dar like" });
     }
   };
 
-  const handleCommentClick = () => {
-    if (!showCommentsModal) {
-      fetchComments();
-    }
-    setShowCommentsModal(!showCommentsModal);
+  const handleCommentToggle = () => {
+    if (!showComments) fetchComments();
+    setShowComments(!showComments);
   };
 
   const handleAddComment = async () => {
     if (!currentUser || !commentText.trim()) return;
+    const text = commentText.trim();
+    const ownerId = currentGroup.user.id;
+    setCommentText('');
 
     try {
-      const { error } = await supabase
-        .from('story_comments')
-        .insert({
-          story_id: stories[currentIndex].id,
-          user_id: currentUser.id,
-          content: commentText.trim()
-        });
-
+      const { error } = await supabase.from('story_comments').insert({
+        story_id: currentStory.id,
+        user_id: currentUser.id,
+        content: text
+      });
       if (error) throw error;
-
-      toast({ title: "Comentario enviado" });
-      setCommentText('');
       fetchComments();
 
-      // Notificación
-      if (userId !== currentUser.id) {
+      if (ownerId !== currentUser.id) {
         await supabase.from('notifications').insert({
-          user_id: userId,
-          type: 'story_comment',
-          related_user_id: currentUser.id,
-          story_id: stories[currentIndex].id,
-          read: false
+          user_id: ownerId, type: 'story_comment', related_user_id: currentUser.id,
+          story_id: currentStory.id, read: false
         });
       }
     } catch (error) {
-      console.error('Error adding comment:', error);
-      toast({
-        variant: "destructive",
-        title: "Error al enviar comentario"
-      });
+      toast({ variant: "destructive", title: "Error al enviar comentario" });
     }
   };
 
+  // Touch: tap left = prev, tap right = next, hold = pause
+  const handleTouchStart = (e) => {
+    setTouchStartX(e.touches[0].clientX);
+    setTouchStartY(e.touches[0].clientY);
+    holdTimerRef.current = setTimeout(() => setIsHolding(true), 200);
+  };
+
+  const handleTouchEnd = (e) => {
+    clearTimeout(holdTimerRef.current);
+    if (isHolding) { setIsHolding(false); return; }
+    if (touchStartX === null) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffX = touchEndX - touchStartX;
+    const diffY = touchEndY - touchStartY;
+
+    // Swipe down = close
+    if (diffY > 100 && Math.abs(diffX) < 50) { navigate('/feed'); return; }
+
+    // Tap: left 30% = prev, right 70% = next
+    if (Math.abs(diffX) < 10 && Math.abs(diffY) < 10) {
+      const screenWidth = window.innerWidth;
+      if (touchStartX < screenWidth * 0.3) handlePrevious();
+      else handleNext();
+    }
+
+    // Swipe left/right = switch user group
+    if (Math.abs(diffX) > 60 && Math.abs(diffY) < 80) {
+      if (diffX < 0) goToNextGroup();
+      else goToPrevGroup();
+    }
+
+    setTouchStartX(null);
+    setTouchStartY(null);
+  };
+
+  const handleTouchMove = (e) => {
+    if (holdTimerRef.current) {
+      const diffX = Math.abs(e.touches[0].clientX - (touchStartX || 0));
+      const diffY = Math.abs(e.touches[0].clientY - (touchStartY || 0));
+      if (diffX > 10 || diffY > 10) clearTimeout(holdTimerRef.current);
+    }
+  };
+
+  // Loading
   if (loading) {
     return (
-      <div className="w-full h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+      <div className="fixed inset-0 bg-black z-[100] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  if (stories.length === 0) {
-    return null;
-  }
+  if (!currentStory) return null;
 
-  const currentStory = stories[currentIndex];
-  const progressPercent = ((currentIndex + 1) / stories.length) * 100;
+  const storyId = currentStory?.id;
+  const isVideo = currentStory?.image_url?.match(/\.(mp4|webm|mov)$/i);
+
+  // Helper: render a story preview card (side panels)
+  const renderSidePreview = (group, side) => {
+    if (!group) return <div className="w-full h-full" />;
+    const previewStory = group.stories[0];
+    const previewProfile = group.user;
+    return (
+      <div
+        onClick={() => { side === 'left' ? goToPrevGroup() : goToNextGroup(); }}
+        className="w-full h-full rounded-2xl overflow-hidden cursor-pointer relative bg-slate-900 opacity-50 hover:opacity-70 transition-opacity"
+      >
+        {previewStory?.image_url ? (
+          <img src={previewStory.image_url} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 flex items-center justify-center p-4">
+            <p className="text-white text-sm text-center font-medium line-clamp-3">{previewStory?.content}</p>
+          </div>
+        )}
+        {/* Overlay with username */}
+        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+          <div className="flex items-center gap-2">
+            <Avatar className="w-7 h-7 ring-2 ring-white/40">
+              <AvatarImage src={previewProfile?.foto_perfil} />
+              <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-[10px]">
+                {previewProfile?.username?.[0]?.toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-white text-xs font-medium truncate">{previewProfile?.username}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
       <Helmet>
-        <title>Historia - {userProfile?.username}</title>
+        <title>Historia - {currentProfile?.username || 'Car-Pes'}</title>
       </Helmet>
 
-      <div className="fixed inset-0 bg-black z-50 flex flex-col overflow-hidden">
-        {/* Header con barras de progreso */}
-        <div className="absolute top-0 left-0 right-0 z-10 p-4 space-y-3">
-          {/* Progress bars */}
-          <div className="flex gap-1">
-            {stories.map((_, index) => (
-              <div
-                key={index}
-                className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden"
-              >
-                <div
-                  className="h-full bg-white transition-all duration-100"
-                  style={{
-                    width: index < currentIndex ? '100%' : 
-                           index === currentIndex ? `${progress}%` : '0%'
-                  }}
-                />
-              </div>
-            ))}
-          </div>
+      <div
+        ref={containerRef}
+        className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center select-none"
+      >
+        {/* ===== Desktop layout with side previews ===== */}
+        <div className="hidden md:flex items-center justify-center w-full h-full gap-3 px-4 max-w-[1100px] mx-auto">
 
-          {/* User info */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10 border-2 border-cyan-400">
-                <AvatarImage src={userProfile?.foto_perfil} />
-                <AvatarFallback>
-                  {userProfile?.username?.[0]?.toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="text-white">
-                <p className="font-bold text-sm">{userProfile?.nombre || userProfile?.username}</p>
-                <p className="text-xs text-gray-300">
-                  {new Date(currentStory.created_at).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })}
-                </p>
-              </div>
-            </div>
-
-            {/* Close button */}
+          {/* Left arrow button */}
+          {currentGroupIndex > 0 ? (
             <button
-              onClick={() => navigate('/feed')}
-              className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"
+              onClick={goToPrevGroup}
+              className="flex-shrink-0 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95"
+              aria-label="Historia anterior"
             >
-              <X className="w-6 h-6" />
+              <ChevronLeft className="w-7 h-7" />
             </button>
-          </div>
-        </div>
-
-        {/* Story content */}
-        <div className="flex-1 flex items-center justify-center relative overflow-hidden">
-          {currentStory.image_url ? (
-            <img
-              src={currentStory.image_url}
-              alt="Story"
-              className="max-w-full max-h-full object-contain"
-            />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
-              <p className="text-white text-2xl text-center px-8 max-w-lg">
-                {currentStory.content}
-              </p>
-            </div>
+            <div className="w-12 flex-shrink-0" />
           )}
 
-          {/* Left navigation */}
-          {currentIndex > 0 && (
-            <button
-              onClick={handlePrevious}
-              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full hover:bg-white/20 transition-colors text-white z-20"
-            >
-              <ChevronLeft className="w-8 h-8" />
-            </button>
-          )}
-
-          {/* Right navigation */}
-          {currentIndex < stories.length - 1 && (
-            <button
-              onClick={handleNext}
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full hover:bg-white/20 transition-colors text-white z-20"
-            >
-              <ChevronRight className="w-8 h-8" />
-            </button>
-          )}
-        </div>
-
-        {/* Bottom Actions */}
-        <div className="absolute bottom-6 left-6 right-6 flex items-center gap-3 z-20">
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={handleLike}
-            className={`p-3 rounded-full transition-all ${
-              liked[stories[currentIndex].id]
-                ? 'bg-red-500/30 text-red-400' 
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            <Heart
-              className="w-6 h-6"
-              fill={liked[stories[currentIndex].id] ? 'currentColor' : 'none'}
-            />
-          </motion.button>
-
-          <div className="text-white text-sm font-medium">
-            {likeCounts[stories[currentIndex].id] > 0 && `${likeCounts[stories[currentIndex].id]} ${likeCounts[stories[currentIndex].id] === 1 ? 'me gusta' : 'me gustan'}`}
+          {/* Left preview */}
+          <div className="flex-shrink-0 w-[120px] h-[85vh] max-h-[750px] hidden lg:block">
+            {renderSidePreview(prevGroup, 'left')}
           </div>
 
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={handleCommentClick}
-            className="ml-auto p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all text-white"
-          >
-            <MessageCircle className="w-6 h-6" />
-          </motion.button>
-        </div>
-
-        {/* Comments Modal */}
-        <AnimatePresence>
-          {showCommentsModal && (
+          {/* ==== MAIN STORY CARD ==== */}
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
-              initial={{ opacity: 0, y: 100 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 100 }}
-              className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-slate-900 to-slate-900/80 backdrop-blur-sm border-t border-white/10 rounded-t-3xl"
+              key={`${currentGroupIndex}-${currentStoryIndex}`}
+              initial={{ opacity: 0, scale: 0.95, x: direction * 60 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.95, x: direction * -60 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+              className="relative w-full max-w-[420px] h-[92vh] max-h-[800px] rounded-2xl overflow-hidden bg-black shadow-2xl shadow-black/50"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              onTouchMove={handleTouchMove}
             >
-              <div className="max-h-[70vh] flex flex-col">
-                {/* Header */}
-                <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                  <h3 className="text-white font-bold">Comentarios</h3>
-                  <button
-                    onClick={() => setShowCommentsModal(false)}
-                    className="text-white/70 hover:text-white"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Comments List */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {loadingComments ? (
-                    <div className="flex justify-center py-4">
-                      <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+              {/* Progress bars */}
+              <div className="absolute top-0 left-0 right-0 z-30 px-2 pt-3">
+                <div className="flex gap-1">
+                  {currentStories.map((_, index) => (
+                    <div key={index} className="flex-1 h-[3px] bg-white/30 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-white rounded-full"
+                        style={{
+                          width: index < currentStoryIndex ? '100%' :
+                                 index === currentStoryIndex ? `${progress}%` : '0%',
+                          transition: index === currentStoryIndex ? 'none' : 'width 0.2s'
+                        }}
+                      />
                     </div>
-                  ) : comments.length === 0 ? (
-                    <p className="text-white/50 text-sm text-center py-8">Sin comentarios aún</p>
-                  ) : (
-                    comments.map(comment => (
-                      <div key={comment.id} className="flex gap-3">
-                        <Avatar className="w-8 h-8 flex-shrink-0">
-                          <AvatarImage src={comment.user?.foto_perfil} />
-                          <AvatarFallback>
-                            {comment.user?.username?.[0]?.toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="bg-white/10 rounded-lg p-2">
-                            <p className="text-white font-bold text-sm">{comment.user?.username}</p>
-                            <p className="text-white/90 text-sm">{comment.content}</p>
-                          </div>
-                          <p className="text-white/50 text-xs mt-1">
-                            {new Date(comment.created_at).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                  ))}
                 </div>
 
-                {/* Comment Input */}
-                {currentUser && (
-                  <div className="p-4 border-t border-white/10 flex gap-2">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
-                      placeholder="Escribe un comentario..."
-                      className="flex-1 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-white placeholder-white/50 outline-none focus:border-cyan-500 focus:bg-white/20 transition-colors text-sm"
-                    />
-                    <Button
-                      onClick={handleAddComment}
-                      disabled={!commentText.trim()}
-                      size="sm"
-                      className="bg-cyan-600 hover:bg-cyan-500 rounded-full"
-                    >
-                      Enviar
-                    </Button>
+                {/* User info header */}
+                <div className="flex items-center justify-between mt-3 px-1">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-9 h-9 ring-2 ring-white/50">
+                      <AvatarImage src={currentProfile?.foto_perfil} />
+                      <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-sm">
+                        {currentProfile?.username?.[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-white font-semibold text-sm leading-tight">
+                        {currentProfile?.username}
+                      </p>
+                      <p className="text-white/60 text-xs">
+                        {getTimeAgo(currentStory.created_at)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {(isPaused || isHolding) && (
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="p-1.5 rounded-full bg-white/20">
+                        <Pause className="w-4 h-4 text-white" />
+                      </motion.div>
+                    )}
+                    {isVideo && (
+                      <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="p-2 rounded-full bg-black/30 text-white">
+                        {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                      </button>
+                    )}
+                    <button onClick={() => navigate('/feed')} className="p-2 rounded-full bg-black/30 text-white hover:bg-black/50 transition-colors">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Story content */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                {currentStory.image_url ? (
+                  isVideo ? (
+                    <video ref={videoRef} key={currentStory.image_url} src={currentStory.image_url}
+                      className="w-full h-full object-cover" autoPlay loop muted={isMuted} playsInline />
+                  ) : (
+                    <img key={currentStory.image_url} src={currentStory.image_url} alt="Story" className="w-full h-full object-cover" />
+                  )
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 p-8">
+                    <p className="text-white text-2xl md:text-3xl text-center font-semibold leading-relaxed drop-shadow-lg max-w-sm">
+                      {currentStory.content}
+                    </p>
+                  </div>
+                )}
+                {currentStory.image_url && currentStory.content && (
+                  <div className="absolute inset-x-0 bottom-32 flex justify-center px-6 pointer-events-none">
+                    <div className="bg-black/50 backdrop-blur-md rounded-2xl px-6 py-4 max-w-sm">
+                      <p className="text-white text-center text-lg font-medium">{currentStory.content}</p>
+                    </div>
                   </div>
                 )}
               </div>
+
+              {/* Invisible tap zones (mobile) - left 30% prev, right 70% next */}
+              <div className="absolute inset-0 z-10 flex md:hidden">
+                <div className="w-[30%] h-full" onClick={handlePrevious} />
+                <div className="w-[70%] h-full" onClick={handleNext} />
+              </div>
+
+              {/* Bottom section */}
+              <div className="absolute bottom-0 left-0 right-0 z-20">
+                <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-4 px-4">
+                  <div className="flex items-center gap-4 mb-3">
+                    <motion.button whileTap={{ scale: 0.85 }} onClick={handleLike} className="flex items-center gap-2">
+                      <Heart className={`w-7 h-7 transition-colors ${liked[storyId] ? 'text-red-500 fill-red-500' : 'text-white'}`} />
+                      {likeCounts[storyId] > 0 && <span className="text-white text-sm font-medium">{likeCounts[storyId]}</span>}
+                    </motion.button>
+                    <motion.button whileTap={{ scale: 0.85 }} onClick={handleCommentToggle} className="flex items-center gap-2">
+                      <MessageCircle className="w-7 h-7 text-white" />
+                      {comments.length > 0 && <span className="text-white text-sm font-medium">{comments.length}</span>}
+                    </motion.button>
+                    <motion.button whileTap={{ scale: 0.85 }} onClick={() => setIsPaused(!isPaused)} className="ml-auto p-2 rounded-full bg-white/10">
+                      {isPaused ? <Play className="w-5 h-5 text-white" fill="white" /> : <Pause className="w-5 h-5 text-white" />}
+                    </motion.button>
+                  </div>
+
+                  {currentUser && !showComments && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text" value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onFocus={() => setIsPaused(true)}
+                        onBlur={() => { if (!commentText.trim()) setIsPaused(false); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && commentText.trim()) handleAddComment(); }}
+                        placeholder="Enviar mensaje..."
+                        className="flex-1 bg-white/10 border border-white/20 rounded-full px-4 py-2.5 text-white text-sm placeholder-white/50 outline-none focus:border-white/40 focus:bg-white/15 transition-colors"
+                      />
+                      {commentText.trim() && (
+                        <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.85 }} onClick={handleAddComment} className="p-2.5 bg-cyan-500 rounded-full text-white">
+                          <Send className="w-5 h-5" />
+                        </motion.button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Comments drawer */}
+              <AnimatePresence>
+                {showComments && (
+                  <motion.div
+                    initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                    className="absolute inset-x-0 bottom-0 z-40 bg-slate-900/95 backdrop-blur-xl rounded-t-3xl border-t border-white/10"
+                    style={{ maxHeight: '75vh' }}
+                  >
+                    <div className="flex justify-center pt-3 pb-1">
+                      <div className="w-10 h-1 bg-white/30 rounded-full" />
+                    </div>
+                    <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                      <h3 className="text-white font-bold text-base">Comentarios</h3>
+                      <button onClick={() => setShowComments(false)} className="p-1 text-white/60 hover:text-white">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4" style={{ maxHeight: 'calc(75vh - 140px)' }}>
+                      {loadingComments ? (
+                        <div className="flex justify-center py-8">
+                          <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      ) : comments.length === 0 ? (
+                        <div className="text-center py-12">
+                          <MessageCircle className="w-12 h-12 text-white/20 mx-auto mb-3" />
+                          <p className="text-white/40 text-sm">Aún no hay comentarios</p>
+                          <p className="text-white/30 text-xs mt-1">Sé el primero en comentar</p>
+                        </div>
+                      ) : (
+                        comments.map(comment => (
+                          <div key={comment.id} className="flex gap-3">
+                            <Avatar className="w-8 h-8 flex-shrink-0">
+                              <AvatarImage src={comment.user?.foto_perfil} />
+                              <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-xs">
+                                {comment.user?.username?.[0]?.toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-white font-semibold text-sm">{comment.user?.username}</span>
+                                <span className="text-white/40 text-xs">{getTimeAgo(comment.created_at)}</span>
+                              </div>
+                              <p className="text-white/90 text-sm mt-0.5 break-words">{comment.content}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {currentUser && (
+                      <div className="px-4 py-3 border-t border-white/10 flex gap-2">
+                        <Avatar className="w-8 h-8 flex-shrink-0">
+                          <AvatarImage src={currentUser?.user_metadata?.avatar_url} />
+                          <AvatarFallback className="bg-blue-600 text-white text-xs">{currentUser?.email?.[0]?.toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <input ref={inputRef} type="text" value={commentText}
+                          onChange={(e) => setCommentText(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
+                          placeholder="Añade un comentario..."
+                          className="flex-1 bg-white/10 border border-white/15 rounded-full px-4 py-2 text-white text-sm placeholder-white/40 outline-none focus:border-white/30 transition-colors"
+                        />
+                        <button onClick={handleAddComment} disabled={!commentText.trim()}
+                          className={`text-sm font-bold transition-colors ${commentText.trim() ? 'text-cyan-400' : 'text-white/20'}`}>
+                          Enviar
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Hold indicator */}
+              <AnimatePresence>
+                {isHolding && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 pointer-events-none">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                      <Pause className="w-16 h-16 text-white/50" />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Story counter */}
+              <div className="absolute top-16 right-4 z-30">
+                <span className="text-white/50 text-xs font-medium bg-black/30 px-2 py-1 rounded-full">
+                  {currentStoryIndex + 1}/{currentStories.length}
+                </span>
+              </div>
             </motion.div>
+          </AnimatePresence>
+
+          {/* Right preview */}
+          <div className="flex-shrink-0 w-[120px] h-[85vh] max-h-[750px] hidden lg:block">
+            {renderSidePreview(nextGroup, 'right')}
+          </div>
+
+          {/* Right arrow button */}
+          {currentGroupIndex < storyGroups.length - 1 ? (
+            <button
+              onClick={goToNextGroup}
+              className="flex-shrink-0 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95"
+              aria-label="Siguiente historia"
+            >
+              <ChevronRight className="w-7 h-7" />
+            </button>
+          ) : (
+            <div className="w-12 flex-shrink-0" />
           )}
-        </AnimatePresence>
+        </div>
+
+        {/* ===== Mobile layout (fullscreen single card) ===== */}
+        <div className="md:hidden w-full h-full relative">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={`mobile-${currentGroupIndex}-${currentStoryIndex}`}
+              initial={{ opacity: 0, x: direction * 80 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: direction * -80 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-black"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              onTouchMove={handleTouchMove}
+            >
+              {/* Progress bars */}
+              <div className="absolute top-0 left-0 right-0 z-30 px-2 pt-3 safe-top">
+                <div className="flex gap-1">
+                  {currentStories.map((_, index) => (
+                    <div key={index} className="flex-1 h-[3px] bg-white/30 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-white rounded-full"
+                        style={{
+                          width: index < currentStoryIndex ? '100%' :
+                                 index === currentStoryIndex ? `${progress}%` : '0%',
+                          transition: index === currentStoryIndex ? 'none' : 'width 0.2s'
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* User info */}
+                <div className="flex items-center justify-between mt-3 px-1">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-9 h-9 ring-2 ring-white/50">
+                      <AvatarImage src={currentProfile?.foto_perfil} />
+                      <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-sm">
+                        {currentProfile?.username?.[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-white font-semibold text-sm">{currentProfile?.username}</p>
+                      <p className="text-white/60 text-xs">{getTimeAgo(currentStory.created_at)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(isPaused || isHolding) && (
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="p-1.5 rounded-full bg-white/20">
+                        <Pause className="w-4 h-4 text-white" />
+                      </motion.div>
+                    )}
+                    {isVideo && (
+                      <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="p-2 rounded-full bg-black/30 text-white">
+                        {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                      </button>
+                    )}
+                    <button onClick={() => navigate('/feed')} className="p-2 rounded-full bg-black/30 text-white">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Story content */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                {currentStory.image_url ? (
+                  isVideo ? (
+                    <video ref={videoRef} key={currentStory.image_url} src={currentStory.image_url}
+                      className="w-full h-full object-cover" autoPlay loop muted={isMuted} playsInline />
+                  ) : (
+                    <img key={currentStory.image_url} src={currentStory.image_url} alt="Story" className="w-full h-full object-cover" />
+                  )
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 p-8">
+                    <p className="text-white text-2xl text-center font-semibold leading-relaxed drop-shadow-lg max-w-sm">{currentStory.content}</p>
+                  </div>
+                )}
+                {currentStory.image_url && currentStory.content && (
+                  <div className="absolute inset-x-0 bottom-32 flex justify-center px-6 pointer-events-none">
+                    <div className="bg-black/50 backdrop-blur-md rounded-2xl px-6 py-4 max-w-sm">
+                      <p className="text-white text-center text-lg font-medium">{currentStory.content}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile navigation arrows */}
+              {currentGroupIndex > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); goToPrevGroup(); }}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+              )}
+              {currentGroupIndex < storyGroups.length - 1 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); goToNextGroup(); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white active:scale-90 transition-transform"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              )}
+
+              {/* Bottom actions */}
+              <div className="absolute bottom-0 left-0 right-0 z-20">
+                <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-4 px-4 safe-bottom">
+                  <div className="flex items-center gap-4 mb-3">
+                    <motion.button whileTap={{ scale: 0.85 }} onClick={handleLike} className="flex items-center gap-2">
+                      <Heart className={`w-7 h-7 transition-colors ${liked[storyId] ? 'text-red-500 fill-red-500' : 'text-white'}`} />
+                      {likeCounts[storyId] > 0 && <span className="text-white text-sm font-medium">{likeCounts[storyId]}</span>}
+                    </motion.button>
+                    <motion.button whileTap={{ scale: 0.85 }} onClick={handleCommentToggle} className="flex items-center gap-2">
+                      <MessageCircle className="w-7 h-7 text-white" />
+                    </motion.button>
+                    <motion.button whileTap={{ scale: 0.85 }} onClick={() => setIsPaused(!isPaused)} className="ml-auto p-2 rounded-full bg-white/10">
+                      {isPaused ? <Play className="w-5 h-5 text-white" fill="white" /> : <Pause className="w-5 h-5 text-white" />}
+                    </motion.button>
+                  </div>
+
+                  {currentUser && !showComments && (
+                    <div className="flex items-center gap-2">
+                      <input type="text" value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onFocus={() => setIsPaused(true)}
+                        onBlur={() => { if (!commentText.trim()) setIsPaused(false); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && commentText.trim()) handleAddComment(); }}
+                        placeholder="Enviar mensaje..."
+                        className="flex-1 bg-white/10 border border-white/20 rounded-full px-4 py-2.5 text-white text-sm placeholder-white/50 outline-none focus:border-white/40 focus:bg-white/15 transition-colors"
+                      />
+                      {commentText.trim() && (
+                        <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.85 }} onClick={handleAddComment} className="p-2.5 bg-cyan-500 rounded-full text-white">
+                          <Send className="w-5 h-5" />
+                        </motion.button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Hold indicator */}
+              <AnimatePresence>
+                {isHolding && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 pointer-events-none">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                      <Pause className="w-16 h-16 text-white/50" />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
     </>
   );
 };
+
+// Helper: time ago in Spanish
+function getTimeAgo(dateStr) {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now - date;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMs / 3600000);
+
+  if (diffMin < 1) return 'ahora';
+  if (diffMin < 60) return `hace ${diffMin}m`;
+  if (diffHr < 24) return `hace ${diffHr}h`;
+  return `hace ${Math.floor(diffHr / 24)}d`;
+}
 
 export default StoryViewerPage;

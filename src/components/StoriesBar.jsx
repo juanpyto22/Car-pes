@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Play } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -94,7 +94,6 @@ const StoriesBar = () => {
 
   const StoryCircle = ({ storyGroup, isOwn = false }) => {
     const hasStories = storyGroup?.stories?.length > 0;
-    const hasUnseen = storyGroup?.hasUnseen;
 
     return (
       <Link
@@ -103,44 +102,38 @@ const StoriesBar = () => {
       >
         <motion.div
           whileTap={{ scale: 0.95 }}
-          className="flex flex-col items-center gap-2 p-2"
+          className="flex flex-col items-center gap-1.5 px-1.5 py-2"
         >
-          <div className={`relative ${
-            hasUnseen 
-              ? 'ring-[3px] ring-pink-500' 
-              : hasStories 
-                ? 'ring-2 ring-gray-500' 
-                : ''
-          } rounded-full p-0.5`}>
-            <Avatar className="w-16 h-16 border-2 border-background">
-              <AvatarImage 
-                src={isOwn ? profile?.foto_perfil : storyGroup?.user?.foto_perfil} 
-                className="object-cover"
-              />
-              <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white">
-                {isOwn 
-                  ? profile?.username?.[0]?.toUpperCase() 
-                  : storyGroup?.user?.username?.[0]?.toUpperCase()
-                }
-              </AvatarFallback>
-            </Avatar>
+          <div className={`relative rounded-full p-[2.5px] ${
+            hasStories 
+              ? 'bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600' 
+              : ''
+          }`}>
+            <div className="bg-slate-950 rounded-full p-[2px]">
+              <Avatar className="w-16 h-16 md:w-[68px] md:h-[68px]">
+                <AvatarImage 
+                  src={isOwn ? profile?.foto_perfil : storyGroup?.user?.foto_perfil} 
+                  className="object-cover"
+                />
+                <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white text-lg">
+                  {isOwn 
+                    ? profile?.username?.[0]?.toUpperCase() 
+                    : storyGroup?.user?.username?.[0]?.toUpperCase()
+                  }
+                </AvatarFallback>
+              </Avatar>
+            </div>
             
             {isOwn && !hasStories && (
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center border-2 border-background">
-                <Plus className="w-3 h-3 text-white" />
-              </div>
-            )}
-            
-            {hasStories && (
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-background">
-                <Play className="w-3 h-3 text-white" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-slate-950">
+                <Plus className="w-3.5 h-3.5 text-white" />
               </div>
             )}
           </div>
           
-          <span className="text-xs text-center text-blue-200 font-medium max-w-[70px] truncate">
+          <span className="text-[11px] text-center text-gray-300 max-w-[72px] truncate leading-tight">
             {isOwn 
-              ? (hasStories ? 'Tu Story' : 'Tu Story')
+              ? 'Tu historia'
               : storyGroup?.user?.username
             }
           </span>
@@ -163,8 +156,8 @@ const StoriesBar = () => {
   }
 
   return (
-    <div className="bg-gradient-to-r from-slate-900/50 to-slate-800/50 backdrop-blur-sm border-y border-white/5">
-      <div className="flex gap-2 px-4 py-4 overflow-x-auto scrollbar-hide">
+    <div className="relative bg-transparent border-b border-white/5 mb-2">
+      <div className="flex gap-0 px-3 py-2 overflow-x-auto scrollbar-hide">
         {/* Mi story */}
         <StoryCircle 
           storyGroup={{ user: { id: user?.id }, stories: myStories }} 

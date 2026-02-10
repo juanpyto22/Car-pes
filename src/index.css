@@ -56,3 +56,27 @@ body {
     background: rgba(6, 182, 212, 0.3);
     color: white;
 }
+
+/* Hide scrollbar utility */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Safe area for iOS notch */
+.safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Mobile bottom nav spacing */
+@media (max-width: 767px) {
+    body {
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+}

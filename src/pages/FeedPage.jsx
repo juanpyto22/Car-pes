@@ -82,10 +82,13 @@ const FeedPage = () => {
         <title>Feed - Car-Pes</title>
       </Helmet>
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-blue-950/5 to-slate-950 pb-20">
-        <div className="max-w-xl mx-auto pt-6 px-4">
+        <div className="max-w-xl mx-auto pt-2 md:pt-6 px-0 md:px-4">
+
+          {/* Stories Bar - full width on mobile */}
+          <StoriesBar />
             
-          {/* Top Actions */}
-          <div className="flex items-center justify-between mb-8">
+          {/* Top Actions - hidden on mobile, use bottom nav instead */}
+          <div className="hidden md:flex items-center justify-between mb-8 px-4">
             <div>
               <h1 className="text-2xl font-bold text-white">Tu Feed</h1>
               <p className="text-blue-400 text-sm">Las últimas capturas de tus amigos</p>
@@ -107,9 +110,6 @@ const FeedPage = () => {
                 </Link>
             </div>
           </div>
-
-          {/* Stories Bar */}
-          <StoriesBar />
 
           {loading && posts.length === 0 ? (
             <div className="space-y-6">

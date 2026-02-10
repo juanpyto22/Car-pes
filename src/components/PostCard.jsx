@@ -23,6 +23,8 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
   const { toast } = useToast();
   const { renderEnhancedText, parseHashtags, parseMentions } = useAdvancedSocial(user);
   
+  const [liked, setLiked] = useState(post.has_liked || false);
+  const [likesCount, setLikesCount] = useState(post.likes_count || 0);
   const [reactions, setReactions] = useState([]);
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -82,18 +84,59 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
     }
   };
 
+  // Sync liked state from prop
+  useEffect(() => {
+    setLiked(post.has_liked || false);
+    setLikesCount(post.likes_count || 0);
+  }, [post.has_liked, post.likes_count]);
+
   // Doble tap para like rápido
-  const handleDoubleTap = () => {
+  const handleDoubleTap = async () => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
-      const userReaction = reactions.find(r => r.user_id === user?.id);
-      if (!userReaction) {
-        // Quick like reaction
+      if (!liked && user?.id) {
+        // Optimistic update
+        setLiked(true);
+        setLikesCount(prev => prev + 1);
+        setShowHeart(true);
+        setTimeout(() => setShowHeart(false), 1000);
+        
+        // Actually toggle the like
+        if (onToggleLike) {
+          try {
+            await onToggleLike(post.id);
+          } catch (error) {
+            // Revert on error
+            setLiked(false);
+            setLikesCount(prev => prev - 1);
+          }
+        }
+      } else if (!liked) {
+        // Already liked, just show animation
         setShowHeart(true);
         setTimeout(() => setShowHeart(false), 1000);
       }
     }
     lastTap.current = now;
+  };
+
+  const handleToggleLike = async () => {
+    if (!user?.id) {
+      toast({ variant: "destructive", title: "Inicia sesión para dar like" });
+      return;
+    }
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikesCount(prev => prev + (wasLiked ? -1 : 1));
+    
+    if (onToggleLike) {
+      try {
+        await onToggleLike(post.id);
+      } catch (error) {
+        setLiked(wasLiked);
+        setLikesCount(prev => prev + (wasLiked ? 1 : -1));
+      }
+    }
   };
 
   // Compartir con Web Share API
@@ -148,7 +191,7 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="bg-slate-900/60 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden hover:border-cyan-500/30 transition-all shadow-xl"
+      className="bg-slate-900/60 backdrop-blur-md border-y md:border border-white/10 md:rounded-2xl overflow-hidden hover:border-cyan-500/30 transition-all shadow-xl"
     >
       {/* Header */}
       <div className="p-4 flex items-center justify-between bg-white/5">
@@ -193,7 +236,7 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
 
       {/* Media - con doble tap para like */}
       <div 
-        className="relative aspect-square sm:aspect-video bg-black flex items-center justify-center overflow-hidden group cursor-pointer"
+        className="relative aspect-square bg-black flex items-center justify-center overflow-hidden group cursor-pointer"
         onClick={handleDoubleTap}
       >
         {post.video_url ? (
@@ -217,15 +260,39 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
 
       {/* Content */}
       <div className="p-4">
-        {/* Save Button */}
-        <div className="flex justify-end mb-4">
+        {/* Instagram-style action row */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-4">
+            <motion.button
+              whileTap={{ scale: 0.8 }}
+              onClick={handleToggleLike}
+              className="transition-colors"
+            >
+              <Heart
+                className={`w-7 h-7 ${liked ? 'text-red-500 fill-red-500' : 'text-white hover:text-gray-300'}`}
+              />
+            </motion.button>
+            <Link to={`/post/${post.id}`}>
+              <MessageCircle className="w-7 h-7 text-white hover:text-gray-300 transition-colors" />
+            </Link>
+            <button onClick={handleShare}>
+              <Share2 className="w-6 h-6 text-white hover:text-gray-300 transition-colors" />
+            </button>
+          </div>
           <button 
             onClick={handleSave} 
-            className={`transition-colors ${saved ? 'text-yellow-500' : 'text-white hover:text-yellow-400'}`}
+            className={`transition-colors ${saved ? 'text-white' : 'text-white hover:text-gray-300'}`}
           >
-            {saved ? <BookmarkCheck className="w-6 h-6 fill-current" /> : <Bookmark className="w-6 h-6" />}
+            {saved ? <BookmarkCheck className="w-7 h-7 fill-current" /> : <Bookmark className="w-7 h-7" />}
           </button>
         </div>
+
+        {/* Like count */}
+        {likesCount > 0 && (
+          <p className="text-white font-bold text-sm mb-2">
+            {likesCount} {likesCount === 1 ? 'Me gusta' : 'Me gusta'}
+          </p>
+        )}
 
         {/* Catch Details Badge Grid */}
         <div className="flex flex-wrap gap-2 mb-4">
