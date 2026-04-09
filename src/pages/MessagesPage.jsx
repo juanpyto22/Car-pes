@@ -78,7 +78,19 @@ const MessagesPage = () => {
   const isGroupChat = !!selectedGroup;
   const chatTarget = selectedGroup || selectedUser;
 
-  const filteredConversations = conversations.filter(c => 
+  // Add selected user to conversations if not already there
+  const enhancedConversations = selectedUser && selectedUser.id
+    ? conversations.some(c => c.partnerId === selectedUser.id)
+      ? conversations
+      : [{
+          partnerId: selectedUser.id,
+          partner: selectedUser,
+          lastMessage: { contenido: '', created_at: new Date().toISOString() },
+          unreadCount: 0,
+        }, ...conversations]
+    : conversations;
+
+  const filteredConversations = enhancedConversations.filter(c => 
     c.partner?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.partner?.nombre?.toLowerCase().includes(searchTerm.toLowerCase())
   );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { X, ChevronLeft, ChevronRight, Heart, MessageCircle, Send, Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Heart, MessageCircle, Send, Pause, Play, Volume2, VolumeX, MoreVertical } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -624,6 +624,25 @@ const StoryViewerPage = () => {
                     {isVideo && (
                       <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="p-2 rounded-full bg-black/30 text-white">
                         {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                      </button>
+                    )}
+                    {currentUser?.id === currentProfile?.id && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!window.confirm('¿Eliminar esta historia?')) return;
+                          try {
+                            await supabase.from('stories').delete().eq('id', currentStory.id).eq('user_id', currentUser.id);
+                            toast({ title: 'Historia eliminada' });
+                            navigate('/feed');
+                          } catch (error) {
+                            toast({ variant: 'destructive', title: 'Error al eliminar' });
+                          }
+                        }}
+                        className="p-2 rounded-full bg-black/30 text-white hover:bg-red-600/40 transition-colors"
+                        title="Eliminar"
+                      >
+                        <MoreVertical className="w-4 h-4" />
                       </button>
                     )}
                     <button onClick={() => navigate('/feed')} className="p-2 rounded-full bg-black/30 text-white hover:bg-black/50 transition-colors">
