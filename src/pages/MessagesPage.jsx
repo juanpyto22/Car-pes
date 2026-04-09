@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/hooks/useMessages';
-import { Send, Search, ArrowLeft, MessageCircle, Image, X, Smile, Users, Camera, Settings, UserPlus, Plus, Crown, Shield, UserMinus, ShieldOff } from 'lucide-react';
+import { Send, Search, ArrowLeft, MessageCircle, Image, X, Smile, Users, Camera, Settings, UserPlus, Plus, Crown, Shield, UserMinus, ShieldOff, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
@@ -57,7 +57,7 @@ const MessagesPage = () => {
     conversations, groupConversations, messages, loading,
     getMessages, getGroupMessages, sendMessage, sendGroupMessage,
     getConversations, getGroupConversations, uploadMessageImage,
-    addMembersToGroup, getGroupMembers, promoteMemberToAdmin, demoteAdminToMember, removeMemberFromGroup
+    addMembersToGroup, getGroupMembers, promoteMemberToAdmin, demoteAdminToMember, removeMemberFromGroup, deleteGroupForEveryone
   } = useMessages(user);
   
   const [selectedUser, setSelectedUser] = useState(null);
@@ -400,7 +400,13 @@ const MessagesPage = () => {
                     promoteMemberToAdmin={promoteMemberToAdmin}
                     demoteAdminToMember={demoteAdminToMember}
                     removeMemberFromGroup={removeMemberFromGroup}
+                    deleteGroupForEveryone={deleteGroupForEveryone}
                     onClose={() => setShowGroupSettings(false)}
+                    onGroupDeleted={async () => {
+                      setShowGroupSettings(false);
+                      setSelectedGroup(null);
+                      await getGroupConversations();
+                    }}
                     onMembersAdded={async (count) => {
                       setSelectedGroup(prev => ({ ...prev, memberCount: (prev.memberCount || 0) + count }));
                       await getGroupConversations();
@@ -685,7 +691,7 @@ const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroup
 });
 
 // ─── Group Settings Panel ──────────────────────────────────────
-const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToGroup, promoteMemberToAdmin, demoteAdminToMember, removeMemberFromGroup, onClose, onMembersAdded }) => {
+const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToGroup, promoteMemberToAdmin, demoteAdminToMember, removeMemberFromGroup, deleteGroupForEveryone, onClose, onGroupDeleted, onMembersAdded }) => {
   const [members, setMembers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -693,11 +699,13 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [adding, setAdding] = useState(false);
   const [memberActionLoading, setMemberActionLoading] = useState(null);
+  const [deletingGroup, setDeletingGroup] = useState(false);
   const [selectedToAdd, setSelectedToAdd] = useState([]);
   const searchTimeout = useRef(null);
 
   const currentMember = members.find(m => m.id === currentUser.id);
   const isCurrentUserAdmin = group.creator_id === currentUser.id || currentMember?.role === 'admin';
+  const isGroupCreator = group.creator_id === currentUser.id;
 
   useEffect(() => {
     loadMembers();
@@ -801,6 +809,21 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
       onMembersAdded(-1);
     }
     setMemberActionLoading(null);
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!isGroupCreator || deletingGroup) return;
+    const confirmed = window.confirm('Esta acción eliminará el grupo para todos los miembros y no se puede deshacer. ¿Quieres continuar?');
+    if (!confirmed) return;
+
+    setDeletingGroup(true);
+    const success = await deleteGroupForEveryone(group.id);
+    setDeletingGroup(false);
+
+    if (success) {
+      onGroupDeleted?.();
+      onClose();
+    }
   };
 
   return (
@@ -1000,9 +1023,9 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
           </div>
         </div>
 
-        {/* Add button */}
-        {isCurrentUserAdmin && selectedToAdd.length > 0 && (
-          <div className="p-4 border-t border-white/10">
+        {/* Footer actions */}
+        <div className="p-4 border-t border-white/10 space-y-2">
+          {isCurrentUserAdmin && selectedToAdd.length > 0 && (
             <Button
               onClick={handleAddMembers}
               disabled={adding}
@@ -1017,8 +1040,27 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
                 <><UserPlus className="w-4 h-4 mr-2" /> Añadir {selectedToAdd.length} miembro{selectedToAdd.length > 1 ? 's' : ''}</>
               )}
             </Button>
-          </div>
-        )}
+          )}
+
+          {isGroupCreator && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteGroup}
+              disabled={deletingGroup}
+              className="w-full h-10 rounded-xl"
+            >
+              {deletingGroup ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Eliminando grupo...
+                </div>
+              ) : (
+                <><Trash2 className="w-4 h-4 mr-2" /> Eliminar grupo para todos</>
+              )}
+            </Button>
+          )}
+        </div>
       </motion.div>
     </motion.div>
   );

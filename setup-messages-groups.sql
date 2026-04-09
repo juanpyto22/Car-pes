@@ -36,6 +36,7 @@ END $$;
 ALTER TABLE IF EXISTS messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS chat_group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS chat_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS group_messages ENABLE ROW LEVEL SECURITY;
 
 -- ---------- MESSAGES POLICIES ----------
 DROP POLICY IF EXISTS "messages_select_participants" ON messages;
@@ -139,6 +140,7 @@ USING (
 
 -- ---------- CHAT GROUPS POLICIES ----------
 DROP POLICY IF EXISTS "chat_groups_select_if_member" ON chat_groups;
+DROP POLICY IF EXISTS "chat_groups_delete_creator" ON chat_groups;
 
 CREATE POLICY "chat_groups_select_if_member"
 ON chat_groups FOR SELECT
@@ -148,6 +150,64 @@ USING (
     SELECT 1 FROM chat_group_members m
     WHERE m.group_id = chat_groups.id
       AND m.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "chat_groups_delete_creator"
+ON chat_groups FOR DELETE
+USING (creator_id = auth.uid());
+
+-- ---------- GROUP MESSAGES POLICIES ----------
+DROP POLICY IF EXISTS "group_messages_select_if_member" ON group_messages;
+DROP POLICY IF EXISTS "group_messages_insert_if_member" ON group_messages;
+DROP POLICY IF EXISTS "group_messages_delete_if_admin" ON group_messages;
+
+CREATE POLICY "group_messages_select_if_member"
+ON group_messages FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM chat_group_members m
+    WHERE m.group_id = group_messages.group_id
+      AND m.user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1 FROM chat_groups g
+    WHERE g.id = group_messages.group_id
+      AND g.creator_id = auth.uid()
+  )
+);
+
+CREATE POLICY "group_messages_insert_if_member"
+ON group_messages FOR INSERT
+WITH CHECK (
+  sender_id = auth.uid()
+  AND (
+    EXISTS (
+      SELECT 1 FROM chat_group_members m
+      WHERE m.group_id = group_messages.group_id
+        AND m.user_id = auth.uid()
+    )
+    OR EXISTS (
+      SELECT 1 FROM chat_groups g
+      WHERE g.id = group_messages.group_id
+        AND g.creator_id = auth.uid()
+    )
+  )
+);
+
+CREATE POLICY "group_messages_delete_if_admin"
+ON group_messages FOR DELETE
+USING (
+  EXISTS (
+    SELECT 1 FROM chat_groups g
+    WHERE g.id = group_messages.group_id
+      AND g.creator_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1 FROM chat_group_members me
+    WHERE me.group_id = group_messages.group_id
+      AND me.user_id = auth.uid()
+      AND me.role = 'admin'
   )
 );
 

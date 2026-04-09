@@ -13,6 +13,8 @@ export const useMessages = (currentUser) => {
   const getStoredGroups = () => JSON.parse(localStorage.getItem('carpes_groups') || '[]');
   const getRoleOverrides = () => JSON.parse(localStorage.getItem('carpes_group_role_overrides') || '{}');
   const setRoleOverrides = (value) => localStorage.setItem('carpes_group_role_overrides', JSON.stringify(value));
+  const getLocalDmKey = (a, b) => `carpes_dm_${[a, b].sort().join('_')}`;
+  const getLocalDmMessages = (a, b) => JSON.parse(localStorage.getItem(getLocalDmKey(a, b)) || '[]');
 
   const isCurrentUserGroupAdmin = useCallback(async (groupId) => {
     if (!currentUser || !groupId) return false;
@@ -110,15 +112,37 @@ export const useMessages = (currentUser) => {
         .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.id})`)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
-      setMessages(data || []);
+      const localMessages = getLocalDmMessages(currentUser.id, otherUserId);
+
+      if (error) {
+        setMessages(localMessages);
+        return;
+      }
+
+      const serverMessages = data || [];
+      const merged = [...serverMessages, ...localMessages]
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+      const deduped = [];
+      const seen = new Set();
+      for (const msg of merged) {
+        const key = msg.id || `${msg.sender_id}-${msg.receiver_id}-${msg.created_at}-${msg.contenido || msg.content || msg.message || ''}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          deduped.push(msg);
+        }
+      }
+
+      setMessages(deduped);
       
-      const unreadIds = (data || [])
+      const unreadIds = (serverMessages || [])
         .filter(m => m.receiver_id === currentUser.id && !m.read)
         .map(m => m.id);
       if (unreadIds.length > 0) markAsRead(unreadIds);
     } catch (error) {
       console.error('Error fetching messages:', error);
+      const localMessages = getLocalDmMessages(currentUser.id, otherUserId);
+      setMessages(localMessages);
     }
   }, [currentUser]);
 
@@ -157,7 +181,7 @@ export const useMessages = (currentUser) => {
       }
 
       // Local fallback to avoid blocking UX if DB policy/schema is restrictive.
-      const key = `carpes_dm_${[currentUser.id, receiverId].sort().join('_')}`;
+      const key = getLocalDmKey(currentUser.id, receiverId);
       const stored = JSON.parse(localStorage.getItem(key) || '[]');
       stored.push({
         id: crypto.randomUUID(),
@@ -652,6 +676,72 @@ export const useMessages = (currentUser) => {
     }
   };
 
+  const deleteGroupForEveryone = async (groupId) => {
+    if (!currentUser || !groupId) return false;
+
+    try {
+      const { data: groupData } = await supabase
+        .from('chat_groups')
+        .select('creator_id')
+        .eq('id', groupId)
+        .maybeSingle();
+
+      if (groupData?.creator_id && groupData.creator_id !== currentUser.id) {
+        toast({ variant: 'destructive', title: 'Solo el creador', description: 'Solo el creador puede eliminar el grupo.' });
+        return false;
+      }
+
+      // Try best-effort cascade manually (in case FK cascade is missing)
+      await supabase.from('group_messages').delete().eq('group_id', groupId);
+      await supabase.from('chat_group_members').delete().eq('group_id', groupId);
+
+      const { error } = await supabase
+        .from('chat_groups')
+        .delete()
+        .eq('id', groupId)
+        .eq('creator_id', currentUser.id);
+
+      if (error) {
+        // Local fallback
+        const stored = getStoredGroups();
+        const target = stored.find(g => g.id === groupId);
+        if (target && target.creator_id !== currentUser.id) {
+          toast({ variant: 'destructive', title: 'Solo el creador', description: 'Solo el creador puede eliminar el grupo.' });
+          return false;
+        }
+
+        const filtered = stored.filter(g => g.id !== groupId);
+        localStorage.setItem('carpes_groups', JSON.stringify(filtered));
+
+        const roleOverrides = getRoleOverrides();
+        if (roleOverrides[groupId]) {
+          delete roleOverrides[groupId];
+          setRoleOverrides(roleOverrides);
+        }
+
+        localStorage.removeItem(`carpes_groupmsgs_${groupId}`);
+        setGroupConversations(filtered);
+        toast({ title: 'Grupo eliminado para todos' });
+        return true;
+      }
+
+      const roleOverrides = getRoleOverrides();
+      if (roleOverrides[groupId]) {
+        delete roleOverrides[groupId];
+        setRoleOverrides(roleOverrides);
+      }
+
+      localStorage.removeItem(`carpes_groupmsgs_${groupId}`);
+      await getGroupConversations();
+      toast({ title: 'Grupo eliminado para todos' });
+      return true;
+    } catch (err) {
+      console.error('Error deleting group:', err);
+      toast({ variant: 'destructive', title: 'Error al eliminar grupo' });
+      return false;
+    }
+  };
+
   // ─── Image Upload ──────────────────────────────────────────
   const uploadMessageImage = async (file) => {
     try {
@@ -725,6 +815,7 @@ export const useMessages = (currentUser) => {
     promoteMemberToAdmin,
     demoteAdminToMember,
     removeMemberFromGroup,
+    deleteGroupForEveryone,
     getGroupMembers,
     uploadMessageImage,
   };
