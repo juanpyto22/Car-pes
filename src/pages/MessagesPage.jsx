@@ -87,18 +87,27 @@ const MessagesPage = () => {
     g.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Poll for new messages - increased interval to 15 seconds to reduce UI flicker
+  // Use refs to avoid polling function recreation
+  const getMessagesRef = useRef(getMessages);
+  const getGroupMessagesRef = useRef(getGroupMessages);
+  
+  useEffect(() => {
+    getMessagesRef.current = getMessages;
+    getGroupMessagesRef.current = getGroupMessages;
+  }, [getMessages, getGroupMessages]);
+
+  // Poll for new messages - ONLY depends on selected user/group to avoid re-renders
   useEffect(() => {
     let interval;
-    if (selectedUser) {
-      getMessages(selectedUser.id);
-      interval = setInterval(() => getMessages(selectedUser.id), 15000);
-    } else if (selectedGroup) {
-      getGroupMessages(selectedGroup.id);
-      interval = setInterval(() => getGroupMessages(selectedGroup.id), 15000);
+    if (selectedUser?.id) {
+      getMessagesRef.current(selectedUser.id);
+      interval = setInterval(() => getMessagesRef.current(selectedUser.id), 15000);
+    } else if (selectedGroup?.id) {
+      getGroupMessagesRef.current(selectedGroup.id);
+      interval = setInterval(() => getGroupMessagesRef.current(selectedGroup.id), 15000);
     }
     return () => clearInterval(interval);
-  }, [selectedUser?.id, selectedGroup?.id, getMessages, getGroupMessages]);
+  }, [selectedUser?.id, selectedGroup?.id]);
 
   // Open from navigation state
   useEffect(() => {
