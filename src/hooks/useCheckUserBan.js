@@ -13,7 +13,7 @@ export const useCheckUserBan = () => {
   const [reason, setReason] = useState(null);
   const [expiresAt, setExpiresAt] = useState(null);
   const [remainingHours, setRemainingHours] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -25,15 +25,11 @@ export const useCheckUserBan = () => {
       setExpiresAt(null);
       setRemainingHours(null);
       setError(null);
-      setLoading(false);
       return;
     }
 
     const checkBan = async ({ silent = false } = {}) => {
       try {
-        if (!silent) {
-          setLoading(true);
-        }
         const { data, error: err } = await supabase
           .rpc('get_current_user_ban_status');
 

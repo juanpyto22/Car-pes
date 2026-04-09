@@ -47,8 +47,8 @@ import MobileBottomNav from '@/components/MobileBottomNav';
 import AchievementUnlockedNotification from '@/components/AchievementUnlockedNotification';
 
 const AppRoutes = () => {
-  const { user, loading } = useAuth();
-  const { isBanned, banType, reason, remainingHours, loading: banLoading } = useCheckUserBan();
+  const { user } = useAuth();
+  const { isBanned, banType, reason, remainingHours } = useCheckUserBan();
   const { unlockedAchievement, testUnlockAchievement } = useAchievementNotifications(user?.id);
   const [showNotification, setShowNotification] = React.useState(false);
 
