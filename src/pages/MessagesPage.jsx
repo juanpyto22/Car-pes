@@ -397,7 +397,7 @@ const MessagesPage = () => {
         </div>
 
         {/* ─── Chat Area ───────────────────────────────────── */}
-        <div className={`flex-1 flex flex-col bg-gradient-to-b from-slate-950 to-slate-900 ${!chatTarget ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`flex-1 flex flex-col bg-gradient-to-b from-slate-950 to-slate-900 overflow-hidden relative ${!chatTarget ? 'hidden md:flex' : 'flex'}`}>
           {chatTarget ? (
             <>
               {/* Chat Header */}
@@ -471,7 +471,7 @@ const MessagesPage = () => {
                 )}
               </AnimatePresence>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/20 via-slate-950 to-slate-950">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/20 via-slate-950 to-slate-950 scrollbar-thin scrollbar-thumb-cyan-900 scrollbar-track-transparent">
                 {messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <div className="w-20 h-20 bg-cyan-500/10 rounded-full flex items-center justify-center mb-4">
@@ -490,14 +490,14 @@ const MessagesPage = () => {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* GIF Picker */}
+              {/* GIF Picker - Absolute positioned overlay */}
               <AnimatePresence>
                 {showGifPicker && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 280, opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="border-t border-white/10 bg-slate-900/95 overflow-hidden"
+                    className="absolute bottom-20 left-0 right-0 z-40 border-t border-white/10 bg-slate-900/95 overflow-hidden"
                   >
                     <div className="p-3 h-full overflow-y-auto">
                       <div className="flex items-center justify-between mb-2">
@@ -529,9 +529,9 @@ const MessagesPage = () => {
                 )}
               </AnimatePresence>
 
-              {/* Image Preview */}
+              {/* Image Preview - Fixed position */}
               {imagePreview && (
-                <div className="px-4 pt-3 border-t border-white/10 bg-slate-900/80">
+                <div className="absolute bottom-20 left-4 right-0 z-30 flex items-end gap-2 pointer-events-auto">
                   <div className="relative inline-block">
                     <img src={imagePreview} alt="Preview" className="h-20 rounded-lg border border-white/20" />
                     <button
@@ -545,8 +545,8 @@ const MessagesPage = () => {
               )}
 
               {/* Input Area */}
-              <div className="p-3 md:p-4 border-t border-white/10 bg-slate-900/80 backdrop-blur-xl">
-                <form onSubmit={handleSend} className="flex gap-2 items-center min-w-0">
+              <div className="p-3 md:p-4 border-t border-white/10 bg-slate-900/80 backdrop-blur-xl flex-shrink-0 h-auto">
+                <form onSubmit={handleSend} className="flex gap-2 items-center min-w-0 h-fit">
                   {/* Image upload */}
                   <input
                     ref={fileInputRef}
@@ -584,7 +584,7 @@ const MessagesPage = () => {
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Escribe un mensaje..."
                     disabled={sending}
-                    className="flex-1 min-w-0 bg-slate-950/80 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 placeholder-blue-500 transition-all disabled:opacity-50 overflow-hidden text-ellipsis"
+                    className="flex-1 min-w-0 bg-slate-950/80 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 placeholder-blue-500 transition-all disabled:opacity-50 overflow-hidden text-ellipsis h-11 resize-none"
                   />
 
                   {/* Send */}
