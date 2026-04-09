@@ -214,71 +214,6 @@ const MessagesPage = () => {
     setImageFile(null);
   };
 
-  // ─── Message bubble ────────────────────────────────────────
-  const MessageBubble = ({ msg, index }) => {
-    const isMe = msg.sender_id === user?.id;
-    const showAvatar = !isMe && (index === 0 || messages[index - 1]?.sender_id !== msg.sender_id);
-    const msgImageUrl = msg.image_url || (isImageUrl(msg.contenido) ? msg.contenido : null);
-    const textContent = msgImageUrl && msgImageUrl === msg.contenido ? null : msg.contenido;
-    const senderInfo = isGroupChat ? msg.sender : (isMe ? null : selectedUser);
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.2 }}
-        className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
-      >
-        {!isMe && (
-          <div className="w-7 shrink-0">
-            {showAvatar && senderInfo && (
-              <Avatar className="w-7 h-7 border border-white/10">
-                <AvatarImage src={senderInfo.foto_perfil} className="object-cover" />
-                <AvatarFallback className="bg-blue-900 text-cyan-200 text-[10px]">
-                  {senderInfo.username?.[0]}
-                </AvatarFallback>
-              </Avatar>
-            )}
-          </div>
-        )}
-        <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-          {/* Show sender name in groups */}
-          {isGroupChat && !isMe && showAvatar && (
-            <span className="text-[10px] text-cyan-400 font-medium ml-1 mb-0.5">
-              {senderInfo?.username || 'Usuario'}
-            </span>
-          )}
-          <div className={`rounded-2xl overflow-hidden shadow-lg ${
-            isMe 
-              ? 'bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-br-md' 
-              : 'bg-slate-800/80 backdrop-blur-sm text-white rounded-bl-md border border-white/5'
-          }`}>
-            {/* Image */}
-            {msgImageUrl && (
-              <div className="max-w-xs">
-                <img 
-                  src={msgImageUrl} 
-                  alt="Imagen" 
-                  className="w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity" 
-                  onClick={() => window.open(msgImageUrl, '_blank')}
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-              </div>
-            )}
-            {/* Text */}
-            {textContent && (
-              <p className="text-sm leading-relaxed break-words px-4 py-2.5">{textContent}</p>
-            )}
-            {!textContent && msgImageUrl && <div className="h-1" />}
-          </div>
-          <p className={`text-[10px] mt-0.5 mx-1 ${isMe ? 'text-blue-400/60 text-right' : 'text-blue-500/60'}`}>
-            {formatDistanceToNow(new Date(msg.created_at), { locale: es, addSuffix: true })}
-          </p>
-        </div>
-      </motion.div>
-    );
-  };
-
   return (
     <>
       <Helmet><title>Mensajes - Car-Pes</title></Helmet>
@@ -483,7 +418,15 @@ const MessagesPage = () => {
                 ) : (
                   <AnimatePresence>
                     {messages.map((msg, index) => (
-                      <MessageBubble key={msg.id} msg={msg} index={index} />
+                      <MessageBubble
+                        key={msg.id}
+                        msg={msg}
+                        index={index}
+                        messages={messages}
+                        currentUserId={user?.id}
+                        isGroupChat={isGroupChat}
+                        selectedUser={selectedUser}
+                      />
                     ))}
                   </AnimatePresence>
                 )}
@@ -676,6 +619,67 @@ const EmptyState = ({ icon: Icon, text, sub }) => (
     {sub && <p className="text-blue-500 text-xs mt-1">{sub}</p>}
   </div>
 );
+
+const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroupChat, selectedUser }) => {
+  const isMe = msg.sender_id === currentUserId;
+  const showAvatar = !isMe && (index === 0 || messages[index - 1]?.sender_id !== msg.sender_id);
+  const msgImageUrl = msg.image_url || (isImageUrl(msg.contenido) ? msg.contenido : null);
+  const textContent = msgImageUrl && msgImageUrl === msg.contenido ? null : msg.contenido;
+  const senderInfo = isGroupChat ? msg.sender : (isMe ? null : selectedUser);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.2 }}
+      className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
+    >
+      {!isMe && (
+        <div className="w-7 shrink-0">
+          {showAvatar && senderInfo && (
+            <Avatar className="w-7 h-7 border border-white/10">
+              <AvatarImage src={senderInfo.foto_perfil} className="object-cover" />
+              <AvatarFallback className="bg-blue-900 text-cyan-200 text-[10px]">
+                {senderInfo.username?.[0]}
+              </AvatarFallback>
+            </Avatar>
+          )}
+        </div>
+      )}
+      <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+        {isGroupChat && !isMe && showAvatar && (
+          <span className="text-[10px] text-cyan-400 font-medium ml-1 mb-0.5">
+            {senderInfo?.username || 'Usuario'}
+          </span>
+        )}
+        <div className={`rounded-2xl overflow-hidden shadow-lg ${
+          isMe
+            ? 'bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-br-md'
+            : 'bg-slate-800/80 backdrop-blur-sm text-white rounded-bl-md border border-white/5'
+        }`}>
+          {msgImageUrl && (
+            <div className="max-w-xs">
+              <img
+                src={msgImageUrl}
+                alt="Imagen"
+                className="w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => window.open(msgImageUrl, '_blank')}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            </div>
+          )}
+          {textContent && (
+            <p className="text-sm leading-relaxed break-words px-4 py-2.5">{textContent}</p>
+          )}
+          {!textContent && msgImageUrl && <div className="h-1" />}
+        </div>
+        <p className={`text-[10px] mt-0.5 mx-1 ${isMe ? 'text-blue-400/60 text-right' : 'text-blue-500/60'}`}>
+          {formatDistanceToNow(new Date(msg.created_at), { locale: es, addSuffix: true })}
+        </p>
+      </div>
+    </motion.div>
+  );
+});
 
 // ─── Group Settings Panel ──────────────────────────────────────
 const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToGroup, onClose, onMembersAdded }) => {
