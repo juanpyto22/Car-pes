@@ -5,6 +5,31 @@
 
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- =====================================================
+-- REBUILD DIRECT MESSAGES (requested reset)
+-- =====================================================
+DROP TABLE IF EXISTS direct_messages CASCADE;
+
+CREATE TABLE direct_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id UUID NOT NULL,
+  receiver_id UUID NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  image_url TEXT,
+  story_id UUID,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_direct_messages_sender ON direct_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_direct_messages_receiver ON direct_messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_direct_messages_created ON direct_messages(created_at DESC);
+
+ALTER TABLE direct_messages ENABLE ROW LEVEL SECURITY;
+
 -- Ensure role column exists for group membership permissions
 ALTER TABLE IF EXISTS chat_group_members
 ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'member';
@@ -37,6 +62,24 @@ ALTER TABLE IF EXISTS messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS chat_group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS chat_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS group_messages ENABLE ROW LEVEL SECURITY;
+
+-- ---------- DIRECT MESSAGES POLICIES ----------
+DROP POLICY IF EXISTS "direct_messages_select_participants" ON direct_messages;
+DROP POLICY IF EXISTS "direct_messages_insert_sender" ON direct_messages;
+DROP POLICY IF EXISTS "direct_messages_update_receiver_read" ON direct_messages;
+
+CREATE POLICY "direct_messages_select_participants"
+ON direct_messages FOR SELECT
+USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+CREATE POLICY "direct_messages_insert_sender"
+ON direct_messages FOR INSERT
+WITH CHECK (auth.uid() = sender_id);
+
+CREATE POLICY "direct_messages_update_receiver_read"
+ON direct_messages FOR UPDATE
+USING (auth.uid() = receiver_id)
+WITH CHECK (auth.uid() = receiver_id);
 
 -- ---------- MESSAGES POLICIES ----------
 DROP POLICY IF EXISTS "messages_select_participants" ON messages;

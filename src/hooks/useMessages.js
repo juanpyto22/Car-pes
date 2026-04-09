@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -9,6 +9,7 @@ export const useMessages = (currentUser) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const dmTableRef = useRef('direct_messages');
 
   const getStoredGroups = () => JSON.parse(localStorage.getItem('carpes_groups') || '[]');
   const getRoleOverrides = () => JSON.parse(localStorage.getItem('carpes_group_role_overrides') || '{}');
@@ -112,31 +113,92 @@ export const useMessages = (currentUser) => {
     return myMember?.role === 'admin';
   }, [currentUser]);
 
-  // ─── Direct Messages ───────────────────────────────────────
+  // ─── Direct Messages (rebuilt) ─────────────────────────────
+  const normalizeDmMessage = useCallback((row) => {
+    const text = row?.content ?? row?.contenido ?? row?.message ?? '';
+    const isRead = row?.is_read ?? row?.read ?? false;
+    return {
+      ...row,
+      contenido: text,
+      content: text,
+      is_read: isRead,
+      read: isRead,
+    };
+  }, []);
+
+  const resolveDmTable = useCallback(async () => {
+    if (dmTableRef.current === 'messages') return 'messages';
+    const { error } = await supabase.from('direct_messages').select('id').limit(1);
+    if (error) {
+      dmTableRef.current = 'messages';
+    } else {
+      dmTableRef.current = 'direct_messages';
+    }
+    return dmTableRef.current;
+  }, []);
+
+  const getProfilesMap = useCallback(async (userIds) => {
+    const uniqueIds = [...new Set((userIds || []).filter(Boolean))];
+    if (!uniqueIds.length) return {};
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, username, nombre, foto_perfil')
+      .in('id', uniqueIds);
+
+    return (data || []).reduce((acc, profile) => {
+      acc[profile.id] = profile;
+      return acc;
+    }, {});
+  }, []);
+
+  const buildConversations = useCallback((rows, profilesMap = {}) => {
+    const convMap = new Map();
+    let unread = 0;
+
+    rows.forEach((raw) => {
+      const msg = normalizeDmMessage(raw);
+      const isSender = msg.sender_id === currentUser.id;
+      const partnerId = isSender ? msg.receiver_id : msg.sender_id;
+      if (!partnerId) return;
+
+      if (!convMap.has(partnerId)) {
+        convMap.set(partnerId, {
+          partnerId,
+          partner: profilesMap[partnerId] || { id: partnerId, username: 'Usuario' },
+          lastMessage: msg,
+          unreadCount: 0,
+        });
+      }
+
+      if (!isSender && !msg.is_read) {
+        unread += 1;
+        convMap.get(partnerId).unreadCount += 1;
+      }
+    });
+
+    return { conversations: Array.from(convMap.values()), unread };
+  }, [currentUser?.id, normalizeDmMessage]);
+
   const getConversations = useCallback(async () => {
-    if (!currentUser) { setLoading(false); return; }
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
+
     try {
+      const table = await resolveDmTable();
       const { data, error } = await supabase
-        .from('messages')
-        .select('*, sender:profiles!sender_id(id, username, nombre, foto_perfil), receiver:profiles!receiver_id(id, username, nombre, foto_perfil)')
+        .from(table)
+        .select('*')
         .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
         .order('created_at', { ascending: false });
 
-      let serverConversations = [];
-      let unread = 0;
+      if (error) throw error;
 
-      if (error) {
-        // Fallback: try with users table
-        const { data: fallback, error: fallbackErr } = await supabase
-          .from('messages')
-          .select('*, sender:users!sender_id(*), receiver:users!receiver_id(*)')
-          .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
-          .order('created_at', { ascending: false });
-        if (fallbackErr) throw fallbackErr;
-        ({ conversations: serverConversations, unread } = buildConversations(fallback || []));
-      } else {
-        ({ conversations: serverConversations, unread } = buildConversations(data || []));
-      }
+      const rows = (data || []).map(normalizeDmMessage);
+      const partnerIds = rows.map((m) => (m.sender_id === currentUser.id ? m.receiver_id : m.sender_id));
+      const profilesMap = await getProfilesMap(partnerIds);
+      const { conversations: serverConversations, unread } = buildConversations(rows, profilesMap);
 
       const localConversations = await getLocalDmConversations();
       const mergedMap = new Map();
@@ -154,6 +216,7 @@ export const useMessages = (currentUser) => {
           mergedMap.set(conversation.partnerId, {
             ...existing,
             ...conversation,
+            partner: existing.partner?.username ? existing.partner : (conversation.partner || existing.partner),
             unreadCount: Math.max(existing.unreadCount || 0, conversation.unreadCount || 0),
           });
         }
@@ -167,61 +230,38 @@ export const useMessages = (currentUser) => {
       setUnreadCount(unread);
     } catch (error) {
       console.error('Error fetching conversations:', error);
-      try {
-        const localConversations = await getLocalDmConversations();
-        setConversations(localConversations);
-      } catch (fallbackError) {
-        console.error('Error loading local conversations:', fallbackError);
-        setConversations([]);
-      }
+      const localConversations = await getLocalDmConversations();
+      setConversations(localConversations);
     } finally {
       setLoading(false);
     }
-  }, [currentUser, getLocalDmConversations]);
-
-  const buildConversations = (data) => {
-    const convMap = new Map();
-    let unread = 0;
-    data.forEach(msg => {
-      if (msg.group_id) return; // Skip group messages
-      const isSender = msg.sender_id === currentUser.id;
-      const partnerId = isSender ? msg.receiver_id : msg.sender_id;
-      const partner = isSender ? msg.receiver : msg.sender;
-      if (!convMap.has(partnerId)) {
-        convMap.set(partnerId, { partnerId, partner, lastMessage: msg, unreadCount: 0 });
-      }
-      if (!isSender && !msg.read) {
-        unread++;
-        convMap.get(partnerId).unreadCount += 1;
-      }
-    });
-    return { conversations: Array.from(convMap.values()), unread };
-  };
+  }, [buildConversations, currentUser, getLocalDmConversations, getProfilesMap, normalizeDmMessage, resolveDmTable]);
 
   const getMessages = useCallback(async (otherUserId) => {
     if (!currentUser || !otherUserId) return;
+
     try {
+      const table = await resolveDmTable();
       const { data, error } = await supabase
-        .from('messages')
+        .from(table)
         .select('*')
         .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.id})`)
         .order('created_at', { ascending: true });
 
-      const localMessages = getLocalDmMessages(currentUser.id, otherUserId);
-
+      const localMessages = getLocalDmMessages(currentUser.id, otherUserId).map(normalizeDmMessage);
       if (error) {
         setMessages(localMessages);
         return;
       }
 
-      const serverMessages = data || [];
+      const serverMessages = (data || []).map(normalizeDmMessage);
       const merged = [...serverMessages, ...localMessages]
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
       const deduped = [];
       const seen = new Set();
       for (const msg of merged) {
-        const key = msg.id || `${msg.sender_id}-${msg.receiver_id}-${msg.created_at}-${msg.contenido || msg.content || msg.message || ''}`;
+        const key = msg.id || `${msg.sender_id}-${msg.receiver_id}-${msg.created_at}-${msg.contenido || ''}`;
         if (!seen.has(key)) {
           seen.add(key);
           deduped.push(msg);
@@ -229,87 +269,75 @@ export const useMessages = (currentUser) => {
       }
 
       setMessages(deduped);
-      
-      const unreadIds = (serverMessages || [])
-        .filter(m => m.receiver_id === currentUser.id && !m.read)
-        .map(m => m.id);
+
+      const unreadIds = serverMessages
+        .filter((m) => m.receiver_id === currentUser.id && !m.is_read)
+        .map((m) => m.id)
+        .filter(Boolean);
       if (unreadIds.length > 0) markAsRead(unreadIds);
     } catch (error) {
       console.error('Error fetching messages:', error);
-      const localMessages = getLocalDmMessages(currentUser.id, otherUserId);
-      setMessages(localMessages);
+      setMessages(getLocalDmMessages(currentUser.id, otherUserId).map(normalizeDmMessage));
     }
-  }, [currentUser]);
+  }, [currentUser, normalizeDmMessage, resolveDmTable]);
 
   const sendMessage = async (receiverId, content, imageUrl = null) => {
     try {
       if (!currentUser?.id || !receiverId) return false;
 
-      const base = {
+      const textToSend = content || '';
+      const table = await resolveDmTable();
+      const payload = {
         sender_id: currentUser.id,
         receiver_id: receiverId,
+        content: textToSend,
+        image_url: imageUrl || null,
       };
 
-      const textToSend = content || '';
-      const textOrImage = imageUrl || textToSend;
+      let { error } = await supabase.from(table).insert([payload]);
 
-      // Try multiple payload shapes to support legacy schemas and avoid first-message failures.
-      const payloadCandidates = [
-        { ...base, contenido: textToSend, image_url: imageUrl || null, read: false },
-        { ...base, contenido: textOrImage, read: false },
-        { ...base, contenido: textOrImage },
-        { ...base, content: textToSend, image_url: imageUrl || null, read: false },
-        { ...base, content: textOrImage, read: false },
-        { ...base, content: textOrImage },
-        { ...base, message: textOrImage, read: false },
-        { ...base, message: textOrImage },
-        // Compatibility: schemas that still have group_id in messages
-        { ...base, group_id: null, contenido: textToSend, image_url: imageUrl || null, read: false },
-        { ...base, group_id: null, contenido: textOrImage, read: false },
-        { ...base, group_id: null, contenido: textOrImage },
-        { ...base, group_id: null, content: textToSend, image_url: imageUrl || null, read: false },
-        { ...base, group_id: null, content: textOrImage, read: false },
-        { ...base, group_id: null, content: textOrImage },
-        { ...base, group_id: null, message: textOrImage, read: false },
-        { ...base, group_id: null, message: textOrImage },
-      ];
-
-      let lastError = null;
-      for (const payload of payloadCandidates) {
-        const { error } = await supabase.from('messages').insert([payload]);
-        if (!error) {
-          await getConversations();
-          return true;
-        }
-        lastError = error;
+      if (error && table === 'messages') {
+        const fallbackPayload = {
+          sender_id: currentUser.id,
+          receiver_id: receiverId,
+          contenido: imageUrl || textToSend,
+          image_url: imageUrl || null,
+          read: false,
+        };
+        const fallback = await supabase.from('messages').insert([fallbackPayload]);
+        error = fallback.error;
       }
 
-      console.warn('sendMessage DB insert failed, using local fallback:', lastError?.message || lastError);
+      if (!error) {
+        await getConversations();
+        return true;
+      }
 
-      // Local fallback to avoid blocking UX if DB policy/schema is restrictive.
+      console.warn('sendMessage DB insert failed, using local fallback:', error?.message || error);
+
       const key = getLocalDmKey(currentUser.id, receiverId);
       const stored = JSON.parse(localStorage.getItem(key) || '[]');
-      const localMessage = {
+      const localMessage = normalizeDmMessage({
         id: crypto.randomUUID(),
         sender_id: currentUser.id,
         receiver_id: receiverId,
-        contenido: imageUrl || textToSend,
+        content: textToSend,
         image_url: imageUrl || null,
-        read: false,
+        is_read: false,
         created_at: new Date().toISOString(),
         _local: true,
         _pending: true,
-      };
+      });
+
       stored.push(localMessage);
       localStorage.setItem(key, JSON.stringify(stored));
 
-      // Queue message for background retry so it can eventually reach the other user.
       const pending = getPendingDmMessages(currentUser.id);
       pending.push({
         id: localMessage.id,
         sender_id: currentUser.id,
         receiver_id: receiverId,
-        contenido: textToSend,
+        content: textToSend,
         image_url: imageUrl || null,
         created_at: localMessage.created_at,
       });
@@ -322,10 +350,9 @@ export const useMessages = (currentUser) => {
 
       setMessages((prev) => [...prev, localMessage]);
       await getConversations();
-
       return true;
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: error?.message || "No se pudo enviar el mensaje" });
+      toast({ variant: 'destructive', title: 'Error', description: error?.message || 'No se pudo enviar el mensaje' });
       return false;
     }
   };
@@ -333,7 +360,12 @@ export const useMessages = (currentUser) => {
   const markAsRead = async (messageIds) => {
     if (!messageIds.length) return;
     try {
-      await supabase.from('messages').update({ read: true }).in('id', messageIds);
+      const table = await resolveDmTable();
+      let { error } = await supabase.from(table).update({ is_read: true }).in('id', messageIds);
+      if (error && table === 'messages') {
+        ({ error } = await supabase.from('messages').update({ read: true }).in('id', messageIds));
+      }
+      if (error) throw error;
       getConversations();
     } catch (error) {
       console.error('Error marking messages as read:', error);
@@ -346,53 +378,41 @@ export const useMessages = (currentUser) => {
     const pending = getPendingDmMessages(currentUser.id);
     if (!pending.length) return;
 
+    const table = await resolveDmTable();
     const stillPending = [];
     const deliveredIds = new Set();
 
     for (const msg of pending) {
-      const base = {
+      const payload = {
         sender_id: msg.sender_id,
         receiver_id: msg.receiver_id,
+        content: msg.content || '',
+        image_url: msg.image_url || null,
       };
 
-      const textToSend = msg.contenido || '';
-      const textOrImage = msg.image_url || textToSend;
+      let { error } = await supabase.from(table).insert([payload]);
 
-      const payloadCandidates = [
-        { ...base, contenido: textToSend, image_url: msg.image_url || null, read: false },
-        { ...base, contenido: textOrImage, read: false },
-        { ...base, contenido: textOrImage },
-        { ...base, content: textToSend, image_url: msg.image_url || null, read: false },
-        { ...base, content: textOrImage, read: false },
-        { ...base, content: textOrImage },
-        { ...base, message: textOrImage, read: false },
-        { ...base, message: textOrImage },
-        { ...base, group_id: null, contenido: textToSend, image_url: msg.image_url || null, read: false },
-        { ...base, group_id: null, contenido: textOrImage, read: false },
-        { ...base, group_id: null, contenido: textOrImage },
-        { ...base, group_id: null, content: textToSend, image_url: msg.image_url || null, read: false },
-        { ...base, group_id: null, content: textOrImage, read: false },
-        { ...base, group_id: null, content: textOrImage },
-        { ...base, group_id: null, message: textOrImage, read: false },
-        { ...base, group_id: null, message: textOrImage },
-      ];
-
-      let delivered = false;
-      for (const payload of payloadCandidates) {
-        const { error } = await supabase.from('messages').insert([payload]);
-        if (!error) {
-          delivered = true;
-          if (msg.id) deliveredIds.add(msg.id);
-          break;
-        }
+      if (error && table === 'messages') {
+        const fallbackPayload = {
+          sender_id: msg.sender_id,
+          receiver_id: msg.receiver_id,
+          contenido: msg.image_url || msg.content || '',
+          image_url: msg.image_url || null,
+          read: false,
+        };
+        const fallback = await supabase.from('messages').insert([fallbackPayload]);
+        error = fallback.error;
       }
 
-      if (!delivered) stillPending.push(msg);
+      if (!error) {
+        if (msg.id) deliveredIds.add(msg.id);
+      } else {
+        stillPending.push(msg);
+      }
     }
 
     setPendingDmMessages(currentUser.id, stillPending);
 
-    // Clean only delivered optimistic messages from local DM stores.
     if (deliveredIds.size > 0) {
       const dmKeys = Object.keys(localStorage).filter(
         (key) => key.startsWith('carpes_dm_') && !key.startsWith('carpes_dm_pending_')
@@ -405,7 +425,7 @@ export const useMessages = (currentUser) => {
     }
 
     await getConversations();
-  }, [currentUser, getConversations]);
+  }, [currentUser, getConversations, resolveDmTable]);
 
   // ─── Group Chats ───────────────────────────────────────────
   const getGroupConversations = useCallback(async () => {
@@ -970,44 +990,50 @@ export const useMessages = (currentUser) => {
 
   // ─── Realtime subscriptions ────────────────────────────────
   useEffect(() => {
-    if (currentUser) {
-      getConversations();
-      getGroupConversations();
-      syncPendingDmMessages();
+    if (!currentUser) return;
 
-      const subscription = supabase
+    let subscription;
+
+    const setupRealtime = async () => {
+      const dmTable = await resolveDmTable();
+      subscription = supabase
         .channel('messages_global')
-        .on('postgres_changes', { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'messages',
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: dmTable,
           filter: `receiver_id=eq.${currentUser.id}`
         }, () => { getConversations(); })
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages',
+          table: dmTable,
           filter: `sender_id=eq.${currentUser.id}`
         }, () => { getConversations(); })
         .subscribe();
+    };
 
-      const retryInterval = setInterval(() => {
-        syncPendingDmMessages();
-      }, 20000);
+    getConversations();
+    getGroupConversations();
+    syncPendingDmMessages();
+    setupRealtime();
 
-      const handleOnline = () => {
-        syncPendingDmMessages();
-      };
+    const retryInterval = setInterval(() => {
+      syncPendingDmMessages();
+    }, 20000);
 
-      window.addEventListener('online', handleOnline);
+    const handleOnline = () => {
+      syncPendingDmMessages();
+    };
 
-      return () => {
-        subscription.unsubscribe();
-        clearInterval(retryInterval);
-        window.removeEventListener('online', handleOnline);
-      };
-    }
-  }, [currentUser, getConversations, getGroupConversations, syncPendingDmMessages]);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+      clearInterval(retryInterval);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [currentUser, getConversations, getGroupConversations, resolveDmTable, syncPendingDmMessages]);
 
   return { 
     conversations, 

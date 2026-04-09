@@ -269,12 +269,29 @@ export const useStories = (currentUser) => {
 
     try {
       // Enviar como mensaje directo
-      await supabase.from('messages').insert({
+      const basePayload = {
         sender_id: currentUser.id,
         receiver_id: storyOwnerId,
-        contenido: `📖 Respondió a tu historia: ${message}`,
-        story_id: storyId
-      });
+        content: `📖 Respondió a tu historia: ${message}`,
+        story_id: storyId,
+        image_url: null,
+      };
+
+      let { error: dmError } = await supabase.from('direct_messages').insert(basePayload);
+
+      if (dmError) {
+        const legacyPayload = {
+          sender_id: currentUser.id,
+          receiver_id: storyOwnerId,
+          contenido: `📖 Respondió a tu historia: ${message}`,
+          story_id: storyId,
+          read: false,
+        };
+        const { error: legacyError } = await supabase.from('messages').insert(legacyPayload);
+        dmError = legacyError;
+      }
+
+      if (dmError) throw dmError;
 
       // Enviar notificación
       await supabase.from('notifications').insert({
