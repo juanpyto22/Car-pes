@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/hooks/useMessages';
-import { Send, Search, ArrowLeft, MessageCircle, Image, X, Smile, Users, Camera, Settings, UserPlus, Plus, Crown, Shield, UserMinus } from 'lucide-react';
+import { Send, Search, ArrowLeft, MessageCircle, Image, X, Smile, Users, Camera, Settings, UserPlus, Plus, Crown, Shield, UserMinus, ShieldOff } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
@@ -57,7 +57,7 @@ const MessagesPage = () => {
     conversations, groupConversations, messages, loading,
     getMessages, getGroupMessages, sendMessage, sendGroupMessage,
     getConversations, getGroupConversations, uploadMessageImage,
-    addMembersToGroup, getGroupMembers, promoteMemberToAdmin, removeMemberFromGroup
+    addMembersToGroup, getGroupMembers, promoteMemberToAdmin, demoteAdminToMember, removeMemberFromGroup
   } = useMessages(user);
   
   const [selectedUser, setSelectedUser] = useState(null);
@@ -398,6 +398,7 @@ const MessagesPage = () => {
                     getGroupMembers={getGroupMembers}
                     addMembersToGroup={addMembersToGroup}
                     promoteMemberToAdmin={promoteMemberToAdmin}
+                    demoteAdminToMember={demoteAdminToMember}
                     removeMemberFromGroup={removeMemberFromGroup}
                     onClose={() => setShowGroupSettings(false)}
                     onMembersAdded={async (count) => {
@@ -684,7 +685,7 @@ const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroup
 });
 
 // ─── Group Settings Panel ──────────────────────────────────────
-const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToGroup, promoteMemberToAdmin, removeMemberFromGroup, onClose, onMembersAdded }) => {
+const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToGroup, promoteMemberToAdmin, demoteAdminToMember, removeMemberFromGroup, onClose, onMembersAdded }) => {
   const [members, setMembers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -777,6 +778,16 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
     const success = await promoteMemberToAdmin(group.id, member.id);
     if (success) {
       setMembers(prev => prev.map(m => (m.id === member.id ? { ...m, role: 'admin' } : m)));
+    }
+    setMemberActionLoading(null);
+  };
+
+  const handleDemote = async (member) => {
+    if (!isCurrentUserAdmin) return;
+    setMemberActionLoading(`demote-${member.id}`);
+    const success = await demoteAdminToMember(group.id, member.id);
+    if (success) {
+      setMembers(prev => prev.map(m => (m.id === member.id ? { ...m, role: 'member' } : m)));
     }
     setMemberActionLoading(null);
   };
@@ -877,6 +888,18 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
                             className="h-7 px-2 text-xs bg-cyan-600 hover:bg-cyan-500"
                           >
                             <Shield className="w-3 h-3 mr-1" /> Admin
+                          </Button>
+                        )}
+                        {member.role === 'admin' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={memberActionLoading === `demote-${member.id}`}
+                            onClick={() => handleDemote(member)}
+                            className="h-7 px-2 text-xs bg-slate-700 hover:bg-slate-600"
+                          >
+                            <ShieldOff className="w-3 h-3 mr-1" /> Quitar admin
                           </Button>
                         )}
                         <Button

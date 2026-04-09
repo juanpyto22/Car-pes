@@ -194,7 +194,16 @@ const ProfilePage = () => {
       navigate('/login');
       return;
     }
-    navigate('/messages', { state: { openUser: profile } });
+    navigate('/messages', {
+      state: {
+        openUser: {
+          id: profile?.id || targetUserId,
+          username: profile?.username,
+          nombre: profile?.nombre,
+          foto_perfil: profile?.foto_perfil,
+        }
+      }
+    });
   };
 
   const openFollowersModal = (type) => {
