@@ -11,8 +11,20 @@ const StoriesBar = () => {
   const navigate = useNavigate();
   const [stories, setStories] = useState([]);
   const [myStories, setMyStories] = useState([]);
+  const [myStoryMeta, setMyStoryMeta] = useState(null);
   const [liveStreams, setLiveStreams] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const getLocalViewedGroups = () => {
+    if (!user?.id) return new Set();
+    try {
+      const raw = localStorage.getItem(`carpes_viewed_story_groups_${user.id}`);
+      const parsed = JSON.parse(raw || '[]');
+      return new Set(parsed);
+    } catch {
+      return new Set();
+    }
+  };
 
   useEffect(() => {
     fetchStories();
@@ -72,6 +84,7 @@ const StoriesBar = () => {
 
       // Agrupar por usuario y calcular si hay historias no vistas
       const groupedStories = {};
+      const locallyViewedGroups = getLocalViewedGroups();
       (storiesData || []).forEach(story => {
         const uid = story.user_id;
         if (!groupedStories[uid]) {
@@ -85,7 +98,8 @@ const StoriesBar = () => {
         groupedStories[uid].stories.push(story);
 
         const viewedBy = story.viewed_by || [];
-        if (!viewedBy.includes(user.id)) {
+        const localViewed = locallyViewedGroups.has(uid);
+        if (!viewedBy.includes(user.id) && !localViewed) {
           groupedStories[uid].hasUnseen = true;
         }
 
@@ -114,6 +128,7 @@ const StoriesBar = () => {
       const otherStories = grouped.filter(g => g.user?.id !== user.id);
       
       setMyStories(myStoriesGroup?.stories || []);
+      setMyStoryMeta(myStoriesGroup || null);
       setStories(otherStories);
 
       // Directos activos de usuarios seguidos
@@ -181,7 +196,7 @@ const StoriesBar = () => {
               <Link to={hasStories ? `/story/${storyGroup.user.id}` : '/camera'}>
                 <div className={`rounded-full p-[2.5px] ${
                   hasStories
-                    ? 'bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600'
+                    ? (isViewed ? 'bg-slate-700' : 'bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600')
                     : 'bg-slate-700'
                 }`}>
                   <div className="bg-slate-950 rounded-full p-[2px]">
@@ -209,6 +224,10 @@ const StoriesBar = () => {
             <span className="text-[11px] text-center text-gray-300 max-w-[72px] truncate leading-tight">
               Tu historia
             </span>
+
+            {hasStories && isViewed && (
+              <span className="text-[10px] text-slate-400 leading-none">Visto</span>
+            )}
           </motion.div>
         </div>
       );
@@ -304,7 +323,11 @@ const StoriesBar = () => {
       <div className="flex gap-0 px-3 py-2 overflow-x-auto scrollbar-hide">
         {/* Mi story */}
         <StoryCircle 
-          storyGroup={{ user: { id: user?.id }, stories: myStories }} 
+          storyGroup={{
+            user: myStoryMeta?.user || { id: user?.id, username: profile?.username },
+            stories: myStories,
+            hasUnseen: myStoryMeta?.hasUnseen ?? false,
+          }} 
           isOwn={true} 
         />
 
