@@ -44,6 +44,7 @@ const StoryViewerPage = () => {
   const videoRef = useRef(null);
   const holdTimerRef = useRef(null);
   const containerRef = useRef(null);
+  const viewedGroupIdsRef = useRef(new Set());
 
   // Current group and story helpers
   const currentGroup = storyGroups[currentGroupIndex];
@@ -65,7 +66,7 @@ const StoryViewerPage = () => {
       progressElapsedRef.current = 0;
       startProgress();
       fetchStoryLikes();
-      markAsViewed();
+      markCurrentGroupAsViewed();
     }
     return () => clearProgressTimer();
   }, [currentGroupIndex, currentStoryIndex, loading, storyGroups]);
@@ -248,27 +249,38 @@ const StoryViewerPage = () => {
     }
   };
 
-  const markAsViewed = async () => {
-    if (!currentUser?.id || !currentStory) return;
+  const markCurrentGroupAsViewed = async () => {
+    if (!currentUser?.id || !currentGroup?.user?.id || !currentStories.length) return;
+
+    const groupOwnerId = currentGroup.user.id;
+    if (viewedGroupIdsRef.current.has(groupOwnerId)) return;
+    viewedGroupIdsRef.current.add(groupOwnerId);
+
     try {
-      const storyId = currentStory.id;
-      const { data: story } = await supabase
-        .from('stories')
-        .select('viewed_by, views_count')
-        .eq('id', storyId)
-        .single();
+      await Promise.all(currentStories.map(async (story) => {
+        const { data: storedStory } = await supabase
+          .from('stories')
+          .select('viewed_by, views_count')
+          .eq('id', story.id)
+          .single();
 
-      if (!story) return;
-      const viewedBy = story.viewed_by || [];
-      if (viewedBy.includes(currentUser.id)) return;
+        if (!storedStory) return;
 
-      await supabase
-        .from('stories')
-        .update({
-          viewed_by: [...viewedBy, currentUser.id],
-          views_count: (story.views_count || 0) + 1
-        })
-        .eq('id', storyId);
+        const viewedBy = storedStory.viewed_by || [];
+        if (viewedBy.includes(currentUser.id)) return;
+
+        await supabase
+          .from('stories')
+          .update({
+            viewed_by: [...viewedBy, currentUser.id],
+            views_count: (storedStory.views_count || 0) + 1
+          })
+          .eq('id', story.id);
+      }));
+
+      window.dispatchEvent(new CustomEvent('stories:updated', {
+        detail: { userId: groupOwnerId }
+      }));
     } catch (error) {
       console.error('Error marking viewed:', error);
     }

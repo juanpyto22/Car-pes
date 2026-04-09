@@ -18,6 +18,15 @@ const StoriesBar = () => {
     fetchStories();
   }, [user]);
 
+  useEffect(() => {
+    const handleStoriesUpdated = () => {
+      fetchStories();
+    };
+
+    window.addEventListener('stories:updated', handleStoriesUpdated);
+    return () => window.removeEventListener('stories:updated', handleStoriesUpdated);
+  }, [user]);
+
   const fetchStories = async () => {
     if (!user) {
       setLoading(false);
