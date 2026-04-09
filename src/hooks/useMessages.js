@@ -577,6 +577,46 @@ export const useMessages = (currentUser) => {
     }
   };
 
+  const unblockDirectUser = async (otherUserId) => {
+    if (!currentUser?.id || !otherUserId) return false;
+
+    try {
+      const { error } = await supabase
+        .from('blocked_users')
+        .delete()
+        .eq('blocker_id', currentUser.id)
+        .eq('blocked_id', otherUserId);
+
+      if (error) throw error;
+      toast({ title: 'Usuario desbloqueado' });
+      await getConversations();
+      return true;
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+      toast({ variant: 'destructive', title: 'No se pudo desbloquear al usuario' });
+      return false;
+    }
+  };
+
+  const isDirectUserBlocked = async (otherUserId) => {
+    if (!currentUser?.id || !otherUserId) return false;
+
+    try {
+      const { data, error } = await supabase
+        .from('blocked_users')
+        .select('id')
+        .eq('blocker_id', currentUser.id)
+        .eq('blocked_id', otherUserId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return !!data?.id;
+    } catch (error) {
+      console.warn('Could not check blocked status:', error);
+      return false;
+    }
+  };
+
   const deleteDirectMessage = async (messageId) => {
     if (!currentUser?.id || !messageId) return false;
 
@@ -1336,6 +1376,8 @@ export const useMessages = (currentUser) => {
     sendMessage,
     deleteDirectConversation,
     blockDirectUser,
+    unblockDirectUser,
+    isDirectUserBlocked,
     deleteDirectMessage,
     toggleDirectMessageLike,
     sendGroupMessage,

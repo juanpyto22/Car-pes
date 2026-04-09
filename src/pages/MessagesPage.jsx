@@ -57,7 +57,7 @@ const MessagesPage = () => {
     conversations, groupConversations, messages, loading,
     getMessages, getGroupMessages, sendMessage, sendGroupMessage,
     getConversations, getGroupConversations, uploadMessageImage,
-    deleteDirectConversation, blockDirectUser, deleteDirectMessage, toggleDirectMessageLike,
+    deleteDirectConversation, blockDirectUser, unblockDirectUser, isDirectUserBlocked, deleteDirectMessage, toggleDirectMessageLike,
     addMembersToGroup, getGroupMembers, promoteMemberToAdmin, demoteAdminToMember, removeMemberFromGroup, deleteGroupForEveryone
   } = useMessages(user);
   
@@ -72,6 +72,7 @@ const MessagesPage = () => {
   const [activeTab, setActiveTab] = useState('direct'); // direct | groups
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [showDmMenu, setShowDmMenu] = useState(false);
+  const [isBlockedUser, setIsBlockedUser] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -147,6 +148,25 @@ const MessagesPage = () => {
   useEffect(() => {
     if (chatTarget) inputRef.current?.focus();
   }, [chatTarget]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkBlockedStatus = async () => {
+      if (!selectedUser?.id) {
+        if (mounted) setIsBlockedUser(false);
+        return;
+      }
+
+      const blocked = await isDirectUserBlocked(selectedUser.id);
+      if (mounted) setIsBlockedUser(blocked);
+    };
+
+    checkBlockedStatus();
+    return () => {
+      mounted = false;
+    };
+  }, [selectedUser?.id, isDirectUserBlocked]);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -246,10 +266,23 @@ const MessagesPage = () => {
 
   const handleBlockCurrentUser = async () => {
     if (!selectedUser?.id) return;
+    if (isBlockedUser) {
+      const confirmed = window.confirm('¿Desbloquear a este usuario?');
+      if (!confirmed) return;
+      const success = await unblockDirectUser(selectedUser.id);
+      if (success) {
+        setIsBlockedUser(false);
+        setShowDmMenu(false);
+        await getConversations();
+      }
+      return;
+    }
+
     const confirmed = window.confirm('¿Bloquear a este usuario?');
     if (!confirmed) return;
     const success = await blockDirectUser(selectedUser.id);
     if (success) {
+      setIsBlockedUser(true);
       setShowDmMenu(false);
       setSelectedUser(null);
       await getConversations();
@@ -454,7 +487,7 @@ const MessagesPage = () => {
                             onClick={handleBlockCurrentUser}
                             className="w-full text-left px-3 py-2.5 text-sm text-amber-300 hover:bg-white/10"
                           >
-                            Bloquear usuario
+                            {isBlockedUser ? 'Desbloquear usuario' : 'Bloquear usuario'}
                           </button>
                           <button
                             onClick={handleDeleteCurrentChat}
