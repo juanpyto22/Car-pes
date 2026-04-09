@@ -249,12 +249,41 @@ const StoryViewerPage = () => {
     }
   };
 
+  const markGroupViewedLocal = useCallback((groupOwnerId) => {
+    if (!currentUser?.id || !groupOwnerId) return;
+
+    try {
+      const key = `carpes_viewed_story_groups_${currentUser.id}`;
+      const localViewed = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!localViewed.includes(groupOwnerId)) {
+        localViewed.push(groupOwnerId);
+        localStorage.setItem(key, JSON.stringify(localViewed));
+      }
+    } catch (err) {
+      console.warn('Could not persist local viewed story group:', err);
+    }
+
+    window.dispatchEvent(new CustomEvent('stories:updated', {
+      detail: { userId: groupOwnerId }
+    }));
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    // Mark as viewed immediately when entering a user story group.
+    if (currentGroup?.user?.id) {
+      markGroupViewedLocal(currentGroup.user.id);
+    }
+  }, [currentGroup?.user?.id, markGroupViewedLocal]);
+
   const markCurrentGroupAsViewed = async () => {
     if (!currentUser?.id || !currentGroup?.user?.id || !currentStories.length) return;
 
     const groupOwnerId = currentGroup.user.id;
     if (viewedGroupIdsRef.current.has(groupOwnerId)) return;
     viewedGroupIdsRef.current.add(groupOwnerId);
+
+    // Local immediate mark so UI turns gray even if DB update is delayed/restricted.
+    markGroupViewedLocal(groupOwnerId);
 
     try {
       await Promise.all(currentStories.map(async (story) => {
@@ -276,10 +305,6 @@ const StoryViewerPage = () => {
             views_count: (storedStory.views_count || 0) + 1
           })
           .eq('id', story.id);
-      }));
-
-      window.dispatchEvent(new CustomEvent('stories:updated', {
-        detail: { userId: groupOwnerId }
       }));
     } catch (error) {
       console.error('Error marking viewed:', error);
