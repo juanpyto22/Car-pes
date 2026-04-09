@@ -87,18 +87,18 @@ const MessagesPage = () => {
     g.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Poll for new messages
+  // Poll for new messages - increased interval to 15 seconds to reduce UI flicker
   useEffect(() => {
     let interval;
     if (selectedUser) {
       getMessages(selectedUser.id);
-      interval = setInterval(() => getMessages(selectedUser.id), 3000);
+      interval = setInterval(() => getMessages(selectedUser.id), 15000);
     } else if (selectedGroup) {
       getGroupMessages(selectedGroup.id);
-      interval = setInterval(() => getGroupMessages(selectedGroup.id), 3000);
+      interval = setInterval(() => getGroupMessages(selectedGroup.id), 15000);
     }
     return () => clearInterval(interval);
-  }, [selectedUser, selectedGroup]);
+  }, [selectedUser?.id, selectedGroup?.id, getMessages, getGroupMessages]);
 
   // Open from navigation state
   useEffect(() => {

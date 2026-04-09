@@ -60,7 +60,7 @@ export const useMessages = (currentUser) => {
     setUnreadCount(unread);
   };
 
-  const getMessages = async (otherUserId) => {
+  const getMessages = useCallback(async (otherUserId) => {
     if (!currentUser || !otherUserId) return;
     try {
       const { data, error } = await supabase
@@ -79,7 +79,7 @@ export const useMessages = (currentUser) => {
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
-  };
+  }, [currentUser]);
 
   const sendMessage = async (receiverId, content, imageUrl = null) => {
     try {
@@ -180,7 +180,7 @@ export const useMessages = (currentUser) => {
     }
   }, [currentUser]);
 
-  const getGroupMessages = async (groupId) => {
+  const getGroupMessages = useCallback(async (groupId) => {
     if (!currentUser || !groupId) return;
     try {
       const { data, error } = await supabase
@@ -201,7 +201,7 @@ export const useMessages = (currentUser) => {
       const stored = JSON.parse(localStorage.getItem(`carpes_groupmsgs_${groupId}`) || '[]');
       setMessages(stored);
     }
-  };
+  }, [currentUser]);
 
   const sendGroupMessage = async (groupId, content, imageUrl = null) => {
     try {
