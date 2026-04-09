@@ -21,13 +21,17 @@ export const useMessages = (currentUser) => {
   const getLocalDmConversations = useCallback(async () => {
     if (!currentUser?.id) return [];
 
-    const dmKeys = Object.keys(localStorage).filter((key) => key.startsWith('carpes_dm_'));
+    const dmKeys = Object.keys(localStorage).filter(
+      (key) => key.startsWith('carpes_dm_') && !key.startsWith('carpes_dm_pending_')
+    );
     const localConversations = [];
     const partnerIds = new Set();
 
     for (const key of dmKeys) {
       const rawPair = key.replace('carpes_dm_', '');
-      const [firstId, secondId] = rawPair.split('_');
+      const parts = rawPair.split('_');
+      if (parts.length !== 2) continue;
+      const [firstId, secondId] = parts;
       if (!firstId || !secondId) continue;
       if (firstId !== currentUser.id && secondId !== currentUser.id) continue;
 
@@ -302,6 +306,7 @@ export const useMessages = (currentUser) => {
       // Queue message for background retry so it can eventually reach the other user.
       const pending = getPendingDmMessages(currentUser.id);
       pending.push({
+        id: localMessage.id,
         sender_id: currentUser.id,
         receiver_id: receiverId,
         contenido: textToSend,
@@ -309,6 +314,11 @@ export const useMessages = (currentUser) => {
         created_at: localMessage.created_at,
       });
       setPendingDmMessages(currentUser.id, pending);
+
+      toast({
+        title: 'Mensaje pendiente',
+        description: 'No se pudo entregar ahora. Se reintentará automáticamente.',
+      });
 
       setMessages((prev) => [...prev, localMessage]);
       await getConversations();
@@ -337,6 +347,7 @@ export const useMessages = (currentUser) => {
     if (!pending.length) return;
 
     const stillPending = [];
+    const deliveredIds = new Set();
 
     for (const msg of pending) {
       const base = {
@@ -371,6 +382,7 @@ export const useMessages = (currentUser) => {
         const { error } = await supabase.from('messages').insert([payload]);
         if (!error) {
           delivered = true;
+          if (msg.id) deliveredIds.add(msg.id);
           break;
         }
       }
@@ -380,12 +392,14 @@ export const useMessages = (currentUser) => {
 
     setPendingDmMessages(currentUser.id, stillPending);
 
-    if (stillPending.length === 0) {
-      // Clean up local optimistic messages once they were synced.
-      const dmKeys = Object.keys(localStorage).filter((key) => key.startsWith('carpes_dm_'));
+    // Clean only delivered optimistic messages from local DM stores.
+    if (deliveredIds.size > 0) {
+      const dmKeys = Object.keys(localStorage).filter(
+        (key) => key.startsWith('carpes_dm_') && !key.startsWith('carpes_dm_pending_')
+      );
       dmKeys.forEach((key) => {
         const arr = JSON.parse(localStorage.getItem(key) || '[]');
-        const cleaned = arr.filter((item) => !item?._pending);
+        const cleaned = arr.filter((item) => !deliveredIds.has(item?.id));
         localStorage.setItem(key, JSON.stringify(cleaned));
       });
     }
