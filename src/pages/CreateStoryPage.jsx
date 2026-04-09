@@ -11,6 +11,52 @@ import { useToast } from '@/components/ui/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 
+const escapeXml = (value = '') => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&apos;');
+
+const extractGradientColors = (gradient) => {
+  const matches = (gradient || '').match(/#(?:[0-9a-fA-F]{3}){1,2}/g) || [];
+  if (matches.length >= 2) return [matches[0], matches[1]];
+  if (matches.length === 1) return [matches[0], matches[0]];
+  return ['#667eea', '#764ba2'];
+};
+
+const buildTextStorySvgBlob = ({ text, background, color, size, bold }) => {
+  const [fromColor, toColor] = extractGradientColors(background);
+  const safeLines = (text || 'Tu historia')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 6);
+
+  const lines = safeLines.length > 0 ? safeLines : ['Tu historia'];
+  const initialY = 900 - ((lines.length - 1) * (size * 1.35)) / 2;
+
+  const tspans = lines
+    .map((line, idx) => `<tspan x="540" y="${initialY + idx * (size * 1.35)}">${escapeXml(line)}</tspan>`)
+    .join('');
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${fromColor}" />
+      <stop offset="100%" stop-color="${toColor}" />
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <text x="540" y="900" fill="${color || '#ffffff'}" text-anchor="middle" font-size="${size || 24}" font-weight="${bold ? 700 : 400}" font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+    ${tspans}
+  </text>
+</svg>`;
+
+  return new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+};
+
 const CreateStoryPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -142,9 +188,36 @@ const CreateStoryPage = () => {
         }
       } else {
         // Text-only story
+        const svgBlob = buildTextStorySvgBlob({
+          text: textContent,
+          background: mediaPreview || backgrounds[0],
+          color: textColor,
+          size: textSize,
+          bold: textBold,
+        });
+
+        const fileName = `stories/${user.id}/${Date.now()}_text.svg`;
+        const { error: uploadError } = await supabase.storage
+          .from('stories')
+          .upload(fileName, svgBlob, { contentType: 'image/svg+xml' });
+
+        if (uploadError) {
+          toast({
+            variant: "destructive",
+            title: "Error al subir miniatura",
+            description: uploadError.message,
+          });
+          setLoading(false);
+          return;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('stories')
+          .getPublicUrl(fileName);
+
         const storyData = {
           user_id: user.id,
-          image_url: '',
+          image_url: publicUrl,
           content: textContent || null,
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         };
