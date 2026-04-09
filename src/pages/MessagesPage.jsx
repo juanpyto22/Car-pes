@@ -546,7 +546,7 @@ const MessagesPage = () => {
 
               {/* Input Area */}
               <div className="p-3 md:p-4 border-t border-white/10 bg-slate-900/80 backdrop-blur-xl">
-                <form onSubmit={handleSend} className="flex gap-2 items-center">
+                <form onSubmit={handleSend} className="flex gap-2 items-center min-w-0">
                   {/* Image upload */}
                   <input
                     ref={fileInputRef}
@@ -559,7 +559,7 @@ const MessagesPage = () => {
                     type="button"
                     whileTap={{ scale: 0.9 }}
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-2.5 rounded-xl text-blue-400 hover:text-cyan-400 hover:bg-white/5 transition-colors"
+                    className="p-2.5 rounded-xl text-blue-400 hover:text-cyan-400 hover:bg-white/5 transition-colors shrink-0"
                   >
                     <Camera className="w-5 h-5" />
                   </motion.button>
@@ -569,7 +569,7 @@ const MessagesPage = () => {
                     type="button"
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setShowGifPicker(!showGifPicker)}
-                    className={`p-2.5 rounded-xl transition-colors ${
+                    className={`p-2.5 rounded-xl transition-colors shrink-0 ${
                       showGifPicker ? 'text-cyan-400 bg-white/10' : 'text-blue-400 hover:text-cyan-400 hover:bg-white/5'
                     }`}
                   >
@@ -584,7 +584,7 @@ const MessagesPage = () => {
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Escribe un mensaje..."
                     disabled={sending}
-                    className="flex-1 bg-slate-950/80 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 placeholder-blue-500 transition-all disabled:opacity-50"
+                    className="flex-1 min-w-0 bg-slate-950/80 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 placeholder-blue-500 transition-all disabled:opacity-50 overflow-hidden text-ellipsis"
                   />
 
                   {/* Send */}
@@ -592,7 +592,7 @@ const MessagesPage = () => {
                     type="submit" 
                     size="icon" 
                     disabled={(!newMessage.trim() && !imageFile) || sending}
-                    className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-30 rounded-xl w-11 h-11 shadow-lg shadow-cyan-900/30"
+                    className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-30 rounded-xl w-11 h-11 shadow-lg shadow-cyan-900/30 shrink-0"
                   >
                     {sending ? (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
