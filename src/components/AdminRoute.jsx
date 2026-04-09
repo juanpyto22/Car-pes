@@ -20,11 +20,6 @@ export const AdminRoute = ({ children }) => {
     }
   }, [adminLoading, isAdmin, user?.id]);
 
-  // Cargando autenticación
-  if (authLoading || adminLoading) {
-    return <LoadingSpinner />;
-  }
-
   // No autenticado → login
   if (!user) {
     return <Navigate to="/login" replace />;

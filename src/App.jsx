@@ -58,18 +58,6 @@ const AppRoutes = () => {
     }
   }, [unlockedAchievement]);
 
-  // Mostrar loading solo durante la verificación inicial de sesión
-  if (loading || (user && banLoading)) {
-    return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-cyan-500 border-t-transparent"></div>
-              <p className="text-cyan-400 text-sm">Cargando...</p>
-            </div>
-        </div>
-    );
-  }
-
   // Si el usuario está autenticado y baneado, mostrar página de baneado
   if (user && isBanned) {
     return <BannedUserPage banType={banType} reason={reason} remainingHours={remainingHours} />;
