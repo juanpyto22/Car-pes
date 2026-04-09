@@ -19,6 +19,9 @@ export const useMessages = (currentUser) => {
   const getPendingDmKey = (uid) => `carpes_dm_pending_${uid}`;
   const getPendingDmMessages = (uid) => JSON.parse(localStorage.getItem(getPendingDmKey(uid)) || '[]');
   const setPendingDmMessages = (uid, value) => localStorage.setItem(getPendingDmKey(uid), JSON.stringify(value));
+  const getHiddenDmKey = (uid) => `carpes_dm_hidden_${uid}`;
+  const getHiddenDmMapLocal = (uid) => JSON.parse(localStorage.getItem(getHiddenDmKey(uid)) || '{}');
+  const setHiddenDmMapLocal = (uid, value) => localStorage.setItem(getHiddenDmKey(uid), JSON.stringify(value));
   const fetchUsersMap = useCallback(async (userIds) => {
     const uniqueIds = [...new Set((userIds || []).filter(Boolean))];
     if (!uniqueIds.length) return {};
@@ -34,6 +37,80 @@ export const useMessages = (currentUser) => {
       return acc;
     }, {});
   }, []);
+
+  const fetchBlockedSet = useCallback(async () => {
+    if (!currentUser?.id) return new Set();
+
+    try {
+      const { data, error } = await supabase
+        .from('blocked_users')
+        .select('blocker_id, blocked_id')
+        .or(`blocker_id.eq.${currentUser.id},blocked_id.eq.${currentUser.id}`);
+
+      if (error) throw error;
+
+      const blocked = new Set();
+      (data || []).forEach((row) => {
+        if (row.blocker_id === currentUser.id && row.blocked_id) blocked.add(row.blocked_id);
+        if (row.blocked_id === currentUser.id && row.blocker_id) blocked.add(row.blocker_id);
+      });
+      return blocked;
+    } catch (error) {
+      console.warn('Could not load blocked users:', error);
+      return new Set();
+    }
+  }, [currentUser?.id]);
+
+  const fetchHiddenDmMap = useCallback(async () => {
+    if (!currentUser?.id) return {};
+
+    try {
+      const { data, error } = await supabase
+        .from('direct_chat_hidden')
+        .select('partner_id, hidden_at')
+        .eq('user_id', currentUser.id);
+
+      if (error) throw error;
+
+      const mapped = (data || []).reduce((acc, row) => {
+        acc[row.partner_id] = row.hidden_at;
+        return acc;
+      }, {});
+
+      setHiddenDmMapLocal(currentUser.id, mapped);
+      return mapped;
+    } catch (error) {
+      console.warn('Could not load hidden chats:', error);
+      return getHiddenDmMapLocal(currentUser.id);
+    }
+  }, [currentUser?.id]);
+
+  const unhideDirectConversation = useCallback(async (otherUserId) => {
+    if (!currentUser?.id || !otherUserId) return;
+
+    try {
+      await supabase
+        .from('direct_chat_hidden')
+        .delete()
+        .eq('user_id', currentUser.id)
+        .eq('partner_id', otherUserId);
+    } catch (error) {
+      console.warn('Could not unhide direct conversation in DB:', error);
+    }
+
+    const localHidden = getHiddenDmMapLocal(currentUser.id);
+    if (localHidden[otherUserId]) {
+      delete localHidden[otherUserId];
+      setHiddenDmMapLocal(currentUser.id, localHidden);
+    }
+  }, [currentUser?.id]);
+
+  const isAfterHiddenAt = (msg, hiddenAt) => {
+    if (!hiddenAt) return true;
+    const createdAt = new Date(msg?.created_at || 0).getTime();
+    const hiddenTs = new Date(hiddenAt).getTime();
+    return createdAt > hiddenTs;
+  };
   const getLocalDmConversations = useCallback(async () => {
     if (!currentUser?.id) return [];
 
@@ -182,6 +259,11 @@ export const useMessages = (currentUser) => {
 
     try {
       const table = await resolveDmTable();
+      const [blockedSet, hiddenMap] = await Promise.all([
+        fetchBlockedSet(),
+        fetchHiddenDmMap(),
+      ]);
+
       const { data, error } = await supabase
         .from(table)
         .select('*')
@@ -190,12 +272,21 @@ export const useMessages = (currentUser) => {
 
       if (error) throw error;
 
-      const rows = (data || []).map(normalizeDmMessage);
+      const rows = (data || [])
+        .map(normalizeDmMessage)
+        .filter((msg) => {
+          const partnerId = msg.sender_id === currentUser.id ? msg.receiver_id : msg.sender_id;
+          if (!partnerId || blockedSet.has(partnerId)) return false;
+          return isAfterHiddenAt(msg, hiddenMap[partnerId]);
+        });
       const partnerIds = rows.map((m) => (m.sender_id === currentUser.id ? m.receiver_id : m.sender_id));
       const profilesMap = await getProfilesMap(partnerIds);
       const { conversations: serverConversations, unread } = buildConversations(rows, profilesMap);
 
-      const localConversations = await getLocalDmConversations();
+      const localConversations = (await getLocalDmConversations()).filter((conversation) => {
+        if (blockedSet.has(conversation.partnerId)) return false;
+        return isAfterHiddenAt(conversation.lastMessage, hiddenMap[conversation.partnerId]);
+      });
       const mergedMap = new Map();
 
       [...serverConversations, ...localConversations].forEach((conversation) => {
@@ -225,17 +316,32 @@ export const useMessages = (currentUser) => {
       setUnreadCount(unread);
     } catch (error) {
       console.error('Error fetching conversations:', error);
-      const localConversations = await getLocalDmConversations();
+      const blockedSet = await fetchBlockedSet();
+      const hiddenMap = await fetchHiddenDmMap();
+      const localConversations = (await getLocalDmConversations()).filter((conversation) => {
+        if (blockedSet.has(conversation.partnerId)) return false;
+        return isAfterHiddenAt(conversation.lastMessage, hiddenMap[conversation.partnerId]);
+      });
       setConversations(localConversations);
     } finally {
       setLoading(false);
     }
-  }, [buildConversations, currentUser, getLocalDmConversations, getProfilesMap, normalizeDmMessage, resolveDmTable]);
+  }, [buildConversations, currentUser, fetchBlockedSet, fetchHiddenDmMap, getLocalDmConversations, getProfilesMap, normalizeDmMessage, resolveDmTable]);
 
   const getMessages = useCallback(async (otherUserId) => {
     if (!currentUser || !otherUserId) return;
 
     try {
+      const [blockedSet, hiddenMap] = await Promise.all([
+        fetchBlockedSet(),
+        fetchHiddenDmMap(),
+      ]);
+      if (blockedSet.has(otherUserId)) {
+        setMessages([]);
+        return;
+      }
+
+      const hiddenAt = hiddenMap[otherUserId];
       const table = await resolveDmTable();
       const { data, error } = await supabase
         .from(table)
@@ -243,13 +349,17 @@ export const useMessages = (currentUser) => {
         .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUser.id})`)
         .order('created_at', { ascending: true });
 
-      const localMessages = getLocalDmMessages(currentUser.id, otherUserId).map(normalizeDmMessage);
+      const localMessages = getLocalDmMessages(currentUser.id, otherUserId)
+        .map(normalizeDmMessage)
+        .filter((msg) => isAfterHiddenAt(msg, hiddenAt));
       if (error) {
         setMessages(localMessages);
         return;
       }
 
-      const serverMessages = (data || []).map(normalizeDmMessage);
+      const serverMessages = (data || [])
+        .map(normalizeDmMessage)
+        .filter((msg) => isAfterHiddenAt(msg, hiddenAt));
       const merged = [...serverMessages, ...localMessages]
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
@@ -263,7 +373,39 @@ export const useMessages = (currentUser) => {
         }
       }
 
-      setMessages(deduped);
+      let dedupedWithLikes = deduped;
+      if (table === 'direct_messages') {
+        try {
+          const ids = deduped.map((m) => m.id).filter(Boolean);
+          if (ids.length > 0) {
+            const { data: likes } = await supabase
+              .from('direct_message_likes')
+              .select('message_id, user_id')
+              .in('message_id', ids);
+
+            const likesByMessage = new Map();
+            (likes || []).forEach((row) => {
+              const current = likesByMessage.get(row.message_id) || { count: 0, liked: false };
+              current.count += 1;
+              if (row.user_id === currentUser.id) current.liked = true;
+              likesByMessage.set(row.message_id, current);
+            });
+
+            dedupedWithLikes = deduped.map((msg) => {
+              const likeInfo = likesByMessage.get(msg.id) || { count: 0, liked: false };
+              return {
+                ...msg,
+                likesCount: likeInfo.count,
+                likedByMe: likeInfo.liked,
+              };
+            });
+          }
+        } catch (likeError) {
+          console.warn('Could not load message likes:', likeError);
+        }
+      }
+
+      setMessages(dedupedWithLikes);
 
       const unreadIds = serverMessages
         .filter((m) => m.receiver_id === currentUser.id && !m.is_read)
@@ -274,11 +416,17 @@ export const useMessages = (currentUser) => {
       console.error('Error fetching messages:', error);
       setMessages(getLocalDmMessages(currentUser.id, otherUserId).map(normalizeDmMessage));
     }
-  }, [currentUser, normalizeDmMessage, resolveDmTable]);
+  }, [currentUser, fetchBlockedSet, fetchHiddenDmMap, normalizeDmMessage, resolveDmTable]);
 
   const sendMessage = async (receiverId, content, imageUrl = null) => {
     try {
       if (!currentUser?.id || !receiverId) return false;
+
+      const blockedSet = await fetchBlockedSet();
+      if (blockedSet.has(receiverId)) {
+        toast({ variant: 'destructive', title: 'No se puede enviar', description: 'Este usuario está bloqueado.' });
+        return false;
+      }
 
       const textToSend = content || '';
       const table = await resolveDmTable();
@@ -304,6 +452,7 @@ export const useMessages = (currentUser) => {
       }
 
       if (!error) {
+        await unhideDirectConversation(receiverId);
         await getConversations();
         return true;
       }
@@ -371,46 +520,29 @@ export const useMessages = (currentUser) => {
     if (!currentUser?.id || !otherUserId) return false;
 
     try {
-      const table = await resolveDmTable();
-      const deletePairs = [
-        { sender_id: currentUser.id, receiver_id: otherUserId },
-        { sender_id: otherUserId, receiver_id: currentUser.id },
-      ];
+      const hiddenAt = new Date().toISOString();
+      const { error } = await supabase
+        .from('direct_chat_hidden')
+        .upsert(
+          [{ user_id: currentUser.id, partner_id: otherUserId, hidden_at: hiddenAt }],
+          { onConflict: 'user_id,partner_id' }
+        );
 
-      let lastError = null;
-      for (const { sender_id, receiver_id } of deletePairs) {
-        const { error } = await supabase
-          .from(table)
-          .delete()
-          .eq('sender_id', sender_id)
-          .eq('receiver_id', receiver_id);
-        if (error) lastError = error;
+      if (error) {
+        console.warn('Could not hide chat in DB, storing local only:', error);
       }
 
-      if (table === 'messages') {
-        for (const { sender_id, receiver_id } of deletePairs) {
-          const { error } = await supabase
-            .from('messages')
-            .delete()
-            .eq('sender_id', sender_id)
-            .eq('receiver_id', receiver_id);
-          if (error) lastError = error;
-        }
-      }
-
-      if (lastError) throw lastError;
+      const localHidden = getHiddenDmMapLocal(currentUser.id);
+      localHidden[otherUserId] = hiddenAt;
+      setHiddenDmMapLocal(currentUser.id, localHidden);
 
       const dmKey = getLocalDmKey(currentUser.id, otherUserId);
       localStorage.removeItem(dmKey);
 
       const pending = getPendingDmMessages(currentUser.id).filter(
-        (msg) => msg.receiver_id !== otherUserId
+        (msg) => msg.receiver_id !== otherUserId && msg.sender_id !== otherUserId
       );
       setPendingDmMessages(currentUser.id, pending);
-
-      const localMessages = getLocalDmMessages(currentUser.id, otherUserId);
-      const cleaned = localMessages.filter((msg) => false);
-      localStorage.setItem(dmKey, JSON.stringify(cleaned));
 
       await getConversations();
       setMessages([]);
@@ -418,6 +550,112 @@ export const useMessages = (currentUser) => {
     } catch (error) {
       console.error('Error deleting direct conversation:', error);
       toast({ variant: 'destructive', title: 'Error al eliminar chat' });
+      return false;
+    }
+  };
+
+  const blockDirectUser = async (otherUserId) => {
+    if (!currentUser?.id || !otherUserId) return false;
+
+    try {
+      const { error } = await supabase
+        .from('blocked_users')
+        .upsert(
+          [{ blocker_id: currentUser.id, blocked_id: otherUserId }],
+          { onConflict: 'blocker_id,blocked_id' }
+        );
+
+      if (error) throw error;
+
+      await deleteDirectConversation(otherUserId);
+      toast({ title: 'Usuario bloqueado' });
+      return true;
+    } catch (error) {
+      console.error('Error blocking user:', error);
+      toast({ variant: 'destructive', title: 'No se pudo bloquear al usuario' });
+      return false;
+    }
+  };
+
+  const deleteDirectMessage = async (messageId) => {
+    if (!currentUser?.id || !messageId) return false;
+
+    try {
+      const table = await resolveDmTable();
+      let { error } = await supabase
+        .from(table)
+        .delete()
+        .eq('id', messageId)
+        .eq('sender_id', currentUser.id);
+
+      if (error && table === 'messages') {
+        ({ error } = await supabase
+          .from('messages')
+          .delete()
+          .eq('id', messageId)
+          .eq('sender_id', currentUser.id));
+      }
+
+      if (error) throw error;
+
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      await getConversations();
+      return true;
+    } catch (error) {
+      console.error('Error deleting direct message:', error);
+      toast({ variant: 'destructive', title: 'No se pudo borrar el mensaje' });
+      return false;
+    }
+  };
+
+  const toggleDirectMessageLike = async (messageId) => {
+    if (!currentUser?.id || !messageId) return false;
+
+    try {
+      const table = await resolveDmTable();
+      if (table !== 'direct_messages') {
+        toast({ title: 'Like disponible solo en chat nuevo' });
+        return false;
+      }
+
+      const { data: existing, error: checkError } = await supabase
+        .from('direct_message_likes')
+        .select('id')
+        .eq('message_id', messageId)
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existing?.id) {
+        const { error: deleteError } = await supabase
+          .from('direct_message_likes')
+          .delete()
+          .eq('id', existing.id);
+        if (deleteError) throw deleteError;
+
+        setMessages((prev) => prev.map((msg) => (
+          msg.id === messageId
+            ? { ...msg, likedByMe: false, likesCount: Math.max(0, (msg.likesCount || 0) - 1) }
+            : msg
+        )));
+      } else {
+        const { error: insertError } = await supabase
+          .from('direct_message_likes')
+          .insert([{ message_id: messageId, user_id: currentUser.id }]);
+        if (insertError) throw insertError;
+
+        setMessages((prev) => prev.map((msg) => (
+          msg.id === messageId
+            ? { ...msg, likedByMe: true, likesCount: (msg.likesCount || 0) + 1 }
+            : msg
+        )));
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error toggling direct message like:', error);
+      toast({ variant: 'destructive', title: 'No se pudo dar like al mensaje' });
       return false;
     }
   };
@@ -1097,6 +1335,9 @@ export const useMessages = (currentUser) => {
     getGroupMessages,
     sendMessage,
     deleteDirectConversation,
+    blockDirectUser,
+    deleteDirectMessage,
+    toggleDirectMessageLike,
     sendGroupMessage,
     createGroup,
     addMembersToGroup,

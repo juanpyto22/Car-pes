@@ -24,11 +24,43 @@ CREATE TABLE direct_messages (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS direct_chat_hidden (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  partner_id UUID NOT NULL,
+  hidden_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, partner_id)
+);
+
+CREATE TABLE IF NOT EXISTS blocked_users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  blocker_id UUID NOT NULL,
+  blocked_id UUID NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (blocker_id, blocked_id)
+);
+
+CREATE TABLE IF NOT EXISTS direct_message_likes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id UUID NOT NULL REFERENCES direct_messages(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (message_id, user_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_direct_messages_sender ON direct_messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_direct_messages_receiver ON direct_messages(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_direct_messages_created ON direct_messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_direct_chat_hidden_user_partner ON direct_chat_hidden(user_id, partner_id);
+CREATE INDEX IF NOT EXISTS idx_blocked_users_blocker_blocked ON blocked_users(blocker_id, blocked_id);
+CREATE INDEX IF NOT EXISTS idx_direct_message_likes_message ON direct_message_likes(message_id);
 
 ALTER TABLE direct_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE direct_chat_hidden ENABLE ROW LEVEL SECURITY;
+ALTER TABLE blocked_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE direct_message_likes ENABLE ROW LEVEL SECURITY;
 
 -- Ensure role column exists for group membership permissions
 ALTER TABLE IF EXISTS chat_group_members
@@ -68,6 +100,7 @@ DROP POLICY IF EXISTS "direct_messages_select_participants" ON direct_messages;
 DROP POLICY IF EXISTS "direct_messages_insert_sender" ON direct_messages;
 DROP POLICY IF EXISTS "direct_messages_update_receiver_read" ON direct_messages;
 DROP POLICY IF EXISTS "direct_messages_delete_participants" ON direct_messages;
+DROP POLICY IF EXISTS "direct_messages_delete_sender" ON direct_messages;
 
 CREATE POLICY "direct_messages_select_participants"
 ON direct_messages FOR SELECT
@@ -82,15 +115,86 @@ ON direct_messages FOR UPDATE
 USING (auth.uid() = receiver_id)
 WITH CHECK (auth.uid() = receiver_id);
 
-CREATE POLICY "direct_messages_delete_participants"
+CREATE POLICY "direct_messages_delete_sender"
 ON direct_messages FOR DELETE
-USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+USING (auth.uid() = sender_id);
+
+-- ---------- DIRECT CHAT HIDDEN POLICIES ----------
+DROP POLICY IF EXISTS "direct_chat_hidden_select_own" ON direct_chat_hidden;
+DROP POLICY IF EXISTS "direct_chat_hidden_insert_own" ON direct_chat_hidden;
+DROP POLICY IF EXISTS "direct_chat_hidden_update_own" ON direct_chat_hidden;
+DROP POLICY IF EXISTS "direct_chat_hidden_delete_own" ON direct_chat_hidden;
+
+CREATE POLICY "direct_chat_hidden_select_own"
+ON direct_chat_hidden FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "direct_chat_hidden_insert_own"
+ON direct_chat_hidden FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "direct_chat_hidden_update_own"
+ON direct_chat_hidden FOR UPDATE
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "direct_chat_hidden_delete_own"
+ON direct_chat_hidden FOR DELETE
+USING (auth.uid() = user_id);
+
+-- ---------- BLOCKED USERS POLICIES ----------
+DROP POLICY IF EXISTS "blocked_users_select_participant" ON blocked_users;
+DROP POLICY IF EXISTS "blocked_users_insert_own" ON blocked_users;
+DROP POLICY IF EXISTS "blocked_users_delete_own" ON blocked_users;
+
+CREATE POLICY "blocked_users_select_participant"
+ON blocked_users FOR SELECT
+USING (auth.uid() = blocker_id OR auth.uid() = blocked_id);
+
+CREATE POLICY "blocked_users_insert_own"
+ON blocked_users FOR INSERT
+WITH CHECK (auth.uid() = blocker_id);
+
+CREATE POLICY "blocked_users_delete_own"
+ON blocked_users FOR DELETE
+USING (auth.uid() = blocker_id);
+
+-- ---------- DIRECT MESSAGE LIKES POLICIES ----------
+DROP POLICY IF EXISTS "direct_message_likes_select_participant" ON direct_message_likes;
+DROP POLICY IF EXISTS "direct_message_likes_insert_participant" ON direct_message_likes;
+DROP POLICY IF EXISTS "direct_message_likes_delete_own" ON direct_message_likes;
+
+CREATE POLICY "direct_message_likes_select_participant"
+ON direct_message_likes FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM direct_messages dm
+    WHERE dm.id = direct_message_likes.message_id
+      AND (dm.sender_id = auth.uid() OR dm.receiver_id = auth.uid())
+  )
+);
+
+CREATE POLICY "direct_message_likes_insert_participant"
+ON direct_message_likes FOR INSERT
+WITH CHECK (
+  auth.uid() = user_id
+  AND EXISTS (
+    SELECT 1 FROM direct_messages dm
+    WHERE dm.id = direct_message_likes.message_id
+      AND (dm.sender_id = auth.uid() OR dm.receiver_id = auth.uid())
+  )
+);
+
+CREATE POLICY "direct_message_likes_delete_own"
+ON direct_message_likes FOR DELETE
+USING (auth.uid() = user_id);
 
 -- ---------- MESSAGES POLICIES ----------
 DROP POLICY IF EXISTS "messages_select_participants" ON messages;
 DROP POLICY IF EXISTS "messages_insert_sender" ON messages;
 DROP POLICY IF EXISTS "messages_update_receiver_read" ON messages;
 DROP POLICY IF EXISTS "messages_delete_participants" ON messages;
+DROP POLICY IF EXISTS "messages_delete_sender" ON messages;
 
 CREATE POLICY "messages_select_participants"
 ON messages FOR SELECT
@@ -105,9 +209,9 @@ ON messages FOR UPDATE
 USING (auth.uid() = receiver_id)
 WITH CHECK (auth.uid() = receiver_id);
 
-CREATE POLICY "messages_delete_participants"
+CREATE POLICY "messages_delete_sender"
 ON messages FOR DELETE
-USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+USING (auth.uid() = sender_id);
 
 -- ---------- GROUP MEMBERS POLICIES ----------
 DROP POLICY IF EXISTS "group_members_select_if_member" ON chat_group_members;

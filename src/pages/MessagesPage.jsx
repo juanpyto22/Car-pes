@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/hooks/useMessages';
-import { Send, Search, ArrowLeft, MessageCircle, Image, X, Smile, Users, Camera, Settings, UserPlus, Plus, Crown, Shield, UserMinus, ShieldOff, Trash2 } from 'lucide-react';
+import { Send, Search, ArrowLeft, MessageCircle, Image, X, Smile, Users, Camera, Settings, UserPlus, Plus, Crown, Shield, UserMinus, ShieldOff, Trash2, MoreVertical, Heart } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
@@ -56,7 +56,8 @@ const MessagesPage = () => {
   const { 
     conversations, groupConversations, messages, loading,
     getMessages, getGroupMessages, sendMessage, sendGroupMessage,
-    getConversations, getGroupConversations, uploadMessageImage, deleteDirectConversation,
+    getConversations, getGroupConversations, uploadMessageImage,
+    deleteDirectConversation, blockDirectUser, deleteDirectMessage, toggleDirectMessageLike,
     addMembersToGroup, getGroupMembers, promoteMemberToAdmin, demoteAdminToMember, removeMemberFromGroup, deleteGroupForEveryone
   } = useMessages(user);
   
@@ -70,6 +71,7 @@ const MessagesPage = () => {
   const [imageFile, setImageFile] = useState(null);
   const [activeTab, setActiveTab] = useState('direct'); // direct | groups
   const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [showDmMenu, setShowDmMenu] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -206,6 +208,7 @@ const MessagesPage = () => {
   const selectDMConversation = (conv) => {
     setSelectedUser(conv.partner);
     setSelectedGroup(null);
+    setShowDmMenu(false);
     setShowGifPicker(false);
     setImagePreview(null);
     setImageFile(null);
@@ -214,6 +217,7 @@ const MessagesPage = () => {
   const selectGroupConversation = (group) => {
     setSelectedGroup(group);
     setSelectedUser(null);
+    setShowDmMenu(false);
     setShowGifPicker(false);
     setImagePreview(null);
     setImageFile(null);
@@ -222,9 +226,34 @@ const MessagesPage = () => {
   const goBack = () => {
     setSelectedUser(null);
     setSelectedGroup(null);
+    setShowDmMenu(false);
     setShowGifPicker(false);
     setImagePreview(null);
     setImageFile(null);
+  };
+
+  const handleDeleteCurrentChat = async () => {
+    if (!selectedUser?.id) return;
+    const confirmed = window.confirm('¿Eliminar este chat solo para ti?');
+    if (!confirmed) return;
+    const success = await deleteDirectConversation(selectedUser.id);
+    if (success) {
+      setShowDmMenu(false);
+      setSelectedUser(null);
+      await getConversations();
+    }
+  };
+
+  const handleBlockCurrentUser = async () => {
+    if (!selectedUser?.id) return;
+    const confirmed = window.confirm('¿Bloquear a este usuario?');
+    if (!confirmed) return;
+    const success = await blockDirectUser(selectedUser.id);
+    if (success) {
+      setShowDmMenu(false);
+      setSelectedUser(null);
+      await getConversations();
+    }
   };
 
   return (
@@ -400,23 +429,42 @@ const MessagesPage = () => {
                         </div>
                       </div>
                     </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={async () => {
-                        const confirmed = window.confirm('¿Eliminar este chat? Se borrarán todos los mensajes de esta conversación.');
-                        if (!confirmed) return;
-                        const success = await deleteDirectConversation(selectedUser.id);
-                        if (success) {
-                          setSelectedUser(null);
-                          await getConversations();
-                        }
-                      }}
-                      className="text-blue-300 hover:text-red-400 hover:bg-white/10 rounded-xl shrink-0"
-                      title="Eliminar chat"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </Button>
+                    <div className="relative shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowDmMenu(v => !v)}
+                        className="text-blue-300 hover:text-cyan-400 hover:bg-white/10 rounded-xl"
+                        title="Opciones"
+                      >
+                        <MoreVertical className="w-5 h-5" />
+                      </Button>
+                      {showDmMenu && (
+                        <div className="absolute right-0 mt-1 w-44 rounded-xl border border-white/10 bg-slate-900 shadow-xl z-50 overflow-hidden">
+                          <button
+                            onClick={() => {
+                              setShowDmMenu(false);
+                              navigate(`/profile/${selectedUser.id}`);
+                            }}
+                            className="w-full text-left px-3 py-2.5 text-sm text-blue-100 hover:bg-white/10"
+                          >
+                            Ver perfil
+                          </button>
+                          <button
+                            onClick={handleBlockCurrentUser}
+                            className="w-full text-left px-3 py-2.5 text-sm text-amber-300 hover:bg-white/10"
+                          >
+                            Bloquear usuario
+                          </button>
+                          <button
+                            onClick={handleDeleteCurrentChat}
+                            className="w-full text-left px-3 py-2.5 text-sm text-red-300 hover:bg-white/10"
+                          >
+                            Eliminar chat
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
@@ -469,6 +517,8 @@ const MessagesPage = () => {
                         currentUserId={user?.id}
                         isGroupChat={isGroupChat}
                         selectedUser={selectedUser}
+                        onToggleLike={toggleDirectMessageLike}
+                        onDeleteMessage={deleteDirectMessage}
                       />
                     ))}
                   </AnimatePresence>
@@ -663,12 +713,14 @@ const EmptyState = ({ icon: Icon, text, sub }) => (
   </div>
 );
 
-const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroupChat, selectedUser }) => {
+const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroupChat, selectedUser, onToggleLike, onDeleteMessage }) => {
   const isMe = msg.sender_id === currentUserId;
   const showAvatar = !isMe && (index === 0 || messages[index - 1]?.sender_id !== msg.sender_id);
   const msgImageUrl = msg.image_url || (isImageUrl(msg.contenido) ? msg.contenido : null);
   const textContent = msgImageUrl && msgImageUrl === msg.contenido ? null : msg.contenido;
   const senderInfo = isGroupChat ? msg.sender : (isMe ? null : selectedUser);
+  const likesCount = msg.likesCount || 0;
+  const likedByMe = !!msg.likedByMe;
 
   return (
     <motion.div
@@ -719,6 +771,30 @@ const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroup
         <p className={`text-[10px] mt-0.5 mx-1 ${isMe ? 'text-blue-400/60 text-right' : 'text-blue-500/60'}`}>
           {formatDistanceToNow(new Date(msg.created_at), { locale: es, addSuffix: true })}
         </p>
+        {!isGroupChat && (
+          <div className={`flex items-center gap-2 mt-0.5 mx-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+            <button
+              onClick={() => onToggleLike?.(msg.id)}
+              className={`inline-flex items-center gap-1 text-[10px] ${likedByMe ? 'text-rose-400' : 'text-blue-400/80 hover:text-rose-300'} transition-colors`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${likedByMe ? 'fill-current' : ''}`} />
+              {likesCount > 0 ? likesCount : 'Me gusta'}
+            </button>
+            {isMe && (
+              <button
+                onClick={async () => {
+                  const confirmed = window.confirm('¿Borrar este mensaje?');
+                  if (!confirmed) return;
+                  onDeleteMessage?.(msg.id);
+                }}
+                className="inline-flex items-center gap-1 text-[10px] text-red-300 hover:text-red-200 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Borrar
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </motion.div>
   );
