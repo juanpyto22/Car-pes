@@ -10,6 +10,47 @@ export const useMessages = (currentUser) => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  const getStoredGroups = () => JSON.parse(localStorage.getItem('carpes_groups') || '[]');
+  const getRoleOverrides = () => JSON.parse(localStorage.getItem('carpes_group_role_overrides') || '{}');
+  const setRoleOverrides = (value) => localStorage.setItem('carpes_group_role_overrides', JSON.stringify(value));
+
+  const isCurrentUserGroupAdmin = useCallback(async (groupId) => {
+    if (!currentUser || !groupId) return false;
+
+    try {
+      const { data: group } = await supabase
+        .from('chat_groups')
+        .select('creator_id')
+        .eq('id', groupId)
+        .maybeSingle();
+
+      if (group?.creator_id === currentUser.id) return true;
+
+      const { data: membership, error: membershipErr } = await supabase
+        .from('chat_group_members')
+        .select('role')
+        .eq('group_id', groupId)
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+
+      if (!membershipErr && membership?.role === 'admin') return true;
+    } catch (err) {
+      console.warn('Could not verify admin role from DB, using local fallback');
+    }
+
+    const stored = getStoredGroups();
+    const localGroup = stored.find(g => g.id === groupId);
+    if (!localGroup) return false;
+    if (localGroup.creator_id === currentUser.id) return true;
+
+    const roleOverrides = getRoleOverrides();
+    const overrideRole = roleOverrides?.[groupId]?.[currentUser.id];
+    if (overrideRole === 'admin') return true;
+
+    const myMember = (localGroup.members || []).find(m => m.id === currentUser.id);
+    return myMember?.role === 'admin';
+  }, [currentUser]);
+
   // ─── Direct Messages ───────────────────────────────────────
   const getConversations = useCallback(async () => {
     if (!currentUser) { setLoading(false); return; }
@@ -268,16 +309,28 @@ export const useMessages = (currentUser) => {
       }
 
       // Add creator + members
-      const allMembers = [currentUser.id, ...memberIds].map(uid => ({
-        group_id: group.id,
-        user_id: uid
-      }));
+      const allMembersWithRole = [
+        { group_id: group.id, user_id: currentUser.id, role: 'admin' },
+        ...memberIds.map(uid => ({ group_id: group.id, user_id: uid, role: 'member' }))
+      ];
 
-      const { error: memErr } = await supabase
+      const { error: memErrWithRole } = await supabase
         .from('chat_group_members')
-        .insert(allMembers);
+        .insert(allMembersWithRole);
 
-      if (memErr) console.warn('Error adding members:', memErr.message);
+      if (memErrWithRole) {
+        // Compatibility fallback for old schema without role column
+        const allMembers = [currentUser.id, ...memberIds].map(uid => ({
+          group_id: group.id,
+          user_id: uid
+        }));
+
+        const { error: memErr } = await supabase
+          .from('chat_group_members')
+          .insert(allMembers);
+
+        if (memErr) console.warn('Error adding members:', memErr.message);
+      }
 
       toast({ title: "Grupo creado" });
       await getGroupConversations();
@@ -293,9 +346,17 @@ export const useMessages = (currentUser) => {
   const getGroupMembers = async (groupId) => {
     if (!currentUser || !groupId) return [];
     try {
+      const { data: groupData } = await supabase
+        .from('chat_groups')
+        .select('creator_id')
+        .eq('id', groupId)
+        .maybeSingle();
+
+      const creatorId = groupData?.creator_id;
+
       const { data, error } = await supabase
         .from('chat_group_members')
-        .select('user_id, profiles!chat_group_members_user_id_fkey(id, username, nombre, foto_perfil)')
+        .select('user_id, role, profiles!chat_group_members_user_id_fkey(id, username, nombre, foto_perfil)')
         .eq('group_id', groupId);
 
       if (error) {
@@ -303,6 +364,7 @@ export const useMessages = (currentUser) => {
         const stored = JSON.parse(localStorage.getItem('carpes_groups') || '[]');
         const group = stored.find(g => g.id === groupId);
         const memberList = group?.members || [];
+        const roleOverrides = getRoleOverrides();
         // If members only have ids, try to fetch profiles
         const needsResolve = memberList.some(m => !m.username);
         if (needsResolve && memberList.length > 0) {
@@ -313,11 +375,29 @@ export const useMessages = (currentUser) => {
             .from('profiles')
             .select('id, username, nombre, foto_perfil')
             .in('id', ids);
-          if (profiles) return profiles;
+          if (profiles) {
+            return profiles.map(p => {
+              const localMember = memberList.find(m => m.id === p.id);
+              const overrideRole = roleOverrides?.[groupId]?.[p.id];
+              const role = overrideRole || (p.id === group?.creator_id ? 'admin' : (localMember?.role || 'member'));
+              return { ...p, role };
+            });
+          }
         }
-        return memberList;
+        return memberList.map(m => {
+          const overrideRole = roleOverrides?.[groupId]?.[m.id];
+          return { ...m, role: overrideRole || m.role || (m.id === group?.creator_id ? 'admin' : 'member') };
+        });
       }
-      return (data || []).map(m => m.profiles || { id: m.user_id });
+      const roleOverrides = getRoleOverrides();
+      return (data || []).map(m => {
+        const profile = m.profiles || { id: m.user_id };
+        const overrideRole = roleOverrides?.[groupId]?.[m.user_id];
+        return {
+          ...profile,
+          role: overrideRole || m.role || (m.user_id === creatorId ? 'admin' : 'member')
+        };
+      });
     } catch (err) {
       console.error('Error fetching group members:', err);
       return [];
@@ -327,17 +407,35 @@ export const useMessages = (currentUser) => {
   const addMembersToGroup = async (groupId, newMemberIds) => {
     if (!currentUser || !groupId || !newMemberIds.length) return false;
     try {
-      const rows = newMemberIds.map(uid => ({ group_id: groupId, user_id: uid }));
-      const { error } = await supabase.from('chat_group_members').insert(rows);
+      const canManage = await isCurrentUserGroupAdmin(groupId);
+      if (!canManage) {
+        toast({ variant: 'destructive', title: 'Solo administradores', description: 'No tienes permisos para añadir miembros.' });
+        return false;
+      }
+
+      const rowsWithRole = newMemberIds.map(uid => ({ group_id: groupId, user_id: uid, role: 'member' }));
+      const { error: insertWithRoleError } = await supabase.from('chat_group_members').insert(rowsWithRole);
+
+      let error = insertWithRoleError;
+      if (insertWithRoleError) {
+        const rows = newMemberIds.map(uid => ({ group_id: groupId, user_id: uid }));
+        const fallbackInsert = await supabase.from('chat_group_members').insert(rows);
+        error = fallbackInsert.error;
+      }
 
       if (error) {
         // Fallback: update localStorage
         console.warn('chat_group_members not available, updating locally');
-        const stored = JSON.parse(localStorage.getItem('carpes_groups') || '[]');
+        const stored = getStoredGroups();
         const idx = stored.findIndex(g => g.id === groupId);
         if (idx !== -1) {
+          if (stored[idx].creator_id !== currentUser.id && !(stored[idx].members || []).some(m => m.id === currentUser.id && m.role === 'admin')) {
+            toast({ variant: 'destructive', title: 'Solo administradores', description: 'No tienes permisos para añadir miembros.' });
+            return false;
+          }
+
           const existing = stored[idx].members || [];
-          const newMembers = newMemberIds.map(id => ({ id }));
+          const newMembers = newMemberIds.map(id => ({ id, role: 'member' }));
           stored[idx].members = [...existing, ...newMembers];
           stored[idx].memberCount = (stored[idx].memberCount || 0) + newMemberIds.length;
           localStorage.setItem('carpes_groups', JSON.stringify(stored));
@@ -353,6 +451,121 @@ export const useMessages = (currentUser) => {
     } catch (err) {
       console.error('Error adding members:', err);
       toast({ variant: 'destructive', title: 'Error al añadir miembros' });
+      return false;
+    }
+  };
+
+  const promoteMemberToAdmin = async (groupId, targetUserId) => {
+    if (!currentUser || !groupId || !targetUserId) return false;
+
+    try {
+      const canManage = await isCurrentUserGroupAdmin(groupId);
+      if (!canManage) {
+        toast({ variant: 'destructive', title: 'Solo administradores', description: 'No tienes permisos para promover miembros.' });
+        return false;
+      }
+
+      const { error } = await supabase
+        .from('chat_group_members')
+        .update({ role: 'admin' })
+        .eq('group_id', groupId)
+        .eq('user_id', targetUserId);
+
+      if (error) {
+        const roleOverrides = getRoleOverrides();
+        roleOverrides[groupId] = roleOverrides[groupId] || {};
+        roleOverrides[groupId][targetUserId] = 'admin';
+        setRoleOverrides(roleOverrides);
+
+        const stored = getStoredGroups();
+        const idx = stored.findIndex(g => g.id === groupId);
+        if (idx !== -1) {
+          stored[idx].members = (stored[idx].members || []).map(m => (
+            m.id === targetUserId ? { ...m, role: 'admin' } : m
+          ));
+          localStorage.setItem('carpes_groups', JSON.stringify(stored));
+          setGroupConversations([...stored]);
+          toast({ title: 'Miembro promovido a admin' });
+          return true;
+        }
+
+        toast({ title: 'Miembro promovido a admin' });
+        return true;
+      }
+
+      toast({ title: 'Miembro promovido a admin' });
+      await getGroupConversations();
+      return true;
+    } catch (err) {
+      console.error('Error promoting member:', err);
+      toast({ variant: 'destructive', title: 'Error al promover miembro' });
+      return false;
+    }
+  };
+
+  const removeMemberFromGroup = async (groupId, targetUserId) => {
+    if (!currentUser || !groupId || !targetUserId) return false;
+
+    try {
+      const canManage = await isCurrentUserGroupAdmin(groupId);
+      if (!canManage) {
+        toast({ variant: 'destructive', title: 'Solo administradores', description: 'No tienes permisos para expulsar miembros.' });
+        return false;
+      }
+
+      const { data: groupData } = await supabase
+        .from('chat_groups')
+        .select('creator_id')
+        .eq('id', groupId)
+        .maybeSingle();
+
+      if (groupData?.creator_id === targetUserId) {
+        toast({ variant: 'destructive', title: 'Acción no permitida', description: 'No puedes expulsar al creador del grupo.' });
+        return false;
+      }
+
+      const { error } = await supabase
+        .from('chat_group_members')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('user_id', targetUserId);
+
+      if (error) {
+        const roleOverrides = getRoleOverrides();
+        if (roleOverrides[groupId]) {
+          delete roleOverrides[groupId][targetUserId];
+          setRoleOverrides(roleOverrides);
+        }
+
+        const stored = getStoredGroups();
+        const idx = stored.findIndex(g => g.id === groupId);
+        if (idx !== -1) {
+          if (stored[idx].creator_id === targetUserId) {
+            toast({ variant: 'destructive', title: 'Acción no permitida', description: 'No puedes expulsar al creador del grupo.' });
+            return false;
+          }
+
+          if (stored[idx].creator_id !== currentUser.id && !(stored[idx].members || []).some(m => m.id === currentUser.id && m.role === 'admin')) {
+            toast({ variant: 'destructive', title: 'Solo administradores', description: 'No tienes permisos para expulsar miembros.' });
+            return false;
+          }
+
+          stored[idx].members = (stored[idx].members || []).filter(m => m.id !== targetUserId);
+          stored[idx].memberCount = Math.max(1, (stored[idx].memberCount || 1) - 1);
+          localStorage.setItem('carpes_groups', JSON.stringify(stored));
+          setGroupConversations([...stored]);
+          toast({ title: 'Miembro expulsado del grupo' });
+          return true;
+        }
+        throw error;
+      }
+
+      toast({ title: 'Miembro expulsado del grupo' });
+      await getGroupConversations();
+      return true;
+    } catch (err) {
+      console.error('Error removing member:', err);
+      toast({ variant: 'destructive', title: 'Error al expulsar miembro' });
       return false;
     }
   };
@@ -427,6 +640,8 @@ export const useMessages = (currentUser) => {
     sendGroupMessage,
     createGroup,
     addMembersToGroup,
+    promoteMemberToAdmin,
+    removeMemberFromGroup,
     getGroupMembers,
     uploadMessageImage,
   };

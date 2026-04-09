@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/hooks/useMessages';
-import { Send, Search, ArrowLeft, MessageCircle, Image, X, Smile, Users, Camera, Settings, UserPlus, Plus, Crown } from 'lucide-react';
+import { Send, Search, ArrowLeft, MessageCircle, Image, X, Smile, Users, Camera, Settings, UserPlus, Plus, Crown, Shield, UserMinus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
@@ -57,7 +57,7 @@ const MessagesPage = () => {
     conversations, groupConversations, messages, loading,
     getMessages, getGroupMessages, sendMessage, sendGroupMessage,
     getConversations, getGroupConversations, uploadMessageImage,
-    addMembersToGroup, getGroupMembers
+    addMembersToGroup, getGroupMembers, promoteMemberToAdmin, removeMemberFromGroup
   } = useMessages(user);
   
   const [selectedUser, setSelectedUser] = useState(null);
@@ -397,6 +397,8 @@ const MessagesPage = () => {
                     currentUser={user}
                     getGroupMembers={getGroupMembers}
                     addMembersToGroup={addMembersToGroup}
+                    promoteMemberToAdmin={promoteMemberToAdmin}
+                    removeMemberFromGroup={removeMemberFromGroup}
                     onClose={() => setShowGroupSettings(false)}
                     onMembersAdded={async (count) => {
                       setSelectedGroup(prev => ({ ...prev, memberCount: (prev.memberCount || 0) + count }));
@@ -682,15 +684,19 @@ const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroup
 });
 
 // ─── Group Settings Panel ──────────────────────────────────────
-const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToGroup, onClose, onMembersAdded }) => {
+const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToGroup, promoteMemberToAdmin, removeMemberFromGroup, onClose, onMembersAdded }) => {
   const [members, setMembers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [memberActionLoading, setMemberActionLoading] = useState(null);
   const [selectedToAdd, setSelectedToAdd] = useState([]);
   const searchTimeout = useRef(null);
+
+  const currentMember = members.find(m => m.id === currentUser.id);
+  const isCurrentUserAdmin = group.creator_id === currentUser.id || currentMember?.role === 'admin';
 
   useEffect(() => {
     loadMembers();
@@ -752,6 +758,7 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
   };
 
   const handleAddMembers = async () => {
+    if (!isCurrentUserAdmin) return;
     if (selectedToAdd.length === 0) return;
     setAdding(true);
     const ids = selectedToAdd.map(u => u.id);
@@ -762,6 +769,27 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
       setSelectedToAdd([]);
     }
     setAdding(false);
+  };
+
+  const handlePromote = async (member) => {
+    if (!isCurrentUserAdmin) return;
+    setMemberActionLoading(`promote-${member.id}`);
+    const success = await promoteMemberToAdmin(group.id, member.id);
+    if (success) {
+      setMembers(prev => prev.map(m => (m.id === member.id ? { ...m, role: 'admin' } : m)));
+    }
+    setMemberActionLoading(null);
+  };
+
+  const handleRemove = async (member) => {
+    if (!isCurrentUserAdmin) return;
+    setMemberActionLoading(`remove-${member.id}`);
+    const success = await removeMemberFromGroup(group.id, member.id);
+    if (success) {
+      setMembers(prev => prev.filter(m => m.id !== member.id));
+      onMembersAdded(-1);
+    }
+    setMemberActionLoading(null);
   };
 
   return (
@@ -825,8 +853,43 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
                       </AvatarFallback>
                     </Avatar>
                     <span className="text-sm text-white flex-1 truncate">{member.username || member.nombre || 'Usuario'}</span>
+
                     {member.id === group.creator_id && (
-                      <Crown className="w-4 h-4 text-yellow-400 shrink-0" />
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 shrink-0">
+                        <Crown className="w-3 h-3" /> Creador
+                      </span>
+                    )}
+
+                    {member.id !== group.creator_id && member.role === 'admin' && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shrink-0">
+                        <Shield className="w-3 h-3" /> Admin
+                      </span>
+                    )}
+
+                    {isCurrentUserAdmin && member.id !== currentUser.id && member.id !== group.creator_id && (
+                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        {member.role !== 'admin' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={memberActionLoading === `promote-${member.id}`}
+                            onClick={() => handlePromote(member)}
+                            className="h-7 px-2 text-xs bg-cyan-600 hover:bg-cyan-500"
+                          >
+                            <Shield className="w-3 h-3 mr-1" /> Admin
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          disabled={memberActionLoading === `remove-${member.id}`}
+                          onClick={() => handleRemove(member)}
+                          className="h-7 px-2 text-xs"
+                        >
+                          <UserMinus className="w-3 h-3 mr-1" /> Expulsar
+                        </Button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -840,6 +903,10 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
               <UserPlus className="w-4 h-4 text-cyan-500" />
               Añadir miembros
             </h4>
+
+            {!isCurrentUserAdmin && (
+              <p className="text-xs text-blue-400 mb-3">Solo los administradores pueden añadir o expulsar miembros.</p>
+            )}
 
             {/* Selected to add */}
             {selectedToAdd.length > 0 && (
@@ -871,6 +938,7 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
                 value={searchTerm}
                 onChange={e => handleSearchChange(e.target.value)}
                 placeholder="Buscar @username..."
+                disabled={!isCurrentUserAdmin}
                 className="w-full bg-slate-800 border border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-blue-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
               />
               {searching && (
@@ -886,8 +954,8 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
                 <motion.div
                   key={result.id}
                   initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition-colors"
-                  onClick={() => addToSelection(result)}
+                  className={`flex items-center gap-3 p-2 rounded-xl transition-colors ${isCurrentUserAdmin ? 'hover:bg-white/5 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+                  onClick={() => isCurrentUserAdmin && addToSelection(result)}
                 >
                   <Avatar className="w-8 h-8 border border-white/10">
                     <AvatarImage src={result.foto_perfil} className="object-cover" />
@@ -910,7 +978,7 @@ const GroupSettingsPanel = ({ group, currentUser, getGroupMembers, addMembersToG
         </div>
 
         {/* Add button */}
-        {selectedToAdd.length > 0 && (
+        {isCurrentUserAdmin && selectedToAdd.length > 0 && (
           <div className="p-4 border-t border-white/10">
             <Button
               onClick={handleAddMembers}
