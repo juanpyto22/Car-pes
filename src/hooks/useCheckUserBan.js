@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/customSupabaseClient';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Hook: Verificar si el usuario actual está baneado
  * Retorna: { isBanned, banType, reason, expiresAt, remainingHours, loading }
  */
 export const useCheckUserBan = () => {
+  const { user } = useAuth();
   const [isBanned, setIsBanned] = useState(false);
   const [banType, setBanType] = useState(null);
   const [reason, setReason] = useState(null);
@@ -15,9 +17,23 @@ export const useCheckUserBan = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const checkBan = async () => {
+    // Sin usuario autenticado no hay que bloquear la app ni consultar baneos.
+    if (!user?.id) {
+      setIsBanned(false);
+      setBanType(null);
+      setReason(null);
+      setExpiresAt(null);
+      setRemainingHours(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    const checkBan = async ({ silent = false } = {}) => {
       try {
-        setLoading(true);
+        if (!silent) {
+          setLoading(true);
+        }
         const { data, error: err } = await supabase
           .rpc('get_current_user_ban_status');
 
@@ -50,10 +66,12 @@ export const useCheckUserBan = () => {
     checkBan();
 
     // Verificar cada 1 minuto (por si expira mientras están en la app)
-    const interval = setInterval(checkBan, 60000);
+    const interval = setInterval(() => {
+      checkBan({ silent: true });
+    }, 60000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [user?.id]);
 
   return { isBanned, banType, reason, expiresAt, remainingHours, loading, error };
 };

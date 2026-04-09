@@ -59,7 +59,7 @@ const AppRoutes = () => {
   }, [unlockedAchievement]);
 
   // Mostrar loading solo durante la verificación inicial de sesión
-  if (loading || banLoading) {
+  if (loading || (user && banLoading)) {
     return (
         <div className="min-h-screen bg-slate-950 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
