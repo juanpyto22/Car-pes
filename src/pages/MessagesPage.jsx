@@ -301,7 +301,7 @@ const MessagesPage = () => {
                 filteredConversations.map(conv => (
                   <ConversationItem
                     key={conv.partnerId}
-                    name={conv.partner?.username || conv.partner?.nombre || 'Usuario'}
+                    name={conv.partner?.username || conv.partner?.nombre || conv.partner?.display_name || 'Usuario'}
                     avatar={conv.partner?.foto_perfil}
                     lastMsg={conv.lastMessage?.contenido || conv.lastMessage?.content || conv.lastMessage?.message}
                     time={conv.lastMessage?.created_at}

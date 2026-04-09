@@ -19,6 +19,21 @@ export const useMessages = (currentUser) => {
   const getPendingDmKey = (uid) => `carpes_dm_pending_${uid}`;
   const getPendingDmMessages = (uid) => JSON.parse(localStorage.getItem(getPendingDmKey(uid)) || '[]');
   const setPendingDmMessages = (uid, value) => localStorage.setItem(getPendingDmKey(uid), JSON.stringify(value));
+  const fetchUsersMap = useCallback(async (userIds) => {
+    const uniqueIds = [...new Set((userIds || []).filter(Boolean))];
+    if (!uniqueIds.length) return {};
+
+    const [{ data: profiles }, { data: users }] = await Promise.all([
+      supabase.from('profiles').select('id, username, nombre, foto_perfil').in('id', uniqueIds),
+      supabase.from('users').select('id, username, nombre, foto_perfil').in('id', uniqueIds),
+    ]);
+
+    const merged = [...(profiles || []), ...(users || [])];
+    return merged.reduce((acc, item) => {
+      acc[item.id] = item;
+      return acc;
+    }, {});
+  }, []);
   const getLocalDmConversations = useCallback(async () => {
     if (!currentUser?.id) return [];
 
@@ -57,24 +72,16 @@ export const useMessages = (currentUser) => {
 
     let profilesMap = {};
     try {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, username, nombre, foto_perfil')
-        .in('id', [...partnerIds]);
-
-      profilesMap = (profiles || []).reduce((acc, profile) => {
-        acc[profile.id] = profile;
-        return acc;
-      }, {});
+      profilesMap = await fetchUsersMap([...partnerIds]);
     } catch (error) {
       console.warn('Could not resolve local DM profiles:', error);
     }
 
     return localConversations.map((conversation) => ({
       ...conversation,
-      partner: profilesMap[conversation.partnerId] || { id: conversation.partnerId, username: 'usuario' },
+      partner: profilesMap[conversation.partnerId] || { id: conversation.partnerId, username: conversation.partnerId },
     }));
-  }, [currentUser?.id]);
+  }, [currentUser?.id, fetchUsersMap]);
 
   const isCurrentUserGroupAdmin = useCallback(async (groupId) => {
     if (!currentUser || !groupId) return false;
@@ -137,19 +144,7 @@ export const useMessages = (currentUser) => {
     return dmTableRef.current;
   }, []);
 
-  const getProfilesMap = useCallback(async (userIds) => {
-    const uniqueIds = [...new Set((userIds || []).filter(Boolean))];
-    if (!uniqueIds.length) return {};
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, username, nombre, foto_perfil')
-      .in('id', uniqueIds);
-
-    return (data || []).reduce((acc, profile) => {
-      acc[profile.id] = profile;
-      return acc;
-    }, {});
-  }, []);
+  const getProfilesMap = fetchUsersMap;
 
   const buildConversations = useCallback((rows, profilesMap = {}) => {
     const convMap = new Map();
