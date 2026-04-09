@@ -195,10 +195,6 @@ export const useMessages = (currentUser) => {
       });
       localStorage.setItem(key, JSON.stringify(stored));
 
-      toast({
-        title: 'Mensaje enviado',
-        description: 'Se guardó localmente mientras se sincroniza con el servidor.'
-      });
       return true;
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: error?.message || "No se pudo enviar el mensaje" });
