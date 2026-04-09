@@ -144,7 +144,7 @@ const CreateStoryPage = () => {
         // Text-only story
         const storyData = {
           user_id: user.id,
-          image_url: null,
+          image_url: '',
           content: textContent || null,
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         };

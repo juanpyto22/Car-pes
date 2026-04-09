@@ -266,7 +266,7 @@ const CameraPage = () => {
         // Text-only story — no media to upload
         const { error } = await supabase.from('stories').insert({
           user_id: user.id,
-          image_url: null,
+          image_url: '',
           content: JSON.stringify({ text: textContent, bg: textBg, color: textColor, size: textSize, bold: textBold }),
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         });
