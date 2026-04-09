@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Bookmark, Map, Trophy, Users, Calendar, ShoppingBag, BarChart3, Settings, Gift, DollarSign, Radio } from 'lucide-react';
+import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Bookmark, Map, Users, Calendar, ShoppingBag, BarChart3, Settings, DollarSign, Radio, CloudSun } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import SearchBar from '@/components/SearchBar';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -102,11 +102,8 @@ const Header = () => {
                     <DropdownMenuItem onClick={() => navigate(`/maps`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
                       <Map className="mr-2 h-4 w-4 text-blue-400" /> Mapas
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate(`/achievements`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
-                      <Trophy className="mr-2 h-4 w-4 text-yellow-400" /> Logros
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate(`/rewards`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
-                      <Gift className="mr-2 h-4 w-4 text-purple-400" /> Recompensas
+                    <DropdownMenuItem onClick={() => navigate(`/pronosticos`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
+                      <CloudSun className="mr-2 h-4 w-4 text-cyan-300" /> Pronósticos
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-white/5" />
                     <DropdownMenuItem onClick={() => navigate(`/groups`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">

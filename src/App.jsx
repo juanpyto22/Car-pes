@@ -6,7 +6,6 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { AdminRoute } from '@/components/AdminRoute';
 import { useCheckUserBan } from '@/hooks/useCheckUserBan';
-import { useAchievementNotifications } from '@/hooks/useAchievementNotifications';
 
 // Pages
 import LandingPage from '@/pages/LandingPage';
@@ -27,8 +26,7 @@ import SavedPostsPage from '@/pages/SavedPostsPage';
 import StoryViewerPage from '@/pages/StoryViewerPage';
 import CreateStoryPage from '@/pages/CreateStoryPage';
 import FishingMapsPage from '@/pages/FishingMapsPage';
-import AchievementsPage from '@/pages/AchievementsPage';
-import RewardsPage from '@/pages/RewardsPage';
+import PronosticosPage from '@/pages/PronosticosPage';
 import CashoutPage from '@/pages/CashoutPage';
 import GroupsPage from '@/pages/GroupsPage';
 import EventsCalendarPage from '@/pages/EventsCalendarPage';
@@ -44,19 +42,10 @@ import BannedUserPage from '@/pages/BannedUserPage';
 // Components
 import Header from '@/components/Header';
 import MobileBottomNav from '@/components/MobileBottomNav';
-import AchievementUnlockedNotification from '@/components/AchievementUnlockedNotification';
 
 const AppRoutes = () => {
   const { user } = useAuth();
   const { isBanned, banType, reason, remainingHours } = useCheckUserBan();
-  const { unlockedAchievement, testUnlockAchievement } = useAchievementNotifications(user?.id);
-  const [showNotification, setShowNotification] = React.useState(false);
-
-  React.useEffect(() => {
-    if (unlockedAchievement) {
-      setShowNotification(true);
-    }
-  }, [unlockedAchievement]);
 
   // Si el usuario está autenticado y baneado, mostrar página de baneado
   if (user && isBanned) {
@@ -92,8 +81,7 @@ const AppRoutes = () => {
         <Route path="/create-story" element={<ProtectedRoute><CreateStoryPage /></ProtectedRoute>} />
         <Route path="/camera" element={<ProtectedRoute><CameraPage /></ProtectedRoute>} />
         <Route path="/maps" element={<ProtectedRoute><FishingMapsPage /></ProtectedRoute>} />
-        <Route path="/achievements" element={<ProtectedRoute><AchievementsPage /></ProtectedRoute>} />
-        <Route path="/rewards" element={<ProtectedRoute><RewardsPage /></ProtectedRoute>} />
+        <Route path="/pronosticos" element={<ProtectedRoute><PronosticosPage /></ProtectedRoute>} />
         <Route path="/cashout" element={<ProtectedRoute><CashoutPage /></ProtectedRoute>} />
         <Route path="/groups" element={<ProtectedRoute><GroupsPage /></ProtectedRoute>} />
         <Route path="/events" element={<ProtectedRoute><EventsCalendarPage /></ProtectedRoute>} />
@@ -108,13 +96,6 @@ const AppRoutes = () => {
       
       {/* Mobile Bottom Navigation */}
       <MobileBottomNav />
-
-      {/* Achievement Notification */}
-      <AchievementUnlockedNotification 
-        achievement={unlockedAchievement}
-        isVisible={showNotification}
-        onClose={() => setShowNotification(false)}
-      />
     </div>
   );
 };

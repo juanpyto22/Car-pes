@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Radio } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
-import { formatDistanceToNow } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 const StoriesBar = () => {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [stories, setStories] = useState([]);
   const [myStories, setMyStories] = useState([]);
+  const [liveStreams, setLiveStreams] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ const StoriesBar = () => {
         profilesMap[p.id] = p;
       });
 
-      // Agrupar por usuario
+      // Agrupar por usuario y calcular si hay historias no vistas
       const groupedStories = {};
       (storiesData || []).forEach(story => {
         const uid = story.user_id;
@@ -69,13 +69,36 @@ const StoriesBar = () => {
           groupedStories[uid] = {
             user: profilesMap[uid] || { id: uid, username: 'usuario' },
             stories: [],
-            hasUnseen: false
+            hasUnseen: false,
+            lastStoryTime: null,
           };
         }
         groupedStories[uid].stories.push(story);
+
+        const viewedBy = story.viewed_by || [];
+        if (!viewedBy.includes(user.id)) {
+          groupedStories[uid].hasUnseen = true;
+        }
+
+        const storyTime = new Date(story.created_at);
+        if (!groupedStories[uid].lastStoryTime || storyTime > groupedStories[uid].lastStoryTime) {
+          groupedStories[uid].lastStoryTime = storyTime;
+        }
       });
 
-      const grouped = Object.values(groupedStories);
+      const grouped = Object.values(groupedStories).sort((a, b) => {
+        // 1) no vistas primero
+        if (a.hasUnseen && !b.hasUnseen) return -1;
+        if (!a.hasUnseen && b.hasUnseen) return 1;
+
+        // 2) entre no vistas: más recientes primero
+        if (a.hasUnseen && b.hasUnseen) {
+          return (b.lastStoryTime?.getTime?.() || 0) - (a.lastStoryTime?.getTime?.() || 0);
+        }
+
+        // 3) entre vistas: más antiguas primero (quedan atrás)
+        return (a.lastStoryTime?.getTime?.() || 0) - (b.lastStoryTime?.getTime?.() || 0);
+      });
       
       // Separar propias stories
       const myStoriesGroup = grouped.find(g => g.user?.id === user.id);
@@ -83,10 +106,50 @@ const StoriesBar = () => {
       
       setMyStories(myStoriesGroup?.stories || []);
       setStories(otherStories);
+
+      // Directos activos de usuarios seguidos
+      if (followingIds.length > 0) {
+        const { data: liveData } = await supabase
+          .from('live_streams')
+          .select('id, user_id, title, is_live, started_at')
+          .in('user_id', followingIds)
+          .eq('is_live', true)
+          .order('started_at', { ascending: false });
+
+        const liveUserIds = [...new Set((liveData || []).map(l => l.user_id))];
+        let liveProfilesMap = {};
+
+        if (liveUserIds.length > 0) {
+          const { data: liveProfiles } = await supabase
+            .from('profiles')
+            .select('id, username, foto_perfil')
+            .in('id', liveUserIds);
+
+          liveProfilesMap = (liveProfiles || []).reduce((acc, p) => {
+            acc[p.id] = p;
+            return acc;
+          }, {});
+        }
+
+        const groupedLive = {};
+        (liveData || []).forEach((stream) => {
+          if (!groupedLive[stream.user_id]) {
+            groupedLive[stream.user_id] = {
+              ...stream,
+              user: liveProfilesMap[stream.user_id],
+            };
+          }
+        });
+
+        setLiveStreams(Object.values(groupedLive));
+      } else {
+        setLiveStreams([]);
+      }
     } catch (error) {
       console.error('Error fetching stories:', error);
       setStories([]);
       setMyStories([]);
+      setLiveStreams([]);
     } finally {
       setLoading(false);
     }
@@ -94,6 +157,7 @@ const StoriesBar = () => {
 
   const StoryCircle = ({ storyGroup, isOwn = false }) => {
     const hasStories = storyGroup?.stories?.length > 0;
+    const isViewed = !storyGroup?.hasUnseen;
 
     // For own stories: tapping the avatar opens stories (if any), tapping "+" creates new
     // For other users: tapping opens their stories
@@ -107,9 +171,9 @@ const StoriesBar = () => {
             <div className="relative">
               <Link to={hasStories ? `/story/${storyGroup.user.id}` : '/camera'}>
                 <div className={`rounded-full p-[2.5px] ${
-                  hasStories 
-                    ? 'bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600' 
-                    : ''
+                  hasStories
+                    ? 'bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600'
+                    : 'bg-slate-700'
                 }`}>
                   <div className="bg-slate-950 rounded-full p-[2px]">
                     <Avatar className="w-16 h-16 md:w-[68px] md:h-[68px]">
@@ -151,9 +215,9 @@ const StoriesBar = () => {
           className="flex flex-col items-center gap-1.5 px-1.5 py-2"
         >
           <div className={`relative rounded-full p-[2.5px] ${
-            hasStories 
-              ? 'bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600' 
-              : ''
+            hasStories
+              ? (isViewed ? 'bg-slate-700' : 'bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600')
+              : 'bg-slate-700'
           }`}>
             <div className="bg-slate-950 rounded-full p-[2px]">
               <Avatar className="w-16 h-16 md:w-[68px] md:h-[68px]">
@@ -171,8 +235,45 @@ const StoriesBar = () => {
           <span className="text-[11px] text-center text-gray-300 max-w-[72px] truncate leading-tight">
             {storyGroup?.user?.username}
           </span>
+
+          {hasStories && isViewed && (
+            <span className="text-[10px] text-slate-400 leading-none">Visto</span>
+          )}
         </motion.div>
       </Link>
+    );
+  };
+
+  const LiveCircle = ({ stream }) => {
+    if (!stream?.user) return null;
+
+    return (
+      <button
+        type="button"
+        onClick={() => navigate('/live')}
+        className="flex-shrink-0"
+        title={stream.title || 'Directo en vivo'}
+      >
+        <motion.div whileTap={{ scale: 0.95 }} className="flex flex-col items-center gap-1.5 px-1.5 py-2">
+          <div className="relative rounded-full p-[2.5px] bg-gradient-to-br from-red-500 to-rose-700">
+            <div className="bg-slate-950 rounded-full p-[2px]">
+              <Avatar className="w-16 h-16 md:w-[68px] md:h-[68px]">
+                <AvatarImage src={stream.user.foto_perfil} className="object-cover" />
+                <AvatarFallback className="bg-gradient-to-br from-red-700 to-rose-900 text-white text-lg">
+                  {stream.user.username?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-red-400/40 inline-flex items-center gap-1">
+              <Radio className="w-2.5 h-2.5" /> EN VIVO
+            </div>
+          </div>
+
+          <span className="text-[11px] text-center text-red-300 max-w-[72px] truncate leading-tight">
+            {stream.user.username}
+          </span>
+        </motion.div>
+      </button>
     );
   };
 
@@ -197,6 +298,11 @@ const StoriesBar = () => {
           storyGroup={{ user: { id: user?.id }, stories: myStories }} 
           isOwn={true} 
         />
+
+        {/* Directos en vivo de usuarios seguidos */}
+        {liveStreams.map((stream) => (
+          <LiveCircle key={`live-${stream.id}`} stream={stream} />
+        ))}
         
         {/* Stories de otros usuarios */}
         {stories.map((storyGroup) => (
