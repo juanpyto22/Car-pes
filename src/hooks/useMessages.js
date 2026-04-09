@@ -15,6 +15,9 @@ export const useMessages = (currentUser) => {
   const setRoleOverrides = (value) => localStorage.setItem('carpes_group_role_overrides', JSON.stringify(value));
   const getLocalDmKey = (a, b) => `carpes_dm_${[a, b].sort().join('_')}`;
   const getLocalDmMessages = (a, b) => JSON.parse(localStorage.getItem(getLocalDmKey(a, b)) || '[]');
+  const getPendingDmKey = (uid) => `carpes_dm_pending_${uid}`;
+  const getPendingDmMessages = (uid) => JSON.parse(localStorage.getItem(getPendingDmKey(uid)) || '[]');
+  const setPendingDmMessages = (uid, value) => localStorage.setItem(getPendingDmKey(uid), JSON.stringify(value));
   const getLocalDmConversations = useCallback(async () => {
     if (!currentUser?.id) return [];
 
@@ -291,9 +294,21 @@ export const useMessages = (currentUser) => {
         read: false,
         created_at: new Date().toISOString(),
         _local: true,
+        _pending: true,
       };
       stored.push(localMessage);
       localStorage.setItem(key, JSON.stringify(stored));
+
+      // Queue message for background retry so it can eventually reach the other user.
+      const pending = getPendingDmMessages(currentUser.id);
+      pending.push({
+        sender_id: currentUser.id,
+        receiver_id: receiverId,
+        contenido: textToSend,
+        image_url: imageUrl || null,
+        created_at: localMessage.created_at,
+      });
+      setPendingDmMessages(currentUser.id, pending);
 
       setMessages((prev) => [...prev, localMessage]);
       await getConversations();
@@ -314,6 +329,69 @@ export const useMessages = (currentUser) => {
       console.error('Error marking messages as read:', error);
     }
   };
+
+  const syncPendingDmMessages = useCallback(async () => {
+    if (!currentUser?.id) return;
+
+    const pending = getPendingDmMessages(currentUser.id);
+    if (!pending.length) return;
+
+    const stillPending = [];
+
+    for (const msg of pending) {
+      const base = {
+        sender_id: msg.sender_id,
+        receiver_id: msg.receiver_id,
+      };
+
+      const textToSend = msg.contenido || '';
+      const textOrImage = msg.image_url || textToSend;
+
+      const payloadCandidates = [
+        { ...base, contenido: textToSend, image_url: msg.image_url || null, read: false },
+        { ...base, contenido: textOrImage, read: false },
+        { ...base, contenido: textOrImage },
+        { ...base, content: textToSend, image_url: msg.image_url || null, read: false },
+        { ...base, content: textOrImage, read: false },
+        { ...base, content: textOrImage },
+        { ...base, message: textOrImage, read: false },
+        { ...base, message: textOrImage },
+        { ...base, group_id: null, contenido: textToSend, image_url: msg.image_url || null, read: false },
+        { ...base, group_id: null, contenido: textOrImage, read: false },
+        { ...base, group_id: null, contenido: textOrImage },
+        { ...base, group_id: null, content: textToSend, image_url: msg.image_url || null, read: false },
+        { ...base, group_id: null, content: textOrImage, read: false },
+        { ...base, group_id: null, content: textOrImage },
+        { ...base, group_id: null, message: textOrImage, read: false },
+        { ...base, group_id: null, message: textOrImage },
+      ];
+
+      let delivered = false;
+      for (const payload of payloadCandidates) {
+        const { error } = await supabase.from('messages').insert([payload]);
+        if (!error) {
+          delivered = true;
+          break;
+        }
+      }
+
+      if (!delivered) stillPending.push(msg);
+    }
+
+    setPendingDmMessages(currentUser.id, stillPending);
+
+    if (stillPending.length === 0) {
+      // Clean up local optimistic messages once they were synced.
+      const dmKeys = Object.keys(localStorage).filter((key) => key.startsWith('carpes_dm_'));
+      dmKeys.forEach((key) => {
+        const arr = JSON.parse(localStorage.getItem(key) || '[]');
+        const cleaned = arr.filter((item) => !item?._pending);
+        localStorage.setItem(key, JSON.stringify(cleaned));
+      });
+    }
+
+    await getConversations();
+  }, [currentUser, getConversations]);
 
   // ─── Group Chats ───────────────────────────────────────────
   const getGroupConversations = useCallback(async () => {
@@ -881,6 +959,7 @@ export const useMessages = (currentUser) => {
     if (currentUser) {
       getConversations();
       getGroupConversations();
+      syncPendingDmMessages();
 
       const subscription = supabase
         .channel('messages_global')
@@ -898,9 +977,23 @@ export const useMessages = (currentUser) => {
         }, () => { getConversations(); })
         .subscribe();
 
-      return () => { subscription.unsubscribe(); };
+      const retryInterval = setInterval(() => {
+        syncPendingDmMessages();
+      }, 20000);
+
+      const handleOnline = () => {
+        syncPendingDmMessages();
+      };
+
+      window.addEventListener('online', handleOnline);
+
+      return () => {
+        subscription.unsubscribe();
+        clearInterval(retryInterval);
+        window.removeEventListener('online', handleOnline);
+      };
     }
-  }, [currentUser]);
+  }, [currentUser, getConversations, getGroupConversations, syncPendingDmMessages]);
 
   return { 
     conversations, 

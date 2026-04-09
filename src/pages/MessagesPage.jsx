@@ -113,10 +113,10 @@ const MessagesPage = () => {
     let interval;
     if (selectedUser?.id) {
       getMessagesRef.current(selectedUser.id);
-      interval = setInterval(() => getMessagesRef.current(selectedUser.id), 15000);
+      interval = setInterval(() => getMessagesRef.current(selectedUser.id), 4000);
     } else if (selectedGroup?.id) {
       getGroupMessagesRef.current(selectedGroup.id);
-      interval = setInterval(() => getGroupMessagesRef.current(selectedGroup.id), 15000);
+      interval = setInterval(() => getGroupMessagesRef.current(selectedGroup.id), 4000);
     }
     return () => clearInterval(interval);
   }, [selectedUser?.id, selectedGroup?.id]);
