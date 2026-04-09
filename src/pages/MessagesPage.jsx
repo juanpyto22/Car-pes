@@ -56,7 +56,7 @@ const MessagesPage = () => {
   const { 
     conversations, groupConversations, messages, loading,
     getMessages, getGroupMessages, sendMessage, sendGroupMessage,
-    getConversations, getGroupConversations, uploadMessageImage,
+    getConversations, getGroupConversations, uploadMessageImage, deleteDirectConversation,
     addMembersToGroup, getGroupMembers, promoteMemberToAdmin, demoteAdminToMember, removeMemberFromGroup, deleteGroupForEveryone
   } = useMessages(user);
   
@@ -383,20 +383,41 @@ const MessagesPage = () => {
                     </Button>
                   </div>
                 ) : (
-                  <Link to={`/profile/${selectedUser.id}`} className="flex items-center gap-3 flex-1">
-                    <Avatar className="w-10 h-10 border-2 border-cyan-500/30">
-                      <AvatarImage src={selectedUser.foto_perfil} className="object-cover" />
-                      <AvatarFallback className="bg-gradient-to-br from-blue-800 to-slate-900 text-cyan-200 font-bold">
-                        {selectedUser.username?.[0]?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h3 className="font-bold text-white hover:text-cyan-400 transition-colors">{selectedUser.username}</h3>
-                      <div className="flex items-center gap-1.5 text-xs text-green-400">
-                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> En línea
+                  <>
+                    <Link to={`/profile/${selectedUser.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                      <Avatar className="w-10 h-10 border-2 border-cyan-500/30 shrink-0">
+                        <AvatarImage src={selectedUser.foto_perfil} className="object-cover" />
+                        <AvatarFallback className="bg-gradient-to-br from-blue-800 to-slate-900 text-cyan-200 font-bold">
+                          {(selectedUser.username || selectedUser.nombre || 'U')?.[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-white hover:text-cyan-400 transition-colors truncate">
+                          {selectedUser.username || selectedUser.nombre || 'Usuario'}
+                        </h3>
+                        <div className="flex items-center gap-1.5 text-xs text-green-400">
+                          <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> En línea
+                        </div>
                       </div>
-                    </div>
-                  </Link>
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={async () => {
+                        const confirmed = window.confirm('¿Eliminar este chat? Se borrarán todos los mensajes de esta conversación.');
+                        if (!confirmed) return;
+                        const success = await deleteDirectConversation(selectedUser.id);
+                        if (success) {
+                          setSelectedUser(null);
+                          await getConversations();
+                        }
+                      }}
+                      className="text-blue-300 hover:text-red-400 hover:bg-white/10 rounded-xl shrink-0"
+                      title="Eliminar chat"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </Button>
+                  </>
                 )}
               </div>
 

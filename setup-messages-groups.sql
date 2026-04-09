@@ -67,6 +67,7 @@ ALTER TABLE IF EXISTS group_messages ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "direct_messages_select_participants" ON direct_messages;
 DROP POLICY IF EXISTS "direct_messages_insert_sender" ON direct_messages;
 DROP POLICY IF EXISTS "direct_messages_update_receiver_read" ON direct_messages;
+DROP POLICY IF EXISTS "direct_messages_delete_participants" ON direct_messages;
 
 CREATE POLICY "direct_messages_select_participants"
 ON direct_messages FOR SELECT
@@ -81,10 +82,15 @@ ON direct_messages FOR UPDATE
 USING (auth.uid() = receiver_id)
 WITH CHECK (auth.uid() = receiver_id);
 
+CREATE POLICY "direct_messages_delete_participants"
+ON direct_messages FOR DELETE
+USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
 -- ---------- MESSAGES POLICIES ----------
 DROP POLICY IF EXISTS "messages_select_participants" ON messages;
 DROP POLICY IF EXISTS "messages_insert_sender" ON messages;
 DROP POLICY IF EXISTS "messages_update_receiver_read" ON messages;
+DROP POLICY IF EXISTS "messages_delete_participants" ON messages;
 
 CREATE POLICY "messages_select_participants"
 ON messages FOR SELECT
@@ -98,6 +104,10 @@ CREATE POLICY "messages_update_receiver_read"
 ON messages FOR UPDATE
 USING (auth.uid() = receiver_id)
 WITH CHECK (auth.uid() = receiver_id);
+
+CREATE POLICY "messages_delete_participants"
+ON messages FOR DELETE
+USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
 
 -- ---------- GROUP MEMBERS POLICIES ----------
 DROP POLICY IF EXISTS "group_members_select_if_member" ON chat_group_members;

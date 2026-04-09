@@ -367,6 +367,61 @@ export const useMessages = (currentUser) => {
     }
   };
 
+  const deleteDirectConversation = async (otherUserId) => {
+    if (!currentUser?.id || !otherUserId) return false;
+
+    try {
+      const table = await resolveDmTable();
+      const deletePairs = [
+        { sender_id: currentUser.id, receiver_id: otherUserId },
+        { sender_id: otherUserId, receiver_id: currentUser.id },
+      ];
+
+      let lastError = null;
+      for (const { sender_id, receiver_id } of deletePairs) {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('sender_id', sender_id)
+          .eq('receiver_id', receiver_id);
+        if (error) lastError = error;
+      }
+
+      if (table === 'messages') {
+        for (const { sender_id, receiver_id } of deletePairs) {
+          const { error } = await supabase
+            .from('messages')
+            .delete()
+            .eq('sender_id', sender_id)
+            .eq('receiver_id', receiver_id);
+          if (error) lastError = error;
+        }
+      }
+
+      if (lastError) throw lastError;
+
+      const dmKey = getLocalDmKey(currentUser.id, otherUserId);
+      localStorage.removeItem(dmKey);
+
+      const pending = getPendingDmMessages(currentUser.id).filter(
+        (msg) => msg.receiver_id !== otherUserId
+      );
+      setPendingDmMessages(currentUser.id, pending);
+
+      const localMessages = getLocalDmMessages(currentUser.id, otherUserId);
+      const cleaned = localMessages.filter((msg) => false);
+      localStorage.setItem(dmKey, JSON.stringify(cleaned));
+
+      await getConversations();
+      setMessages([]);
+      return true;
+    } catch (error) {
+      console.error('Error deleting direct conversation:', error);
+      toast({ variant: 'destructive', title: 'Error al eliminar chat' });
+      return false;
+    }
+  };
+
   const syncPendingDmMessages = useCallback(async () => {
     if (!currentUser?.id) return;
 
@@ -1041,6 +1096,7 @@ export const useMessages = (currentUser) => {
     getMessages, 
     getGroupMessages,
     sendMessage,
+    deleteDirectConversation,
     sendGroupMessage,
     createGroup,
     addMembersToGroup,
