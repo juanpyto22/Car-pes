@@ -15,6 +15,58 @@ export const useMessages = (currentUser) => {
   const setRoleOverrides = (value) => localStorage.setItem('carpes_group_role_overrides', JSON.stringify(value));
   const getLocalDmKey = (a, b) => `carpes_dm_${[a, b].sort().join('_')}`;
   const getLocalDmMessages = (a, b) => JSON.parse(localStorage.getItem(getLocalDmKey(a, b)) || '[]');
+  const getLocalDmConversations = useCallback(async () => {
+    if (!currentUser?.id) return [];
+
+    const dmKeys = Object.keys(localStorage).filter((key) => key.startsWith('carpes_dm_'));
+    const localConversations = [];
+    const partnerIds = new Set();
+
+    for (const key of dmKeys) {
+      const rawPair = key.replace('carpes_dm_', '');
+      const [firstId, secondId] = rawPair.split('_');
+      if (!firstId || !secondId) continue;
+      if (firstId !== currentUser.id && secondId !== currentUser.id) continue;
+
+      const partnerId = firstId === currentUser.id ? secondId : firstId;
+      const storedMessages = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!storedMessages.length) continue;
+
+      partnerIds.add(partnerId);
+      const lastMessage = storedMessages
+        .slice()
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+      localConversations.push({
+        partnerId,
+        lastMessage,
+        unreadCount: 0,
+        _local: true,
+      });
+    }
+
+    if (localConversations.length === 0) return [];
+
+    let profilesMap = {};
+    try {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, nombre, foto_perfil')
+        .in('id', [...partnerIds]);
+
+      profilesMap = (profiles || []).reduce((acc, profile) => {
+        acc[profile.id] = profile;
+        return acc;
+      }, {});
+    } catch (error) {
+      console.warn('Could not resolve local DM profiles:', error);
+    }
+
+    return localConversations.map((conversation) => ({
+      ...conversation,
+      partner: profilesMap[conversation.partnerId] || { id: conversation.partnerId, username: 'usuario' },
+    }));
+  }, [currentUser?.id]);
 
   const isCurrentUserGroupAdmin = useCallback(async (groupId) => {
     if (!currentUser || !groupId) return false;
@@ -63,6 +115,9 @@ export const useMessages = (currentUser) => {
         .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
         .order('created_at', { ascending: false });
 
+      let serverConversations = [];
+      let unread = 0;
+
       if (error) {
         // Fallback: try with users table
         const { data: fallback, error: fallbackErr } = await supabase
@@ -71,19 +126,53 @@ export const useMessages = (currentUser) => {
           .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
           .order('created_at', { ascending: false });
         if (fallbackErr) throw fallbackErr;
-        processConversations(fallback || []);
-        return;
+        ({ conversations: serverConversations, unread } = buildConversations(fallback || []));
+      } else {
+        ({ conversations: serverConversations, unread } = buildConversations(data || []));
       }
-      processConversations(data || []);
+
+      const localConversations = await getLocalDmConversations();
+      const mergedMap = new Map();
+
+      [...serverConversations, ...localConversations].forEach((conversation) => {
+        const existing = mergedMap.get(conversation.partnerId);
+        if (!existing) {
+          mergedMap.set(conversation.partnerId, conversation);
+          return;
+        }
+
+        const existingTime = new Date(existing.lastMessage?.created_at || 0).getTime();
+        const incomingTime = new Date(conversation.lastMessage?.created_at || 0).getTime();
+        if (incomingTime >= existingTime) {
+          mergedMap.set(conversation.partnerId, {
+            ...existing,
+            ...conversation,
+            unreadCount: Math.max(existing.unreadCount || 0, conversation.unreadCount || 0),
+          });
+        }
+      });
+
+      setConversations(Array.from(mergedMap.values()).sort((a, b) => {
+        const timeA = new Date(a.lastMessage?.created_at || 0).getTime();
+        const timeB = new Date(b.lastMessage?.created_at || 0).getTime();
+        return timeB - timeA;
+      }));
+      setUnreadCount(unread);
     } catch (error) {
       console.error('Error fetching conversations:', error);
-      setConversations([]);
+      try {
+        const localConversations = await getLocalDmConversations();
+        setConversations(localConversations);
+      } catch (fallbackError) {
+        console.error('Error loading local conversations:', fallbackError);
+        setConversations([]);
+      }
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser, getLocalDmConversations]);
 
-  const processConversations = (data) => {
+  const buildConversations = (data) => {
     const convMap = new Map();
     let unread = 0;
     data.forEach(msg => {
@@ -99,8 +188,7 @@ export const useMessages = (currentUser) => {
         convMap.get(partnerId).unreadCount += 1;
       }
     });
-    setConversations(Array.from(convMap.values()));
-    setUnreadCount(unread);
+    return { conversations: Array.from(convMap.values()), unread };
   };
 
   const getMessages = useCallback(async (otherUserId) => {
@@ -183,7 +271,7 @@ export const useMessages = (currentUser) => {
       // Local fallback to avoid blocking UX if DB policy/schema is restrictive.
       const key = getLocalDmKey(currentUser.id, receiverId);
       const stored = JSON.parse(localStorage.getItem(key) || '[]');
-      stored.push({
+      const localMessage = {
         id: crypto.randomUUID(),
         sender_id: currentUser.id,
         receiver_id: receiverId,
@@ -192,8 +280,12 @@ export const useMessages = (currentUser) => {
         read: false,
         created_at: new Date().toISOString(),
         _local: true,
-      });
+      };
+      stored.push(localMessage);
       localStorage.setItem(key, JSON.stringify(stored));
+
+      setMessages((prev) => [...prev, localMessage]);
+      await getConversations();
 
       return true;
     } catch (error) {
