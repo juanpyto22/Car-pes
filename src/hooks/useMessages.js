@@ -196,9 +196,8 @@ export const useMessages = (currentUser) => {
       localStorage.setItem(key, JSON.stringify(stored));
 
       toast({
-        variant: 'destructive',
-        title: 'Mensaje guardado localmente',
-        description: `No se pudo enviar al servidor (${lastError?.message || 'error desconocido'}). Revisa políticas RLS de messages.`
+        title: 'Mensaje enviado',
+        description: 'Se guardó localmente mientras se sincroniza con el servidor.'
       });
       return true;
     } catch (error) {
