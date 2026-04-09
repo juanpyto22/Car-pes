@@ -127,6 +127,7 @@ const MessagesPage = () => {
       setSelectedUser(location.state.openUser);
       setSelectedGroup(null);
       setActiveTab('direct');
+      getConversations();
       window.history.replaceState({}, document.title);
     }
     if (location?.state?.openGroup) {

@@ -241,7 +241,6 @@ export const useMessages = (currentUser) => {
       const base = {
         sender_id: currentUser.id,
         receiver_id: receiverId,
-        group_id: null,
       };
 
       const textToSend = content || '';
@@ -257,16 +256,28 @@ export const useMessages = (currentUser) => {
         { ...base, content: textOrImage },
         { ...base, message: textOrImage, read: false },
         { ...base, message: textOrImage },
+        // Compatibility: schemas that still have group_id in messages
+        { ...base, group_id: null, contenido: textToSend, image_url: imageUrl || null, read: false },
+        { ...base, group_id: null, contenido: textOrImage, read: false },
+        { ...base, group_id: null, contenido: textOrImage },
+        { ...base, group_id: null, content: textToSend, image_url: imageUrl || null, read: false },
+        { ...base, group_id: null, content: textOrImage, read: false },
+        { ...base, group_id: null, content: textOrImage },
+        { ...base, group_id: null, message: textOrImage, read: false },
+        { ...base, group_id: null, message: textOrImage },
       ];
 
       let lastError = null;
       for (const payload of payloadCandidates) {
         const { error } = await supabase.from('messages').insert([payload]);
         if (!error) {
+          await getConversations();
           return true;
         }
         lastError = error;
       }
+
+      console.warn('sendMessage DB insert failed, using local fallback:', lastError?.message || lastError);
 
       // Local fallback to avoid blocking UX if DB policy/schema is restrictive.
       const key = getLocalDmKey(currentUser.id, receiverId);
@@ -877,7 +888,13 @@ export const useMessages = (currentUser) => {
           event: 'INSERT', 
           schema: 'public', 
           table: 'messages',
-          filter: `receiver_id=eq.${currentUser.id}` 
+          filter: `receiver_id=eq.${currentUser.id}`
+        }, () => { getConversations(); })
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `sender_id=eq.${currentUser.id}`
         }, () => { getConversations(); })
         .subscribe();
 
