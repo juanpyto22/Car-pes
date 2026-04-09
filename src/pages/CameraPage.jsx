@@ -603,12 +603,8 @@ const CameraPage = () => {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <button onClick={() => navigate('/studio')}
-                      className="flex-1 py-3 bg-white/10 text-white text-sm font-semibold rounded-xl hover:bg-white/15 transition-colors">
-                      Abrir Studio
-                    </button>
                     <button onClick={handleGoLive} disabled={!liveTitle.trim() || !cameraReady}
-                      className="flex-1 py-3 bg-gradient-to-r from-red-600 to-red-500 text-white text-sm font-bold rounded-xl disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
+                      className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-white text-sm font-bold rounded-xl disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
                       <Radio className="w-4 h-4" /> EN VIVO
                     </button>
                   </div>

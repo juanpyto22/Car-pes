@@ -824,13 +824,6 @@ const LiveStreamPage = () => {
     setStreams(data);
     setLoading(false);
 
-    // If user has an active stream, redirect to studio
-    if (user) {
-      const mine = data.find(s => s.user_id === user.id);
-      if (mine) {
-        navigate('/studio');
-      }
-    }
   }, [user, navigate]);
 
   useEffect(() => {
@@ -866,13 +859,11 @@ const LiveStreamPage = () => {
             <p className="text-sm text-blue-300/60 mt-0.5">Transmisiones en vivo de pesca</p>
           </div>
           <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => {
-            const isMobile = window.innerWidth < 768;
-            navigate(isMobile ? '/camera?mode=live' : '/studio');
+            navigate('/camera?mode=live');
           }}
             className="flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-red-900/20 transition-all">
             <Radio className="w-4 h-4" />
-            <span className="hidden sm:inline">Abrir Studio</span>
-            <span className="sm:hidden">En Vivo</span>
+            <span>Crear directo</span>
           </motion.button>
         </div>
 
@@ -934,10 +925,9 @@ const LiveStreamPage = () => {
             <h3 className="text-lg font-bold text-white mb-1">No hay directos ahora mismo</h3>
             <p className="text-sm text-blue-300/50 mb-4">¡Sé el primero en iniciar una transmisión!</p>
             <Button onClick={() => {
-              const isMobile = window.innerWidth < 768;
-              navigate(isMobile ? '/camera?mode=live' : '/studio');
+              navigate('/camera?mode=live');
             }} className="bg-gradient-to-r from-red-600 to-red-500 text-white rounded-xl">
-              <Radio className="w-4 h-4 mr-2" /> {window.innerWidth < 768 ? 'En Vivo' : 'Abrir Studio'}
+              <Radio className="w-4 h-4 mr-2" /> Crear directo
             </Button>
           </div>
         )}

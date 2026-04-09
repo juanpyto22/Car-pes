@@ -33,7 +33,6 @@ import EventsCalendarPage from '@/pages/EventsCalendarPage';
 import MarketplacePage from '@/pages/MarketplacePage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import LiveStreamPage from '@/pages/LiveStreamPage';
-import StreamStudioPage from '@/pages/StreamStudioPage';
 import CameraPage from '@/pages/CameraPage';
 import SettingsPage from '@/pages/SettingsPage';
 import AdminPanel from '@/pages/AdminPanel';
@@ -88,7 +87,6 @@ const AppRoutes = () => {
         <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
         <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
         <Route path="/live" element={<ProtectedRoute><LiveStreamPage /></ProtectedRoute>} />
-        <Route path="/studio" element={<ProtectedRoute><StreamStudioPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
         <Route path="*" element={<Navigate to="/" />} />
