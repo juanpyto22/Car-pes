@@ -105,6 +105,26 @@ const HARD_INCOMPATIBLE_WATER = {
   siluro: ['mar'],
 };
 
+// Catalogo local de especies habituales por masa de agua (ampliable).
+const LOCATION_SPECIES_CATALOG = [
+  { keywords: ['embalse de orellana', 'orellana'], species: ['carpa', 'bass', 'lucio', 'siluro'] },
+  { keywords: ['embalse de mequinenza', 'mequinenza', 'mar de aragon'], species: ['carpa', 'bass', 'lucio', 'siluro'] },
+  { keywords: ['embalse de riaño', 'riano'], species: ['trucha', 'carpa', 'lucio'] },
+  { keywords: ['embalse de alcantara', 'alcántara'], species: ['carpa', 'bass', 'lucio', 'siluro'] },
+  { keywords: ['embalse de la serena', 'la serena'], species: ['carpa', 'bass', 'lucio', 'siluro'] },
+  { keywords: ['lago de sanabria', 'sanabria'], species: ['trucha', 'carpa'] },
+  { keywords: ['lago de banyoles', 'banyoles'], species: ['carpa', 'trucha'] },
+  { keywords: ['delta del ebro'], species: ['dorada', 'lubina'] },
+  { keywords: ['rias baixas', 'rías baixas', 'ria de vigo', 'ría de vigo'], species: ['dorada', 'lubina'] },
+  { keywords: ['mar cantabrico', 'cantábrico'], species: ['lubina', 'dorada'] },
+  { keywords: ['costa del sol', 'costa blanca', 'costa brava', 'costa dorada'], species: ['dorada', 'lubina'] },
+  { keywords: ['rio ebro', 'río ebro'], species: ['carpa', 'bass', 'lucio', 'siluro'] },
+  { keywords: ['rio tajo', 'río tajo'], species: ['carpa', 'bass', 'lucio', 'trucha'] },
+  { keywords: ['rio duero', 'río duero'], species: ['carpa', 'lucio', 'trucha'] },
+  { keywords: ['rio guadalquivir', 'río guadalquivir'], species: ['carpa', 'bass'] },
+  { keywords: ['rio miño', 'río miño', 'rio mino'], species: ['trucha', 'lubina'] },
+];
+
 const typeFromResult = (place) => {
   const text = `${place?.display_name || ''} ${place?.type || ''}`.toLowerCase();
   if (text.includes('reservoir') || text.includes('embalse') || text.includes('pantano')) return 'pantano';
@@ -147,6 +167,17 @@ const weatherCodeToText = (code) => {
   return map[code] || 'Tiempo variable';
 };
 
+const getSpeciesCatalogForSpot = (spot) => {
+  const name = normalizeText(spot?.display_name || '');
+  if (!name) return null;
+
+  const match = LOCATION_SPECIES_CATALOG.find((entry) =>
+    entry.keywords.some((k) => name.includes(normalizeText(k)))
+  );
+
+  return match || null;
+};
+
 const toHour = (isoDate) => {
   const d = new Date(isoDate);
   return Number.isNaN(d.getTime()) ? 0 : d.getHours();
@@ -176,10 +207,11 @@ const buildHourlyRows = (weather) => {
   }));
 };
 
-const scoreHour = ({ species, gear, waterType, hourData, month }) => {
+const scoreHour = ({ species, gear, waterType, hourData, month, locationCatalog }) => {
   const rules = SPECIES_RULES[species] || SPECIES_RULES.carpa;
   const hardIncompatible = (HARD_INCOMPATIBLE_GEAR[species] || []).includes(gear);
   const hardIncompatibleWater = (HARD_INCOMPATIBLE_WATER[species] || []).includes(waterType);
+  const hardIncompatibleLocation = Boolean(locationCatalog && !locationCatalog.species.includes(species));
 
   if (hardIncompatible) {
     return {
@@ -200,6 +232,17 @@ const scoreHour = ({ species, gear, waterType, hourData, month }) => {
       hour: toHour(hourData.time),
       hardIncompatible: true,
       blockingReason: 'La especie seleccionada no se pesca en este tipo de agua.',
+    };
+  }
+
+  if (hardIncompatibleLocation) {
+    return {
+      chance: 0,
+      notes: ['Especie no registrada como habitual en esta masa de agua.'],
+      gearMatch: false,
+      hour: toHour(hourData.time),
+      hardIncompatible: true,
+      blockingReason: 'El pez seleccionado no aparece en el catalogo de este lugar.',
     };
   }
 
@@ -299,7 +342,7 @@ const scoreHour = ({ species, gear, waterType, hourData, month }) => {
   return { chance, notes, gearMatch, hour, hardIncompatible: false, blockingReason: null };
 };
 
-const calculateFishingChance = ({ species, gear, weather, waterType, selectedDate }) => {
+const calculateFishingChance = ({ species, gear, weather, waterType, selectedDate, selectedSpot }) => {
   if (!weather || !selectedDate) {
     return {
       chance: 0,
@@ -328,9 +371,10 @@ const calculateFishingChance = ({ species, gear, weather, waterType, selectedDat
   }
 
   const month = Number((selectedDate || '').split('-')[1]) || new Date().getMonth() + 1;
+  const locationCatalog = getSpeciesCatalogForSpot(selectedSpot);
 
   const scored = rows.map((row) => {
-    const result = scoreHour({ species, gear, waterType, hourData: row, month });
+    const result = scoreHour({ species, gear, waterType, hourData: row, month, locationCatalog });
     return {
       ...row,
       ...result,
@@ -350,6 +394,7 @@ const calculateFishingChance = ({ species, gear, weather, waterType, selectedDat
       gearMatch: false,
       hardIncompatible: true,
       blockingReason: firstBlocked?.blockingReason || 'Combinacion incompatible para pesca efectiva.',
+      locationCatalog,
     };
   }
 
@@ -366,6 +411,7 @@ const calculateFishingChance = ({ species, gear, weather, waterType, selectedDat
     gearMatch: Boolean(bestHour?.gearMatch),
     hardIncompatible: false,
     blockingReason: null,
+    locationCatalog,
   };
 };
 
@@ -423,8 +469,9 @@ const PronosticosPage = () => {
       weather,
       waterType: selectedType,
       selectedDate,
+      selectedSpot,
     });
-  }, [species, gear, weather, selectedType, selectedDate]);
+  }, [species, gear, weather, selectedType, selectedDate, selectedSpot]);
 
   useEffect(() => {
     const params = new URLSearchParams(routerLocation.search);
@@ -708,6 +755,12 @@ const PronosticosPage = () => {
                           {SPECIES.find(s => s.id === species)?.label} en {selectedSpot.display_name?.split(',')[0]}: {forecast.chance}% de probabilidad media en la fecha elegida.
                         </p>
                         <p className="text-xs text-blue-300 mt-1">Estimacion: {forecast.expectedCatch} capturas probables.</p>
+
+                        {forecast.locationCatalog && (
+                          <p className="text-xs text-blue-300 mt-2">
+                            Especies habituales detectadas en este lugar: {forecast.locationCatalog.species.map((id) => SPECIES.find((s) => s.id === id)?.label || id).join(', ')}.
+                          </p>
+                        )}
 
                         {forecast.bestHour && !forecast.hardIncompatible && (
                           <div className="mt-3 rounded-lg border border-cyan-400/30 bg-slate-950/40 p-3">
