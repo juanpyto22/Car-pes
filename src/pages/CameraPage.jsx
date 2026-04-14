@@ -4,7 +4,7 @@ import {
   X, Camera, FlipHorizontal2 as FlipCamera, Zap, ZapOff, Image,
   Radio, Type, Send, Circle, Square, ChevronDown, ChevronUp,
   Sparkles, Video, StopCircle, Check, RotateCcw, Download,
-  Volume2, Mic, MicOff, Eye, Heart, MessageCircle, Clock, UserX,
+  Volume2, Mic, MicOff, Eye, Heart, MessageCircle, Clock, UserX, Shield,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -132,6 +132,8 @@ const CameraPage = () => {
   const [showLiveSetup, setShowLiveSetup] = useState(true);
   const [showViewersPanel, setShowViewersPanel] = useState(false);
   const [liveAudience, setLiveAudience] = useState([]);
+  const [liveMutedUserIds, setLiveMutedUserIds] = useState(new Set());
+  const [liveModeratorUserIds, setLiveModeratorUserIds] = useState(new Set());
 
   // Refs
   const videoRef = useRef(null);
@@ -195,6 +197,38 @@ const CameraPage = () => {
       .select('id', { count: 'exact', head: true })
       .eq('stream_id', streamId);
     setLiveLikes(count || 0);
+  }, []);
+
+  const fetchMutedUsers = useCallback(async (streamId) => {
+    if (!streamId) return;
+    const { data, error } = await supabase
+      .from('live_stream_mutes')
+      .select('user_id')
+      .eq('stream_id', streamId);
+
+    if (error) {
+      if (error.code !== '42P01') console.error('Muted users fetch error:', error);
+      setLiveMutedUserIds(new Set());
+      return;
+    }
+
+    setLiveMutedUserIds(new Set((data || []).map((row) => row.user_id)));
+  }, []);
+
+  const fetchModeratorUsers = useCallback(async (streamId) => {
+    if (!streamId) return;
+    const { data, error } = await supabase
+      .from('live_stream_moderators')
+      .select('user_id')
+      .eq('stream_id', streamId);
+
+    if (error) {
+      if (error.code !== '42P01') console.error('Moderators fetch error:', error);
+      setLiveModeratorUserIds(new Set());
+      return;
+    }
+
+    setLiveModeratorUserIds(new Set((data || []).map((row) => row.user_id)));
   }, []);
 
   // ═══════════════════════════════════════════════════════
@@ -458,20 +492,50 @@ const CameraPage = () => {
         .eq('user_id', user.id)
         .eq('is_live', true);
 
-      const { data, error } = await supabase.from('live_streams').insert({
-        user_id: user.id,
-        title: liveTitle.trim(),
-        category: liveCategory,
-        is_live: true,
-        started_at: nowIso,
-        viewer_count: 0,
-        like_count: 0,
-      }).select().single();
+      let createdStream = null;
 
-      let createdStream = data;
+      const { data: existingLive } = await supabase
+        .from('live_streams')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_live', true)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      // Retry once after forcing closure in case DB still reports an active stream conflict.
-      if (error) {
+      if (existingLive?.id) {
+        await supabase
+          .from('live_streams')
+          .update({
+            title: liveTitle.trim(),
+            category: liveCategory,
+            started_at: existingLive.started_at || nowIso,
+          })
+          .eq('id', existingLive.id);
+
+        createdStream = {
+          ...existingLive,
+          title: liveTitle.trim(),
+          category: liveCategory,
+        };
+      } else {
+        const firstAttempt = await supabase.from('live_streams').insert({
+          user_id: user.id,
+          title: liveTitle.trim(),
+          category: liveCategory,
+          is_live: true,
+          started_at: nowIso,
+          viewer_count: 0,
+          like_count: 0,
+        }).select().single();
+
+        if (!firstAttempt.error) {
+          createdStream = firstAttempt.data;
+        }
+      }
+
+      if (!createdStream) {
+        // Retry once after forcing closure in case DB still reports an active stream conflict.
         await supabase
           .from('live_streams')
           .update({
@@ -503,6 +567,8 @@ const CameraPage = () => {
       setLiveViewers(0);
       setLiveLikes(0);
       setLiveAudience([]);
+      setLiveMutedUserIds(new Set());
+      setLiveModeratorUserIds(new Set());
 
       // Duration counter
       liveIntervalRef.current = setInterval(() => {
@@ -514,6 +580,8 @@ const CameraPage = () => {
       if (finalStreamId) {
         await fetchLiveAudience(finalStreamId);
         await fetchLiveLikes(finalStreamId);
+        await fetchMutedUsers(finalStreamId);
+        await fetchModeratorUsers(finalStreamId);
 
         closeLiveStatsChannel();
         const channel = supabase.channel(`camera-live-stats-${finalStreamId}`)
@@ -567,12 +635,87 @@ const CameraPage = () => {
     }
   };
 
+  const handleToggleMuteViewer = async (viewerId) => {
+    if (!streamData?.id || !viewerId) return;
+    const isMuted = liveMutedUserIds.has(viewerId);
+    try {
+      if (isMuted) {
+        const { error } = await supabase
+          .from('live_stream_mutes')
+          .delete()
+          .eq('stream_id', streamData.id)
+          .eq('user_id', viewerId);
+
+        if (error && error.code !== '42P01') throw error;
+      } else {
+        const { error } = await supabase
+          .from('live_stream_mutes')
+          .upsert(
+            { stream_id: streamData.id, user_id: viewerId, created_by: user?.id || null },
+            { onConflict: 'stream_id,user_id' }
+          );
+
+        if (error) {
+          if (error.code === '42P01') {
+            toast({ variant: 'destructive', title: 'Falta configurar silencios', description: 'Ejecuta setup-live-stream-moderation.sql en Supabase.' });
+            return;
+          }
+          throw error;
+        }
+      }
+
+      await fetchMutedUsers(streamData.id);
+    } catch (err) {
+      console.error('Mute viewer error:', err);
+      toast({ variant: 'destructive', title: 'No se pudo actualizar el silencio', description: err.message || 'Inténtalo de nuevo.' });
+    }
+  };
+
+  const handleToggleModerator = async (viewerId) => {
+    if (!streamData?.id || !viewerId) return;
+    const isModerator = liveModeratorUserIds.has(viewerId);
+
+    try {
+      if (isModerator) {
+        const { error } = await supabase
+          .from('live_stream_moderators')
+          .delete()
+          .eq('stream_id', streamData.id)
+          .eq('user_id', viewerId);
+
+        if (error && error.code !== '42P01') throw error;
+      } else {
+        const { error } = await supabase
+          .from('live_stream_moderators')
+          .upsert(
+            { stream_id: streamData.id, user_id: viewerId, created_by: user?.id || null },
+            { onConflict: 'stream_id,user_id' }
+          );
+
+        if (error) {
+          if (error.code === '42P01') {
+            toast({ variant: 'destructive', title: 'Falta configurar moderadores', description: 'Ejecuta setup-live-stream-moderation.sql en Supabase.' });
+            return;
+          }
+          throw error;
+        }
+      }
+
+      await fetchModeratorUsers(streamData.id);
+    } catch (err) {
+      console.error('Moderator toggle error:', err);
+      toast({ variant: 'destructive', title: 'No se pudo actualizar moderador', description: err.message || 'Inténtalo de nuevo.' });
+    }
+  };
+
   const handleEndLive = async () => {
     clearInterval(liveIntervalRef.current);
     closeLiveStatsChannel();
     if (streamData?.id) {
       await supabase.from('live_stream_viewers').delete().eq('stream_id', streamData.id);
       await supabase.from('live_stream_bans').delete().eq('stream_id', streamData.id);
+      await supabase.from('live_stream_mutes').delete().eq('stream_id', streamData.id);
+      await supabase.from('live_stream_moderators').delete().eq('stream_id', streamData.id);
       await supabase.from('live_streams').update({
         is_live: false,
         ended_at: new Date().toISOString(),
@@ -586,6 +729,8 @@ const CameraPage = () => {
     setLiveViewers(0);
     setLiveLikes(0);
     setLiveAudience([]);
+    setLiveMutedUserIds(new Set());
+    setLiveModeratorUserIds(new Set());
     navigate('/live');
   };
 
@@ -830,7 +975,7 @@ const CameraPage = () => {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <button onClick={handleGoLive} disabled={!liveTitle.trim() || !cameraReady}
+                    <button onClick={handleGoLive} disabled={!liveTitle.trim()}
                       className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-white text-sm font-bold rounded-xl disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
                       <Radio className="w-4 h-4" /> EN VIVO
                     </button>
@@ -867,15 +1012,39 @@ const CameraPage = () => {
                     liveAudience.map((viewer) => (
                       <div key={viewer.user_id} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 border border-white/10 px-2.5 py-2">
                         <div className="min-w-0">
-                          <p className="text-sm text-white truncate">{viewer.profile?.username || viewer.profile?.nombre || 'usuario'}</p>
+                          <p className="text-sm text-white truncate flex items-center gap-1.5">
+                            {viewer.profile?.username || viewer.profile?.nombre || 'usuario'}
+                            {liveModeratorUserIds.has(viewer.user_id) && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 inline-flex items-center gap-1">
+                                <Shield className="w-3 h-3" /> MOD
+                              </span>
+                            )}
+                            {liveMutedUserIds.has(viewer.user_id) && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 border border-yellow-500/30">Silenciado</span>
+                            )}
+                          </p>
                           <p className="text-[10px] text-white/45 truncate">{viewer.user_id}</p>
                         </div>
-                        <button
-                          onClick={() => handleKickViewer(viewer.user_id)}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/35 transition-colors"
-                        >
-                          <UserX className="w-3.5 h-3.5" /> Expulsar
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleToggleMuteViewer(viewer.user_id)}
+                            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors ${liveMutedUserIds.has(viewer.user_id) ? 'bg-yellow-600/25 text-yellow-300 hover:bg-yellow-600/35' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                          >
+                            <MicOff className="w-3.5 h-3.5" /> {liveMutedUserIds.has(viewer.user_id) ? 'Quitar silencio' : 'Silenciar'}
+                          </button>
+                          <button
+                            onClick={() => handleToggleModerator(viewer.user_id)}
+                            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors ${liveModeratorUserIds.has(viewer.user_id) ? 'bg-cyan-500/25 text-cyan-300 hover:bg-cyan-500/35' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                          >
+                            <Shield className="w-3.5 h-3.5" /> {liveModeratorUserIds.has(viewer.user_id) ? 'Quitar mod' : 'Hacer mod'}
+                          </button>
+                          <button
+                            onClick={() => handleKickViewer(viewer.user_id)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/35 transition-colors"
+                          >
+                            <UserX className="w-3.5 h-3.5" /> Expulsar
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}

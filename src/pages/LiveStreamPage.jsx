@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Radio, Video, VideoOff, Mic, MicOff, Heart, MessageCircle, Send, Eye, Clock, ChevronLeft, Camera, X, Sparkles, Monitor, Wifi, WifiOff, Loader2 } from 'lucide-react';
+import { Radio, Video, VideoOff, Mic, MicOff, Heart, MessageCircle, Send, Eye, Clock, ChevronLeft, Camera, X, Sparkles, Monitor, Wifi, WifiOff, Loader2, Gift, Fish, Shield } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,11 @@ import { es } from 'date-fns/locale';
 import { useBroadcaster, useViewer } from '@/hooks/useWebRTC';
 
 const CATEGORIES = ['Todos', 'Carpas', 'Spinning', 'Tutoriales', 'Siluros', 'Trucha', 'Black Bass', 'Mar', 'General'];
+const GIFT_OPTIONS = [
+  { id: 'fish_rose', label: 'Pez Rosa', value: 10, icon: 'fish' },
+  { id: 'fish_gold', label: 'Pez Dorado', value: 50, icon: 'fish' },
+  { id: 'fishing_rod', label: 'Cana Pro', value: 120, icon: 'rod' },
+];
 
 // ═══════════════════════════════════════════════════════════════
 // Helper: direct Supabase operations (avoids hook-in-callback issues)
@@ -123,6 +128,109 @@ const streamOps = {
     try {
       await supabase.from('live_chat_messages').insert({ stream_id: streamId, user_id: userId, message });
     } catch (err) { console.error('Error sending chat:', err); }
+  },
+
+  async isMuted(streamId, userId) {
+    try {
+      const { data, error } = await supabase
+        .from('live_stream_mutes')
+        .select('id')
+        .eq('stream_id', streamId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === '42P01') return false;
+        throw error;
+      }
+
+      return !!data;
+    } catch (err) {
+      console.error('Error checking muted state:', err);
+      return false;
+    }
+  },
+
+  async isModerator(streamId, userId) {
+    try {
+      const { data, error } = await supabase
+        .from('live_stream_moderators')
+        .select('id')
+        .eq('stream_id', streamId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === '42P01') return false;
+        throw error;
+      }
+
+      return !!data;
+    } catch (err) {
+      console.error('Error checking moderator state:', err);
+      return false;
+    }
+  },
+
+  async sendGift(streamId, senderId, gift) {
+    try {
+      const { error } = await supabase.from('live_stream_gifts').insert({
+        stream_id: streamId,
+        sender_id: senderId,
+        gift_type: gift.id,
+        gift_name: gift.label,
+        value: gift.value,
+      });
+
+      if (error) {
+        if (error.code === '42P01') return { ok: false, missingTable: true };
+        throw error;
+      }
+
+      return { ok: true, missingTable: false };
+    } catch (err) {
+      console.error('Error sending gift:', err);
+      return { ok: false, missingTable: false };
+    }
+  },
+
+  async fetchGifts(streamId) {
+    try {
+      const { data, error } = await supabase
+        .from('live_stream_gifts')
+        .select('id, sender_id, gift_name, value, created_at')
+        .eq('stream_id', streamId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        if (error.code === '42P01') return [];
+        throw error;
+      }
+
+      const senderIds = [...new Set((data || []).map((gift) => gift.sender_id).filter(Boolean))];
+      let profilesMap = {};
+
+      if (senderIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username, nombre, foto_perfil')
+          .in('id', senderIds);
+
+        profilesMap = (profiles || []).reduce((acc, profile) => {
+          acc[profile.id] = profile;
+          return acc;
+        }, {});
+      }
+
+      return (data || []).map((gift) => ({
+        ...gift,
+        sender: profilesMap[gift.sender_id] || { id: gift.sender_id, username: 'usuario' },
+      }));
+    } catch (err) {
+      console.error('Error fetching gifts:', err);
+      return [];
+    }
   },
 
   async fetchChat(streamId) {
@@ -334,6 +442,11 @@ const StreamViewer = ({ stream, onBack }) => {
   const [liked, setLiked] = useState(false);
   const [wasKicked, setWasKicked] = useState(false);
   const [canMonitorMembership, setCanMonitorMembership] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
+  const [showGiftPicker, setShowGiftPicker] = useState(false);
+  const [gifts, setGifts] = useState([]);
+  const [missingGiftTable, setMissingGiftTable] = useState(false);
   const chatRef = useRef(null);
   const heartId = useRef(0);
   const remoteVideoRef = useRef(null);
@@ -423,6 +536,79 @@ const StreamViewer = ({ stream, onBack }) => {
     return () => clearTimeout(t);
   }, [wasKicked, onBack]);
 
+  useEffect(() => {
+    if (!user?.id || !stream?.id) return;
+    let active = true;
+
+    const hydrateModerationState = async () => {
+      const [muted, moderator] = await Promise.all([
+        streamOps.isMuted(stream.id, user.id),
+        streamOps.isModerator(stream.id, user.id),
+      ]);
+
+      if (!active) return;
+      setIsMuted(muted);
+      setIsModerator(moderator || stream.user_id === user.id);
+    };
+
+    hydrateModerationState();
+
+    const moderationChannel = supabase
+      .channel(`viewer-moderation-${stream.id}-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'live_stream_mutes',
+        filter: `stream_id=eq.${stream.id}`,
+      }, () => {
+        hydrateModerationState();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'live_stream_moderators',
+        filter: `stream_id=eq.${stream.id}`,
+      }, () => {
+        hydrateModerationState();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(moderationChannel);
+    };
+  }, [stream?.id, stream?.user_id, user?.id]);
+
+  useEffect(() => {
+    if (!stream?.id) return;
+    let active = true;
+
+    const loadGifts = async () => {
+      const rows = await streamOps.fetchGifts(stream.id);
+      if (!active) return;
+      setGifts(rows);
+    };
+
+    loadGifts();
+
+    const giftChannel = supabase
+      .channel(`stream-gifts-${stream.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'live_stream_gifts',
+        filter: `stream_id=eq.${stream.id}`,
+      }, () => {
+        loadGifts();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(giftChannel);
+    };
+  }, [stream?.id]);
+
   // Auto-scroll chat
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
@@ -438,8 +624,22 @@ const StreamViewer = ({ stream, onBack }) => {
 
   const handleSend = async () => {
     if (!newMessage.trim() || !user) return;
+    if (isMuted) return;
     await streamOps.sendChat(stream.id, user.id, newMessage.trim());
     setNewMessage('');
+  };
+
+  const handleSendGift = async (gift) => {
+    if (!user?.id) return;
+
+    const result = await streamOps.sendGift(stream.id, user.id, gift);
+    if (result?.missingTable) {
+      setMissingGiftTable(true);
+    }
+
+    const donationText = `${user.username || 'Usuario'} dono ${gift.label} (${gift.value} pts)`;
+    await streamOps.sendChat(stream.id, user.id, donationText);
+    setShowGiftPicker(false);
   };
 
   const handleLike = async () => {
@@ -566,22 +766,63 @@ const StreamViewer = ({ stream, onBack }) => {
             <h4 className="text-sm font-semibold text-white flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-cyan-400" /> Chat en vivo
             </h4>
-            <span className="text-[10px] text-blue-400/60">{chatMessages.length} msgs</span>
+            <div className="flex items-center gap-2">
+              {isModerator && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded border border-cyan-500/40 bg-cyan-500/15 text-cyan-300 inline-flex items-center gap-1">
+                  <Shield className="w-3 h-3" /> MOD
+                </span>
+              )}
+              <span className="text-[10px] text-blue-400/60">{chatMessages.length} msgs</span>
+            </div>
           </div>
+          {(missingGiftTable || gifts.length > 0) && (
+            <div className="px-3 py-2 border-b border-white/5 bg-slate-950/40">
+              {missingGiftTable && (
+                <p className="text-[10px] text-yellow-300/80 mb-1">Activa setup-live-stream-moderation.sql para guardar donaciones.</p>
+              )}
+              {gifts.slice(0, 3).map((gift) => (
+                <p key={gift.id} className="text-[11px] text-amber-300/90 truncate">
+                  {gift.sender?.username || 'usuario'} regalo {gift.gift_name} ({gift.value} pts)
+                </p>
+              ))}
+            </div>
+          )}
           <div ref={chatRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 scrollbar-hide">
             {chatMessages.length === 0 ? (
               <p className="text-xs text-blue-400/40 text-center py-8">Sé el primero en comentar...</p>
             ) : chatMessages.map(msg => <ChatMessage key={msg.id} message={msg} />)}
           </div>
           <div className="p-2 border-t border-white/5">
+            {isMuted && (
+              <p className="text-[11px] text-yellow-300/90 mb-2">Has sido silenciado en este directo. No puedes enviar mensajes.</p>
+            )}
+            {showGiftPicker && (
+              <div className="mb-2 rounded-xl border border-white/10 bg-slate-800/80 p-2 space-y-1">
+                {GIFT_OPTIONS.map((gift) => (
+                  <button
+                    key={gift.id}
+                    onClick={() => handleSendGift(gift)}
+                    className="w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      {gift.icon === 'rod' ? <Gift className="w-3.5 h-3.5 text-pink-300" /> : <Fish className="w-3.5 h-3.5 text-pink-300" />}
+                      {gift.label}
+                    </span>
+                    <span className="text-amber-300">{gift.value} pts</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input
                 type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Enviar mensaje..."
-                className="flex-1 bg-slate-800/80 border border-white/5 rounded-xl px-3 py-2 text-sm text-white placeholder:text-blue-400/40 focus:outline-none focus:border-cyan-500/30"
+                placeholder={isMuted ? 'No puedes enviar mensajes' : 'Enviar mensaje...'}
+                disabled={isMuted}
+                className="flex-1 bg-slate-800/80 border border-white/5 rounded-xl px-3 py-2 text-sm text-white placeholder:text-blue-400/40 focus:outline-none focus:border-cyan-500/30 disabled:opacity-60"
               />
               <button onClick={handleSend} className="p-2 text-cyan-400 hover:text-cyan-300"><Send className="w-4 h-4" /></button>
+              <button onClick={() => setShowGiftPicker((v) => !v)} className="p-2 text-pink-300 hover:text-pink-200"><Gift className="w-4 h-4" /></button>
               <motion.button whileTap={{ scale: 0.8 }} onClick={handleLike} className="p-2">
                 <Heart className={`w-5 h-5 transition-colors ${liked ? 'text-red-500 fill-red-500' : 'text-red-400 hover:text-red-300'}`} />
               </motion.button>
