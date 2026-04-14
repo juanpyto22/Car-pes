@@ -1,8 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Search, CloudSun, Wind, Gauge, Droplets, Waves, Fish, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { useLocation } from 'react-router-dom';
+import { addDays, format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const SPECIES = [
   { id: 'carpa', label: 'Carpa' },
@@ -13,6 +16,67 @@ const SPECIES = [
   { id: 'dorada', label: 'Dorada' },
   { id: 'lubina', label: 'Lubina' },
 ];
+
+const GEAR_OPTIONS = [
+  { id: 'cebo-natural', label: 'Cebo natural' },
+  { id: 'boilie-maiz', label: 'Boilie / maiz' },
+  { id: 'cucharilla', label: 'Cucharilla / spinner' },
+  { id: 'vinilo-jig', label: 'Vinilo / jig' },
+  { id: 'paseante-popper', label: 'Paseante / popper' },
+  { id: 'currican', label: 'Currican / vivo' },
+];
+
+const SPECIES_RULES = {
+  carpa: {
+    tempMin: 14,
+    tempMax: 24,
+    water: ['pantano', 'lago', 'rio'],
+    activeHours: [6, 7, 8, 19, 20, 21],
+    gears: ['boilie-maiz', 'cebo-natural'],
+  },
+  bass: {
+    tempMin: 12,
+    tempMax: 23,
+    water: ['pantano', 'lago'],
+    activeHours: [7, 8, 9, 18, 19, 20],
+    gears: ['vinilo-jig', 'paseante-popper'],
+  },
+  lucio: {
+    tempMin: 8,
+    tempMax: 18,
+    water: ['pantano', 'rio', 'lago'],
+    activeHours: [8, 9, 10, 17, 18],
+    gears: ['vinilo-jig', 'currican'],
+  },
+  trucha: {
+    tempMin: 7,
+    tempMax: 17,
+    water: ['rio', 'lago'],
+    activeHours: [6, 7, 8, 9, 18, 19],
+    gears: ['cucharilla', 'cebo-natural'],
+  },
+  siluro: {
+    tempMin: 16,
+    tempMax: 28,
+    water: ['rio', 'pantano'],
+    activeHours: [20, 21, 22, 23, 0, 1],
+    gears: ['currican', 'cebo-natural'],
+  },
+  dorada: {
+    tempMin: 13,
+    tempMax: 28,
+    water: ['mar'],
+    activeHours: [7, 8, 9, 18, 19, 20],
+    gears: ['cebo-natural', 'currican'],
+  },
+  lubina: {
+    tempMin: 11,
+    tempMax: 23,
+    water: ['mar', 'rio'],
+    activeHours: [6, 7, 8, 20, 21, 22],
+    gears: ['vinilo-jig', 'paseante-popper'],
+  },
+};
 
 const typeFromResult = (place) => {
   const text = `${place?.display_name || ''} ${place?.type || ''}`.toLowerCase();
@@ -25,75 +89,168 @@ const typeFromResult = (place) => {
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
-const calculateFishingChance = ({ species, weather, waterType }) => {
-  if (!weather) return { chance: 0, expectedCatch: 0, notes: [] };
+const toHour = (isoDate) => {
+  const d = new Date(isoDate);
+  return Number.isNaN(d.getTime()) ? 0 : d.getHours();
+};
 
-  const pressure = weather.current?.pressure_msl ?? 1013;
-  const wind = weather.current?.wind_speed_10m ?? 0;
-  const temp = weather.current?.temperature_2m ?? 18;
-  const rain = weather.current?.precipitation ?? 0;
-  const cloud = weather.current?.cloud_cover ?? 35;
+const buildHourlyRows = (weather) => {
+  const time = weather?.hourly?.time || [];
+  const temp = weather?.hourly?.temperature_2m || [];
+  const pressure = weather?.hourly?.pressure_msl || [];
+  const wind = weather?.hourly?.wind_speed_10m || [];
+  const windDir = weather?.hourly?.wind_direction_10m || [];
+  const humidity = weather?.hourly?.relative_humidity_2m || [];
+  const cloud = weather?.hourly?.cloud_cover || [];
+  const precip = weather?.hourly?.precipitation || [];
+  const precipProb = weather?.hourly?.precipitation_probability || [];
 
-  let score = 50;
+  return time.map((t, i) => ({
+    time: t,
+    temperature_2m: temp[i] ?? null,
+    pressure_msl: pressure[i] ?? null,
+    wind_speed_10m: wind[i] ?? null,
+    wind_direction_10m: windDir[i] ?? null,
+    relative_humidity_2m: humidity[i] ?? null,
+    cloud_cover: cloud[i] ?? null,
+    precipitation: precip[i] ?? null,
+    precipitation_probability: precipProb[i] ?? null,
+  }));
+};
+
+const scoreHour = ({ species, gear, waterType, hourData }) => {
+  const rules = SPECIES_RULES[species] || SPECIES_RULES.carpa;
+  const temp = hourData.temperature_2m ?? 18;
+  const pressure = hourData.pressure_msl ?? 1013;
+  const wind = hourData.wind_speed_10m ?? 10;
+  const rain = hourData.precipitation ?? 0;
+  const rainProb = hourData.precipitation_probability ?? 20;
+  const humidity = hourData.relative_humidity_2m ?? 60;
+  const cloud = hourData.cloud_cover ?? 45;
+  const hour = toHour(hourData.time);
+
+  let score = 40;
   const notes = [];
+
+  if (temp >= rules.tempMin && temp <= rules.tempMax) {
+    score += 14;
+    notes.push('Temperatura optima para la especie');
+  } else if (temp >= rules.tempMin - 3 && temp <= rules.tempMax + 3) {
+    score += 6;
+    notes.push('Temperatura aceptable');
+  } else {
+    score -= 10;
+    notes.push('Temperatura alejada del rango ideal');
+  }
 
   if (pressure >= 1008 && pressure <= 1022) {
     score += 10;
     notes.push('Presion estable favorable');
+  } else if (pressure < 996 || pressure > 1032) {
+    score -= 12;
+    notes.push('Presion muy desfavorable');
+  } else {
+    score -= 4;
+  }
+
+  if (wind <= 15) {
+    score += 8;
+  } else if (wind <= 25) {
+    score += 2;
+  } else if (wind > 35) {
+    score -= 15;
+    notes.push('Viento fuerte, baja actividad');
+  }
+
+  if (rain <= 1 && rainProb <= 35) {
+    score += 6;
+  } else if (rainProb >= 70) {
+    score -= 10;
+    notes.push('Alta probabilidad de lluvia');
+  }
+
+  if (cloud >= 30 && cloud <= 80) score += 5;
+  if (humidity >= 45 && humidity <= 85) score += 3;
+
+  if (rules.water.includes(waterType)) {
+    score += 10;
+    notes.push('Tipo de agua compatible con la especie');
+  } else {
+    score -= 9;
+    notes.push('Tipo de agua poco compatible');
+  }
+
+  const inPrimeHour = rules.activeHours.includes(hour);
+  if (inPrimeHour) {
+    score += 12;
+    notes.push('Franja horaria muy activa');
+  } else if (rules.activeHours.some((h) => Math.abs(h - hour) <= 1)) {
+    score += 6;
+    notes.push('Franja cercana a la mejor hora');
+  }
+
+  const gearMatch = rules.gears.includes(gear);
+  if (gearMatch) {
+    score += 12;
+    notes.push('Equipo/tecnica recomendada para la especie');
   } else {
     score -= 8;
-    notes.push('Presion poco favorable');
+    notes.push('El equipo no es el mas recomendable');
   }
 
-  if (wind <= 18) {
-    score += 8;
-    notes.push('Viento moderado');
-  } else if (wind > 30) {
-    score -= 15;
-    notes.push('Viento fuerte');
+  const chance = clamp(Math.round(score), 5, 99);
+  return { chance, notes, gearMatch, hour };
+};
+
+const calculateFishingChance = ({ species, gear, weather, waterType, selectedDate }) => {
+  if (!weather || !selectedDate) {
+    return {
+      chance: 0,
+      expectedCatch: 0,
+      notes: [],
+      bestHour: null,
+      allHours: [],
+      gearMatch: false,
+    };
   }
 
-  if (rain > 2) {
-    score -= 10;
-    notes.push('Precipitacion alta');
+  const rows = buildHourlyRows(weather).filter((row) => (row.time || '').startsWith(selectedDate));
+  if (rows.length === 0) {
+    return {
+      chance: 0,
+      expectedCatch: 0,
+      notes: ['No hay datos horarios para la fecha seleccionada (max 16 dias).'],
+      bestHour: null,
+      allHours: [],
+      gearMatch: false,
+    };
   }
 
-  if (cloud >= 35 && cloud <= 75) {
-    score += 6;
-  }
+  const scored = rows.map((row) => {
+    const result = scoreHour({ species, gear, waterType, hourData: row });
+    return {
+      ...row,
+      ...result,
+      hourLabel: format(new Date(row.time), 'HH:mm', { locale: es }),
+    };
+  });
 
-  if (species === 'carpa') {
-    if (temp >= 14 && temp <= 24) score += 10;
-    if (waterType === 'pantano' || waterType === 'lago') score += 8;
-  }
+  const bestHour = [...scored].sort((a, b) => b.chance - a.chance)[0];
+  const avgChance = Math.round(scored.reduce((acc, item) => acc + item.chance, 0) / scored.length);
+  const expectedCatch = clamp(Math.round((avgChance / 100) * 5), 0, 5);
 
-  if (species === 'trucha') {
-    if (temp >= 7 && temp <= 17) score += 12;
-    if (waterType === 'rio') score += 10;
-  }
-
-  if (species === 'bass' || species === 'lucio') {
-    if (temp >= 12 && temp <= 22) score += 8;
-    if (waterType === 'pantano') score += 6;
-  }
-
-  if (species === 'dorada' || species === 'lubina') {
-    if (waterType === 'mar') score += 12;
-    if (temp >= 13 && temp <= 28) score += 8;
-  }
-
-  if (species === 'siluro') {
-    if (temp >= 16 && temp <= 28) score += 12;
-    if (waterType === 'rio' || waterType === 'pantano') score += 7;
-  }
-
-  const chance = clamp(Math.round(score), 5, 95);
-  const expectedCatch = clamp(Math.round((chance / 100) * 4), 0, 4);
-
-  return { chance, expectedCatch, notes };
+  return {
+    chance: avgChance,
+    expectedCatch,
+    notes: bestHour?.notes || [],
+    bestHour,
+    allHours: scored,
+    gearMatch: Boolean(bestHour?.gearMatch),
+  };
 };
 
 const PronosticosPage = () => {
+  const routerLocation = useLocation();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
@@ -101,17 +258,44 @@ const PronosticosPage = () => {
   const [loadingWeather, setLoadingWeather] = useState(false);
   const [weather, setWeather] = useState(null);
   const [species, setSpecies] = useState('carpa');
+  const [gear, setGear] = useState('cebo-natural');
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [error, setError] = useState(null);
+
+  const minDate = format(new Date(), 'yyyy-MM-dd');
+  const maxDate = format(addDays(new Date(), 15), 'yyyy-MM-dd');
 
   const selectedType = useMemo(() => typeFromResult(selectedSpot), [selectedSpot]);
 
   const forecast = useMemo(() => {
     return calculateFishingChance({
       species,
+      gear,
       weather,
       waterType: selectedType,
+      selectedDate,
     });
-  }, [species, weather, selectedType]);
+  }, [species, gear, weather, selectedType, selectedDate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(routerLocation.search);
+    const lat = Number(params.get('lat'));
+    const lon = Number(params.get('lng'));
+    const spot = params.get('spot');
+
+    if (!Number.isNaN(lat) && !Number.isNaN(lon) && spot) {
+      const quickSpot = {
+        place_id: `map-${lat}-${lon}`,
+        lat: String(lat),
+        lon: String(lon),
+        display_name: decodeURIComponent(spot),
+        type: 'water',
+      };
+      setSelectedSpot(quickSpot);
+      setQuery(decodeURIComponent(spot));
+      loadForecast(quickSpot);
+    }
+  }, [routerLocation.search]);
 
   const searchWaters = async () => {
     if (!query.trim() || query.trim().length < 2) return;
@@ -156,7 +340,7 @@ const PronosticosPage = () => {
       const lat = Number(spot.lat);
       const lon = Number(spot.lon);
 
-      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,relative_humidity_2m,cloud_cover,precipitation&hourly=temperature_2m,pressure_msl,wind_speed_10m,precipitation_probability&forecast_days=2&timezone=auto`;
+      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,relative_humidity_2m,cloud_cover,precipitation&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,relative_humidity_2m,cloud_cover,precipitation,precipitation_probability&forecast_days=16&timezone=auto`;
       const res = await fetch(weatherUrl);
       if (!res.ok) throw new Error('No se pudo cargar el tiempo');
       const data = await res.json();
@@ -180,7 +364,7 @@ const PronosticosPage = () => {
         <div className="max-w-6xl mx-auto px-4 py-6 md:py-8">
           <div className="mb-6">
             <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight">Pronosticos de Pesca</h1>
-            <p className="text-blue-300 mt-1">Busca pantanos, rios y mares de Espana para ver condiciones y probabilidad de captura.</p>
+            <p className="text-blue-300 mt-1">Asistente IA de pesca: lugar + fecha + especie + tecnica para recomendar clima, equipo y mejor hora de captura.</p>
           </div>
 
           <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-4 md:p-5 mb-5">
@@ -200,6 +384,45 @@ const PronosticosPage = () => {
               </Button>
             </div>
             <p className="text-xs text-blue-400 mt-2">Usa nombres de masas de agua en Espana. La busqueda consulta OpenStreetMap en tiempo real.</p>
+          </div>
+
+          <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-4 md:p-5 mb-5">
+            <h2 className="text-white font-bold mb-3">Datos clave del dia de pesca</h2>
+            <div className="grid md:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-blue-300">Dia y mes</label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  min={minDate}
+                  max={maxDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="mt-1 w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-blue-300">Pez objetivo</label>
+                <select
+                  value={species}
+                  onChange={(e) => setSpecies(e.target.value)}
+                  className="mt-1 w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  {SPECIES.map((sp) => <option key={sp.id} value={sp.id}>{sp.label}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-blue-300">Con que vas a pescar</label>
+                <select
+                  value={gear}
+                  onChange={(e) => setGear(e.target.value)}
+                  className="mt-1 w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  {GEAR_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                </select>
+              </div>
+            </div>
           </div>
 
           {error && (
@@ -244,21 +467,6 @@ const PronosticosPage = () => {
                     <p className="text-xs text-blue-400">{selectedSpot.display_name}</p>
                   </div>
 
-                  <div className="mb-4">
-                    <label className="text-xs text-blue-300">Especie objetivo</label>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {SPECIES.map((sp) => (
-                        <button
-                          key={sp.id}
-                          onClick={() => setSpecies(sp.id)}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs border ${species === sp.id ? 'bg-cyan-600/30 border-cyan-400 text-cyan-200' : 'bg-slate-800 border-white/10 text-blue-300'}`}
-                        >
-                          {sp.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
                   {loadingWeather ? (
                     <p className="text-sm text-blue-400">Cargando condiciones meteorologicas...</p>
                   ) : weather?.current ? (
@@ -270,6 +478,8 @@ const PronosticosPage = () => {
                         <Metric icon={Droplets} label="Humedad" value={`${weather.current.relative_humidity_2m}%`} />
                         <Metric icon={Waves} label="Tipo de agua" value={selectedType.toUpperCase()} />
                         <Metric icon={Fish} label="Especie" value={SPECIES.find(s => s.id === species)?.label || species} />
+                        <Metric icon={CloudSun} label="Fecha" value={format(new Date(`${selectedDate}T12:00:00`), "d 'de' MMMM", { locale: es })} />
+                        <Metric icon={Fish} label="Tecnica" value={GEAR_OPTIONS.find(g => g.id === gear)?.label || gear} />
                       </div>
 
                       <motion.div
@@ -280,9 +490,26 @@ const PronosticosPage = () => {
                         <p className="text-sm text-cyan-200 font-semibold mb-1">Pronostico de captura</p>
                         <p className="text-3xl font-black text-white">{forecast.chance}%</p>
                         <p className="text-xs text-blue-200 mt-1">
-                          {SPECIES.find(s => s.id === species)?.label} en {selectedSpot.display_name?.split(',')[0]}: {forecast.chance}% de probabilidad.
+                          {SPECIES.find(s => s.id === species)?.label} en {selectedSpot.display_name?.split(',')[0]}: {forecast.chance}% de probabilidad media en la fecha elegida.
                         </p>
                         <p className="text-xs text-blue-300 mt-1">Estimacion: {forecast.expectedCatch} capturas probables.</p>
+
+                        {forecast.bestHour && (
+                          <div className="mt-3 rounded-lg border border-cyan-400/30 bg-slate-950/40 p-3">
+                            <p className="text-cyan-200 text-xs font-semibold">Mejor hora recomendada</p>
+                            <p className="text-white text-xl font-black">{forecast.bestHour.hourLabel} ({forecast.bestHour.chance}%)</p>
+                            <p className="text-xs text-blue-300 mt-1">
+                              Temp {forecast.bestHour.temperature_2m}°C · Viento {forecast.bestHour.wind_speed_10m} km/h · Presion {forecast.bestHour.pressure_msl} hPa
+                            </p>
+                          </div>
+                        )}
+
+                        <p className={`text-xs mt-3 ${forecast.gearMatch ? 'text-emerald-300' : 'text-yellow-300'}`}>
+                          {forecast.gearMatch
+                            ? 'Equipo recomendado para la especie: vas bien preparado.'
+                            : 'Tu tecnica no es la mas adecuada para esta especie. Considera cambiar de equipo.'}
+                        </p>
+
                         {forecast.notes.length > 0 && (
                           <ul className="text-xs text-blue-300 mt-2 space-y-0.5">
                             {forecast.notes.map((note) => <li key={note}>- {note}</li>)}
