@@ -184,6 +184,56 @@ const HARD_INCOMPATIBLE_WATER = {
   salmon: ['mar'],
 };
 
+// Reglas condicionales: no siempre bloquean, pero pueden penalizar o bloquear
+// segun mes, temperatura o tipo de agua para mayor realismo.
+const CONDITIONAL_BAIT_RULES = {
+  lucio: [
+    {
+      gears: ['cebo-natural'],
+      when: ({ temp }) => temp >= 20,
+      hard: false,
+      penalty: 16,
+      note: 'Lucio menos activo al cebo natural con agua caliente.',
+    },
+  ],
+  carpa: [
+    {
+      gears: ['boilie-maiz'],
+      when: ({ month, temp }) => [12, 1, 2].includes(month) && temp < 8,
+      hard: false,
+      penalty: 20,
+      note: 'Carpa invernal muy lenta con boilie/maiz en agua fria extrema.',
+    },
+  ],
+  trucha: [
+    {
+      gears: ['mosca'],
+      when: ({ temp, month }) => temp <= 5 || [12, 1, 2].includes(month),
+      hard: false,
+      penalty: 18,
+      note: 'Mosca menos eficaz con frio extremo para trucha.',
+    },
+  ],
+  dorada: [
+    {
+      gears: ['surfcasting'],
+      when: ({ wind }) => wind > 28,
+      hard: false,
+      penalty: 14,
+      note: 'Surfcasting comprometido por viento fuerte lateral.',
+    },
+  ],
+  atun: [
+    {
+      gears: ['currican'],
+      when: ({ wind, rainProb }) => wind > 30 || rainProb > 70,
+      hard: false,
+      penalty: 22,
+      note: 'Currican muy penalizado por mar muy movido.',
+    },
+  ],
+};
+
 // Catalogo local de especies habituales por masa de agua (ampliable).
 const LOCATION_SPECIES_CATALOG = [
   { keywords: ['embalse de orellana', 'orellana'], species: ['carpa', 'bass', 'lucio', 'siluro', 'barbo', 'perca'] },
@@ -340,6 +390,31 @@ const atmosphericAnalystScore = ({ hourData, species }) => {
   return { atmosphericScore: clamp(Math.round(score), 0, 99), atmosphericNotes: notes };
 };
 
+const evaluateConditionalBait = ({ species, gear, month, temp, wind, rainProb, waterType }) => {
+  const rules = CONDITIONAL_BAIT_RULES[species] || [];
+  for (const rule of rules) {
+    if (!rule.gears.includes(gear)) continue;
+    const applies = rule.when?.({ month, temp, wind, rainProb, waterType });
+    if (!applies) continue;
+
+    if (rule.hard) {
+      return {
+        hardIncompatible: true,
+        penalty: 0,
+        note: rule.note || 'Cebo/tecnica incompatible en estas condiciones.',
+      };
+    }
+
+    return {
+      hardIncompatible: false,
+      penalty: rule.penalty || 10,
+      note: rule.note || 'Cebo/tecnica poco recomendable para estas condiciones.',
+    };
+  }
+
+  return { hardIncompatible: false, penalty: 0, note: null };
+};
+
 const scoreHour = ({ species, gear, waterType, hourData, month, locationCatalog }) => {
   const rules = SPECIES_RULES[species] || SPECIES_RULES.carpa;
   const hardIncompatible = (HARD_INCOMPATIBLE_GEAR[species] || []).includes(gear);
@@ -387,6 +462,27 @@ const scoreHour = ({ species, gear, waterType, hourData, month, locationCatalog 
   const humidity = hourData.relative_humidity_2m ?? 60;
   const cloud = hourData.cloud_cover ?? 45;
   const hour = toHour(hourData.time);
+
+  const conditionalBait = evaluateConditionalBait({
+    species,
+    gear,
+    month,
+    temp,
+    wind,
+    rainProb,
+    waterType,
+  });
+
+  if (conditionalBait.hardIncompatible) {
+    return {
+      chance: 0,
+      notes: [conditionalBait.note],
+      gearMatch: false,
+      hour,
+      hardIncompatible: true,
+      blockingReason: conditionalBait.note,
+    };
+  }
 
   let score = 35;
   const notes = [];
@@ -469,6 +565,11 @@ const scoreHour = ({ species, gear, waterType, hourData, month, locationCatalog 
   } else {
     score -= 8;
     notes.push('El equipo no es el mas recomendable');
+  }
+
+  if (conditionalBait.penalty > 0) {
+    score -= conditionalBait.penalty;
+    if (conditionalBait.note) notes.push(conditionalBait.note);
   }
 
   const biologicalScore = clamp(Math.round(score), 0, 99);
