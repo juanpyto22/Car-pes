@@ -535,6 +535,22 @@ const CameraPage = () => {
   const handleKickViewer = async (viewerId) => {
     if (!streamData?.id || !viewerId) return;
     try {
+      const { error: banError } = await supabase
+        .from('live_stream_bans')
+        .upsert(
+          {
+            stream_id: streamData.id,
+            user_id: viewerId,
+            created_by: user?.id || null,
+          },
+          { onConflict: 'stream_id,user_id' }
+        );
+
+      // If the bans table doesn't exist yet, keep current behavior (kick only).
+      if (banError && banError.code !== '42P01') {
+        console.error('Ban viewer error:', banError);
+      }
+
       const { error } = await supabase
         .from('live_stream_viewers')
         .delete()
@@ -556,6 +572,7 @@ const CameraPage = () => {
     closeLiveStatsChannel();
     if (streamData?.id) {
       await supabase.from('live_stream_viewers').delete().eq('stream_id', streamData.id);
+      await supabase.from('live_stream_bans').delete().eq('stream_id', streamData.id);
       await supabase.from('live_streams').update({
         is_live: false,
         ended_at: new Date().toISOString(),

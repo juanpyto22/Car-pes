@@ -77,11 +77,31 @@ const streamOps = {
 
   async join(streamId, userId) {
     try {
+      const { data: banData, error: banError } = await supabase
+        .from('live_stream_bans')
+        .select('stream_id')
+        .eq('stream_id', streamId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!banError && banData) {
+        return { ok: false, banned: true };
+      }
+
+      if (banError && banError.code !== '42P01') {
+        console.error('Error checking stream bans:', banError);
+      }
+
       await supabase.from('live_stream_viewers').upsert(
         { stream_id: streamId, user_id: userId },
         { onConflict: 'stream_id,user_id' }
       );
-    } catch (err) { console.error('Error joining:', err); }
+
+      return { ok: true, banned: false };
+    } catch (err) {
+      console.error('Error joining:', err);
+      return { ok: false, banned: false, error: err };
+    }
   },
 
   async leave(streamId, userId) {
@@ -313,6 +333,7 @@ const StreamViewer = ({ stream, onBack }) => {
   const [hearts, setHearts] = useState([]);
   const [liked, setLiked] = useState(false);
   const [wasKicked, setWasKicked] = useState(false);
+  const [canMonitorMembership, setCanMonitorMembership] = useState(false);
   const chatRef = useRef(null);
   const heartId = useRef(0);
   const remoteVideoRef = useRef(null);
@@ -329,13 +350,37 @@ const StreamViewer = ({ stream, onBack }) => {
 
   // Join/leave as viewer
   useEffect(() => {
-    if (user) streamOps.join(stream.id, user.id);
-    return () => { if (user) streamOps.leave(stream.id, user.id); };
-  }, [stream.id, user]);
+    if (!user?.id || !stream?.id) return;
+
+    let active = true;
+
+    const joinAsViewer = async () => {
+      const result = await streamOps.join(stream.id, user.id);
+      if (!active) return;
+
+      if (result?.banned) {
+        setWasKicked(true);
+        setCanMonitorMembership(false);
+        return;
+      }
+
+      if (result?.ok) {
+        setCanMonitorMembership(true);
+      }
+    };
+
+    joinAsViewer();
+
+    return () => {
+      active = false;
+      setCanMonitorMembership(false);
+      if (user?.id) streamOps.leave(stream.id, user.id);
+    };
+  }, [stream?.id, user?.id]);
 
   // If the host removes this viewer from live_stream_viewers, force-exit the stream.
   useEffect(() => {
-    if (!user?.id || !stream?.id) return;
+    if (!user?.id || !stream?.id || !canMonitorMembership) return;
     let active = true;
 
     const verifyMembership = async () => {
@@ -348,6 +393,7 @@ const StreamViewer = ({ stream, onBack }) => {
 
       if (active && !data && stats.is_live) {
         setWasKicked(true);
+        setCanMonitorMembership(false);
       }
     };
 
@@ -369,7 +415,7 @@ const StreamViewer = ({ stream, onBack }) => {
       active = false;
       supabase.removeChannel(viewerChannel);
     };
-  }, [stream?.id, user?.id, stats.is_live]);
+  }, [stream?.id, user?.id, stats.is_live, canMonitorMembership]);
 
   useEffect(() => {
     if (!wasKicked) return;
