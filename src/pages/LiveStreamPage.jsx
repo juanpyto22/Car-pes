@@ -1133,6 +1133,8 @@ const OwnStreamView = ({ streamData, mediaStream, sourceType, onEnd }) => {
   const chatMessages = useRealtimeChat(streamData.id);
   const stats = useRealtimeStats(streamData.id);
   const [duration, setDuration] = useState(0);
+  const [newMessage, setNewMessage] = useState('');
+  const [viewers, setViewers] = useState([]);
   const videoRef = useRef(null);
   const chatRef = useRef(null);
 
@@ -1152,10 +1154,56 @@ const OwnStreamView = ({ streamData, mediaStream, sourceType, onEnd }) => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatMessages]);
 
+  // Fetch and subscribe to viewers in real-time
+  useEffect(() => {
+    if (!streamData?.id) return;
+    let active = true;
+
+    const fetchViewers = async () => {
+      try {
+        const { data } = await supabase
+          .from('live_stream_viewers')
+          .select('user_id, profiles(id, username, nombre, foto_perfil)')
+          .eq('stream_id', streamData.id);
+
+        if (active) {
+          setViewers(data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching viewers:', err);
+      }
+    };
+
+    fetchViewers();
+
+    const viewerChannel = supabase
+      .channel(`viewers-${streamData.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'live_stream_viewers',
+        filter: `stream_id=eq.${streamData.id}`,
+      }, () => {
+        fetchViewers();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(viewerChannel);
+    };
+  }, [streamData?.id]);
+
   const handleEnd = async () => {
     if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
     await streamOps.end(streamData.id);
     onEnd();
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !user) return;
+    await streamOps.sendChat(streamData.id, user.id, newMessage.trim());
+    setNewMessage('');
   };
 
   const fmt = (s) => {
@@ -1185,6 +1233,7 @@ const OwnStreamView = ({ streamData, mediaStream, sourceType, onEnd }) => {
       </div>
 
       <div className="relative flex-1 flex flex-col md:flex-row">
+        {/* Video */}
         <div className="relative flex-1 bg-black flex items-center justify-center min-h-[50vh]">
           {mediaStream ? (
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" style={sourceType === 'camera' ? { transform: 'scaleX(-1)' } : {}} />
@@ -1200,16 +1249,67 @@ const OwnStreamView = ({ streamData, mediaStream, sourceType, onEnd }) => {
           </div>
         </div>
 
-        <div className="w-full md:w-80 lg:w-96 flex flex-col bg-slate-900/50 border-l border-white/5 max-h-[40vh] md:max-h-none">
-          <div className="px-3 py-2.5 border-b border-white/5">
-            <h4 className="text-sm font-semibold text-white flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-cyan-400" /> Chat en vivo
-            </h4>
+        {/* Chat + Viewers Panel */}
+        <div className="w-full md:w-96 flex flex-col bg-slate-900/50 border-l border-white/5 max-h-[50vh] md:max-h-none">
+          {/* Tabs: Chat / Espectadores */}
+          <div className="flex border-b border-white/5">
+            <button className="flex-1 px-3 py-2.5 text-xs font-semibold text-white bg-cyan-500/15 border-b-2 border-cyan-500/40">
+              <MessageCircle className="w-4 h-4 inline mr-1" /> Chat
+            </button>
+            <button className="flex-1 px-3 py-2.5 text-xs font-semibold text-white/60 hover:text-white transition-colors">
+              <Eye className="w-4 h-4 inline mr-1" /> Espectadores ({viewers.length})
+            </button>
           </div>
+
+          {/* Chat Messages */}
           <div ref={chatRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 scrollbar-hide">
             {chatMessages.length === 0 ? (
               <p className="text-xs text-blue-400/40 text-center py-8">Esperando mensajes de los espectadores...</p>
             ) : chatMessages.map(msg => <ChatMessage key={msg.id} message={msg} />)}
+          </div>
+
+          {/* Chat Input */}
+          <div className="p-2 border-t border-white/5 bg-black/20">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder="Escribe tu mensaje..."
+                className="flex-1 bg-slate-800/80 border border-white/5 rounded-xl px-3 py-2 text-sm text-white placeholder:text-blue-400/40 focus:outline-none focus:border-cyan-500/30"
+              />
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={handleSendMessage}
+                className="p-2 text-cyan-400 hover:text-cyan-300 transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </motion.button>
+            </div>
+          </div>
+
+          {/* Viewers List */}
+          <div className="hidden md:flex flex-col max-h-64 overflow-y-auto p-2 border-t border-white/5 space-y-2 bg-black/10">
+            {viewers.length === 0 ? (
+              <p className="text-xs text-white/50 text-center py-3">Aun no hay espectadores</p>
+            ) : (
+              viewers.map((v) => (
+                <div key={v.user_id} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-2 py-1.5">
+                  <Avatar className="w-6 h-6 shrink-0">
+                    <AvatarImage src={v.profiles?.foto_perfil} />
+                    <AvatarFallback className="bg-blue-900 text-cyan-200 text-[10px] font-bold">
+                      {v.profiles?.username?.[0]?.toUpperCase() || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-xs text-white truncate font-semibold">
+                      {v.profiles?.username || v.profiles?.nombre || 'usuario'}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

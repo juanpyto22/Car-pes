@@ -131,10 +131,13 @@ const CameraPage = () => {
   const [liveLikes, setLiveLikes] = useState(0);
   const [showLiveSetup, setShowLiveSetup] = useState(true);
   const [showViewersPanel, setShowViewersPanel] = useState(false);
+  const [showChatPanel, setShowChatPanel] = useState(false);
   const [liveAudience, setLiveAudience] = useState([]);
   const [liveMutedUserIds, setLiveMutedUserIds] = useState(new Set());
   const [liveModeratorUserIds, setLiveModeratorUserIds] = useState(new Set());
   const [startingLive, setStartingLive] = useState(false);
+  const [liveChatMessages, setLiveChatMessages] = useState([]);
+  const [newChatMessage, setNewChatMessage] = useState('');
 
   // Refs
   const videoRef = useRef(null);
@@ -146,6 +149,8 @@ const CameraPage = () => {
   const liveStatsChannelRef = useRef(null);
   const recordIntervalRef = useRef(null);
   const textareaRef = useRef(null);
+  const chatPanelRef = useRef(null);
+  const liveChatChannelRef = useRef(null);
 
   const closeLiveStatsChannel = useCallback(() => {
     if (liveStatsChannelRef.current) {
@@ -734,6 +739,22 @@ const CameraPage = () => {
     }
   };
 
+  const handleSendChatMessage = async () => {
+    if (!newChatMessage.trim() || !user?.id || !streamData?.id) return;
+
+    try {
+      await supabase.from('live_chat_messages').insert({
+        stream_id: streamData.id,
+        user_id: user.id,
+        message: newChatMessage.trim(),
+      });
+      setNewChatMessage('');
+    } catch (err) {
+      console.error('Error sending chat message:', err);
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar el mensaje.' });
+    }
+  };
+
   const handleEndLive = async () => {
     clearInterval(liveIntervalRef.current);
     closeLiveStatsChannel();
@@ -759,6 +780,85 @@ const CameraPage = () => {
     setLiveModeratorUserIds(new Set());
     navigate('/live');
   };
+
+  // Subscribe to chat messages in real-time when live
+  useEffect(() => {
+    if (!streamData?.id) return;
+    let active = true;
+
+    const fetchChat = async () => {
+      try {
+        const { data } = await supabase
+          .from('live_chat_messages')
+          .select('*')
+          .eq('stream_id', streamData.id)
+          .order('created_at', { ascending: true })
+          .limit(200);
+
+        if (active) {
+          const userIds = [...new Set((data || []).map(m => m.user_id))];
+          if (userIds.length > 0) {
+            const { data: profiles } = await supabase
+              .from('profiles')
+              .select('id, username, nombre, foto_perfil')
+              .in('id', userIds);
+
+            const pMap = {};
+            (profiles || []).forEach(p => { pMap[p.id] = p; });
+
+            setLiveChatMessages((data || []).map(m => ({
+              ...m,
+              user: pMap[m.user_id] || { id: m.user_id, username: 'Usuario' }
+            })));
+          } else {
+            setLiveChatMessages(data || []);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching chat:', err);
+      }
+    };
+
+    fetchChat();
+
+    const channel = supabase
+      .channel(`camera-chat-${streamData.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'live_chat_messages',
+        filter: `stream_id=eq.${streamData.id}`,
+      }, async (payload) => {
+        const msg = payload.new;
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, username, nombre, foto_perfil')
+          .eq('id', msg.user_id)
+          .single();
+
+        if (active) {
+          setLiveChatMessages(prev => [
+            ...prev.slice(-200),
+            { ...msg, user: profile || { id: msg.user_id, username: 'Usuario' } }
+          ]);
+        }
+      })
+      .subscribe();
+
+    liveChatChannelRef.current = channel;
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [streamData?.id]);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    if (chatPanelRef.current) {
+      chatPanelRef.current.scrollTop = chatPanelRef.current.scrollHeight;
+    }
+  }, [liveChatMessages]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -930,11 +1030,19 @@ const CameraPage = () => {
                   <button
                     type="button"
                     onClick={() => setShowViewersPanel(v => !v)}
-                    className="flex items-center gap-0.5 text-[10px] text-white bg-black/40 px-1.5 py-0.5 rounded"
+                     className="flex items-center gap-0.5 text-[10px] text-white bg-black/40 px-1.5 py-0.5 rounded hover:bg-black/60 transition-colors"
                     title="Ver espectadores"
                   >
                     <Eye className="w-3 h-3" />{liveViewers}
                   </button>
+                   <button
+                     type="button"
+                     onClick={() => setShowChatPanel(v => !v)}
+                     className="flex items-center gap-0.5 text-[10px] text-white bg-black/40 px-1.5 py-0.5 rounded hover:bg-black/60 transition-colors"
+                     title="Ver chat"
+                   >
+                     <MessageCircle className="w-3 h-3" />{liveChatMessages.length}
+                   </button>
                   <span className="flex items-center gap-0.5 text-[10px] text-red-300 bg-black/40 px-1.5 py-0.5 rounded">
                     <Heart className="w-3 h-3" />{liveLikes}
                   </span>
@@ -1083,6 +1191,54 @@ const CameraPage = () => {
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* LIVE ACTIVE: Chat Panel */}
+            {mode === 'EN VIVO' && isLive && showChatPanel && (
+              <div className="absolute left-3 top-16 z-30 w-[320px] max-w-[92vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl flex flex-col max-h-[70vh]">
+                <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-cyan-300" /> Chat en vivo
+                  </h4>
+                  <button onClick={() => setShowChatPanel(false)} className="text-white/60 hover:text-white">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div ref={chatPanelRef} className="flex-1 overflow-y-auto p-2 space-y-0.5">
+                  {liveChatMessages.length === 0 ? (
+                    <p className="text-xs text-blue-400/40 text-center py-6">Esperando mensajes...</p>
+                  ) : (
+                    liveChatMessages.map(msg => {
+                      const colors = ['text-cyan-400', 'text-green-400', 'text-yellow-400', 'text-pink-400', 'text-purple-400', 'text-orange-400'];
+                      const name = msg.user?.username || 'Usuario';
+                      const color = colors[name.length % colors.length];
+                      return (
+                        <motion.div key={msg.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-start gap-2 py-1">
+                          <span className={`text-xs font-bold ${color} shrink-0`}>{name}</span>
+                          <span className="text-xs text-gray-300 break-words">{msg.message}</span>
+                        </motion.div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="px-2 py-2 border-t border-white/10 bg-black/20">
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={newChatMessage}
+                      onChange={(e) => setNewChatMessage(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
+                      placeholder="Tu mensaje..."
+                      className="flex-1 bg-slate-800/80 border border-white/5 rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-blue-400/40 focus:outline-none focus:border-cyan-500/30"
+                    />
+                    <button onClick={handleSendChatMessage} className="p-1.5 text-cyan-400 hover:text-cyan-300">
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
