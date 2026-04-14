@@ -27,6 +27,13 @@ const categoryColors = {
   other: 'bg-green-500/20 text-green-400 border-green-500/30',
 };
 
+const formatLocationSuggestion = (spot) => {
+  const baseLabel = `${spot.name}, ${spot.region}`;
+  return spot.country && spot.country !== 'España'
+    ? `${baseLabel}, ${spot.country}`
+    : baseLabel;
+};
+
 const EventsCalendarPage = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -36,13 +43,6 @@ const EventsCalendarPage = () => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [dbAvailable, setDbAvailable] = useState(true);
-
-  const formatLocationSuggestion = (spot) => {
-    const baseLabel = `${spot.name}, ${spot.region}`;
-    return spot.country && spot.country !== 'España'
-      ? `${baseLabel}, ${spot.country}`
-      : baseLabel;
-  };
 
   useEffect(() => {
     fetchEvents();
