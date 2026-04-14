@@ -223,26 +223,62 @@ export const fishingLocations = [
   { name: "Océano Atlántico - Punta del Este", type: "mar", region: "Maldonado", country: "Uruguay", latitude: -34.9628, longitude: -54.9447, description: "Pesca de pejerrey" },
 ];
 
+const normalizeText = (value = '') =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const getFieldScore = (fieldValue, query) => {
+  if (!fieldValue) return 0;
+
+  if (fieldValue === query) return 100;
+  if (fieldValue.startsWith(query)) return 85;
+
+  const index = fieldValue.indexOf(query);
+  if (index >= 0) return Math.max(20, 70 - index);
+
+  return 0;
+};
+
 // Función para buscar ubicaciones con autocompletado
 export const searchFishingLocations = (query) => {
-  if (!query || query.length < 2) return [];
-  
-  const normalizedQuery = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  
+  if (!query || query.trim().length < 1) return [];
+
+  const normalizedQuery = normalizeText(query.trim());
+
   return fishingLocations
-    .filter(location => {
-      const normalizedName = location.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const normalizedRegion = location.region.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const normalizedCountry = location.country.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const normalizedType = location.type.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      
-      return (
+    .map((location) => {
+      const normalizedName = normalizeText(location.name);
+      const normalizedRegion = normalizeText(location.region);
+      const normalizedCountry = normalizeText(location.country);
+      const normalizedType = normalizeText(location.type);
+      const normalizedDescription = normalizeText(location.description || '');
+
+      const matches =
         normalizedName.includes(normalizedQuery) ||
         normalizedRegion.includes(normalizedQuery) ||
         normalizedCountry.includes(normalizedQuery) ||
-        normalizedType.includes(normalizedQuery)
-      );
+        normalizedType.includes(normalizedQuery) ||
+        normalizedDescription.includes(normalizedQuery);
+
+      if (!matches) return null;
+
+      const score =
+        getFieldScore(normalizedName, normalizedQuery) * 4 +
+        getFieldScore(normalizedRegion, normalizedQuery) * 3 +
+        getFieldScore(normalizedCountry, normalizedQuery) * 2 +
+        getFieldScore(normalizedType, normalizedQuery) +
+        (normalizedDescription.includes(normalizedQuery) ? 8 : 0);
+
+      return { location, score };
     })
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.location.name.localeCompare(b.location.name, 'es');
+    })
+    .map(({ location }) => location)
     .slice(0, 10); // Limitar a 10 resultados
 };
 

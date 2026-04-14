@@ -31,7 +31,7 @@ const LocationAutocomplete = ({ value, onChange, placeholder = "¿Dónde pescast
 
   // Buscar sugerencias
   useEffect(() => {
-    if (debouncedQuery.length >= 2) {
+    if (debouncedQuery.length >= 1) {
       setLoading(true);
       // Simular pequeño delay para UX
       const timer = setTimeout(() => {

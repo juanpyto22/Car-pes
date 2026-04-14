@@ -7,7 +7,7 @@ import { supabase } from '@/lib/customSupabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { useToast } from '@/components/ui/use-toast';
-import { fishingLocations } from '@/data/fishingLocations';
+import { searchFishingLocations } from '@/data/fishingLocations';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday, isSameDay, isSameMonth, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -27,12 +27,6 @@ const categoryColors = {
   other: 'bg-green-500/20 text-green-400 border-green-500/30',
 };
 
-const normalizeText = (value = '') =>
-  value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-
 const EventsCalendarPage = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -42,6 +36,13 @@ const EventsCalendarPage = () => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [dbAvailable, setDbAvailable] = useState(true);
+
+  const formatLocationSuggestion = (spot) => {
+    const baseLabel = `${spot.name}, ${spot.region}`;
+    return spot.country && spot.country !== 'España'
+      ? `${baseLabel}, ${spot.country}`
+      : baseLabel;
+  };
 
   useEffect(() => {
     fetchEvents();
@@ -87,49 +88,58 @@ const EventsCalendarPage = () => {
         ? Math.max(2, Math.min(rawMaxParticipants, 300))
         : null;
 
-      if (dbAvailable) {
-        const { data, error } = await supabase
-          .from('fishing_events')
-          .insert({
-            title: eventData.title,
-            description: eventData.description,
-            event_date: parsedDate.toISOString(),
-            location: eventData.location,
-            category: eventData.category,
-            max_participants: maxParticipants,
-            creator_id: user.id,
-          })
-          .select(`
-            *,
-            creator:profiles!fishing_events_creator_id_fkey(id, username, foto_perfil)
-          `)
-          .single();
-
-        if (error) throw error;
-
-        // Auto-join
-        await supabase.from('event_participants').insert({
-          event_id: data.id,
-          user_id: user.id,
-        });
-
-        data.participants = [{ user: { id: user.id, username: profile?.username, foto_perfil: profile?.foto_perfil }}];
-        setEvents(prev => [...prev, data].sort((a, b) => new Date(a.event_date) - new Date(b.event_date)));
-      } else {
-        // Local fallback
+      const createLocalEvent = () => {
         const newEvent = {
           id: crypto.randomUUID(),
           ...eventData,
           event_date: parsedDate.toISOString(),
           max_participants: maxParticipants,
-          creator_id: user?.id,
-          creator: { id: user?.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil },
-          participants: [{ user: { id: user?.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil }}],
+          creator_id: user?.id || 'local-user',
+          creator: { id: user?.id || 'local-user', username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil },
+          participants: [{ user: { id: user?.id || 'local-user', username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil }}],
           created_at: new Date().toISOString(),
         };
         const updated = [...events, newEvent].sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
         setEvents(updated);
         localStorage.setItem('carpes_events', JSON.stringify(updated));
+      };
+
+      if (dbAvailable) {
+        try {
+          const { data, error } = await supabase
+            .from('fishing_events')
+            .insert({
+              title: eventData.title,
+              description: eventData.description,
+              event_date: parsedDate.toISOString(),
+              location: eventData.location,
+              category: eventData.category,
+              max_participants: maxParticipants,
+              creator_id: user.id,
+            })
+            .select(`
+              *,
+              creator:profiles!fishing_events_creator_id_fkey(id, username, foto_perfil)
+            `)
+            .single();
+
+          if (error) throw error;
+
+          // Auto-join
+          await supabase.from('event_participants').insert({
+            event_id: data.id,
+            user_id: user.id,
+          });
+
+          data.participants = [{ user: { id: user.id, username: profile?.username, foto_perfil: profile?.foto_perfil }}];
+          setEvents(prev => [...prev, data].sort((a, b) => new Date(a.event_date) - new Date(b.event_date)));
+        } catch (dbError) {
+          console.warn('Supabase insert failed, saving event locally:', dbError);
+          setDbAvailable(false);
+          createLocalEvent();
+        }
+      } else {
+        createLocalEvent();
       }
 
       toast({ title: '¡Evento creado!' });
@@ -235,12 +245,6 @@ const EventsCalendarPage = () => {
               <Plus className="w-4 h-4 mr-2" /> Crear
             </Button>
           </motion.div>
-
-          {!dbAvailable && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 mb-4 text-sm text-yellow-300">
-              ⚠️ Base de datos no configurada. Los eventos se guardan localmente. Ejecuta <span className="font-mono bg-black/20 px-1 rounded">setup-chat-groups.sql</span> para persistir datos.
-            </motion.div>
-          )}
 
           <div className="grid md:grid-cols-[1fr_300px] gap-6">
             {/* Calendar */}
@@ -439,7 +443,8 @@ const EventCard = ({ event, user, onJoin, onLeave, compact = false }) => {
 const CreateEventModal = ({ onClose, onCreate }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [time, setTime] = useState(format(new Date(), 'HH:mm'));
   const [location, setLocation] = useState('');
   const [category, setCategory] = useState('fishing');
   const [maxParticipants, setMaxParticipants] = useState('');
@@ -447,33 +452,22 @@ const CreateEventModal = ({ onClose, onCreate }) => {
   const [locationFocused, setLocationFocused] = useState(false);
 
   const locationSuggestions = useMemo(() => {
-    const query = normalizeText(location.trim());
-    if (query.length < 1) {
-      return [];
-    }
-
-    const unique = new Set();
-
-    return fishingLocations
-      .filter((spot) => {
-        const haystack = normalizeText(`${spot.name} ${spot.region} ${spot.country}`);
-        return haystack.includes(query);
-      })
-      .map((spot) => `${spot.name}, ${spot.region}`)
-      .filter((value) => {
-        if (unique.has(value)) {
-          return false;
-        }
-        unique.add(value);
-        return true;
-      })
+    return searchFishingLocations(location.trim())
+      .map(formatLocationSuggestion)
       .slice(0, 8);
   }, [location]);
 
   const handleSubmit = async () => {
-    if (!title.trim() || !date) return;
+    if (!title.trim() || !date || !time) return;
     setCreating(true);
-    await onCreate({ title, description, date, location, category, maxParticipants: maxParticipants ? parseInt(maxParticipants) : null });
+    await onCreate({
+      title,
+      description,
+      date: `${date}T${time}`,
+      location,
+      category,
+      maxParticipants: maxParticipants ? parseInt(maxParticipants) : null,
+    });
     setCreating(false);
   };
 
@@ -515,12 +509,20 @@ const CreateEventModal = ({ onClose, onCreate }) => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm text-blue-200 mb-1 block">Fecha y hora *</label>
-              <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
+              <label className="text-sm text-blue-200 mb-1 block">Fecha *</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none"
               />
             </div>
             <div>
+              <label className="text-sm text-blue-200 mb-1 block">Hora *</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} step="60"
+                className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
               <label className="text-sm text-blue-200 mb-1 block">Ubicación</label>
               <div className="relative">
                 <input
@@ -547,7 +549,6 @@ const CreateEventModal = ({ onClose, onCreate }) => {
                   </div>
                 )}
               </div>
-            </div>
           </div>
 
           <div>
@@ -584,7 +585,7 @@ const CreateEventModal = ({ onClose, onCreate }) => {
         <div className="p-5 border-t border-white/10">
           <Button
             onClick={handleSubmit}
-            disabled={creating || !title.trim() || !date}
+            disabled={creating || !title.trim() || !date || !time}
             className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl h-12 font-semibold disabled:opacity-50"
           >
             {creating ? 'Creando...' : '🎣 Crear Evento'}
