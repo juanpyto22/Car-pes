@@ -7,6 +7,7 @@ import { supabase } from '@/lib/customSupabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { useToast } from '@/components/ui/use-toast';
+import { fishingLocations } from '@/data/fishingLocations';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday, isSameDay, isSameMonth, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -25,6 +26,12 @@ const categoryColors = {
   workshop: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
   other: 'bg-green-500/20 text-green-400 border-green-500/30',
 };
+
+const normalizeText = (value = '') =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
 const EventsCalendarPage = () => {
   const { user, profile } = useAuth();
@@ -69,16 +76,27 @@ const EventsCalendarPage = () => {
 
   const handleCreateEvent = async (eventData) => {
     try {
+      const parsedDate = new Date(eventData.date);
+      if (Number.isNaN(parsedDate.getTime())) {
+        toast({ variant: 'destructive', title: 'Fecha inválida' });
+        return;
+      }
+
+      const rawMaxParticipants = Number(eventData.maxParticipants);
+      const maxParticipants = Number.isFinite(rawMaxParticipants)
+        ? Math.max(2, Math.min(rawMaxParticipants, 300))
+        : null;
+
       if (dbAvailable) {
         const { data, error } = await supabase
           .from('fishing_events')
           .insert({
             title: eventData.title,
             description: eventData.description,
-            event_date: eventData.date,
+            event_date: parsedDate.toISOString(),
             location: eventData.location,
             category: eventData.category,
-            max_participants: eventData.maxParticipants || null,
+            max_participants: maxParticipants,
             creator_id: user.id,
           })
           .select(`
@@ -102,7 +120,8 @@ const EventsCalendarPage = () => {
         const newEvent = {
           id: crypto.randomUUID(),
           ...eventData,
-          event_date: eventData.date,
+          event_date: parsedDate.toISOString(),
+          max_participants: maxParticipants,
           creator_id: user?.id,
           creator: { id: user?.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil },
           participants: [{ user: { id: user?.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil }}],
@@ -425,6 +444,31 @@ const CreateEventModal = ({ onClose, onCreate }) => {
   const [category, setCategory] = useState('fishing');
   const [maxParticipants, setMaxParticipants] = useState('');
   const [creating, setCreating] = useState(false);
+  const [locationFocused, setLocationFocused] = useState(false);
+
+  const locationSuggestions = useMemo(() => {
+    const query = normalizeText(location.trim());
+    if (query.length < 1) {
+      return [];
+    }
+
+    const unique = new Set();
+
+    return fishingLocations
+      .filter((spot) => {
+        const haystack = normalizeText(`${spot.name} ${spot.region} ${spot.country}`);
+        return haystack.includes(query);
+      })
+      .map((spot) => `${spot.name}, ${spot.region}`)
+      .filter((value) => {
+        if (unique.has(value)) {
+          return false;
+        }
+        unique.add(value);
+        return true;
+      })
+      .slice(0, 8);
+  }, [location]);
 
   const handleSubmit = async () => {
     if (!title.trim() || !date) return;
@@ -478,9 +522,31 @@ const CreateEventModal = ({ onClose, onCreate }) => {
             </div>
             <div>
               <label className="text-sm text-blue-200 mb-1 block">Ubicación</label>
-              <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Embalse de..."
-                className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white placeholder-blue-500 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
-              />
+              <div className="relative">
+                <input
+                  value={location}
+                  onChange={e => setLocation(e.target.value)}
+                  onFocus={() => setLocationFocused(true)}
+                  onBlur={() => setTimeout(() => setLocationFocused(false), 120)}
+                  placeholder="Embalse de..."
+                  className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white placeholder-blue-500 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                />
+
+                {locationFocused && locationSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-44 overflow-y-auto rounded-xl border border-slate-600 bg-slate-900 shadow-xl">
+                    {locationSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onMouseDown={() => setLocation(suggestion)}
+                        className="w-full border-b border-white/5 px-3 py-2 text-left text-sm text-blue-100 hover:bg-slate-800"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

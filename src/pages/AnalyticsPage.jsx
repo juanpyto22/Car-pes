@@ -47,10 +47,12 @@ const AnalyticsPage = () => {
       const prevPeriodStart = subDays(new Date(), days * 2).toISOString();
 
       // Fetch posts
-      const [postsRes, likesRes, commentsRes, followersRes, followingRes] = await Promise.allSettled([
-        supabase.from('posts').select('id, created_at, imagen_url, contenido').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('likes').select('id, created_at, post_id').eq('post_id', null), // placeholder - we'll count per-post below
-        supabase.from('comments').select('id, created_at, post_id').eq('post_id', null), // placeholder
+      const [postsRes, followersRes, followingRes] = await Promise.allSettled([
+        supabase
+          .from('posts')
+          .select('id, created_at, imagen_url, contenido, likes_count, comments_count')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
         supabase.from('follows').select('id, created_at').eq('followed_id', user.id),
         supabase.from('follows').select('id, created_at').eq('follower_id', user.id),
       ]);
@@ -72,6 +74,9 @@ const AnalyticsPage = () => {
         if (likesData.status === 'fulfilled' && likesData.value.data) allLikes = likesData.value.data;
         if (commentsData.status === 'fulfilled' && commentsData.value.data) allComments = commentsData.value.data;
       }
+
+      const likesFallbackFromPosts = allPosts.reduce((sum, post) => sum + (post.likes_count || 0), 0);
+      const commentsFallbackFromPosts = allPosts.reduce((sum, post) => sum + (post.comments_count || 0), 0);
 
       // Period calculations
       const postsInPeriod = allPosts.filter(p => new Date(p.created_at) >= new Date(periodStart));
@@ -107,8 +112,8 @@ const AnalyticsPage = () => {
 
       setStats({
         totalPosts: allPosts.length,
-        totalLikes: allLikes.length,
-        totalComments: allComments.length,
+        totalLikes: allLikes.length > 0 ? allLikes.length : likesFallbackFromPosts,
+        totalComments: allComments.length > 0 ? allComments.length : commentsFallbackFromPosts,
         totalFollowers: followers.length,
         totalFollowing: following.length,
         postsThisWeek: postsInPeriod.length,
