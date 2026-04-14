@@ -46,20 +46,56 @@ const AnalyticsPage = () => {
       const periodStart = subDays(new Date(), days).toISOString();
       const prevPeriodStart = subDays(new Date(), days * 2).toISOString();
 
-      // Fetch posts
-      const [postsRes, followersRes, followingRes] = await Promise.allSettled([
-        supabase
+      // Posts: prefer current schema, fallback to legacy names.
+      const postsPrimary = await supabase
+        .from('posts')
+        .select('id, created_at, foto_url, descripcion, likes_count, comments_count')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      let postsRaw = postsPrimary.data || [];
+      if (postsPrimary.error) {
+        const postsFallback = await supabase
           .from('posts')
           .select('id, created_at, imagen_url, contenido, likes_count, comments_count')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false }),
-        supabase.from('follows').select('id, created_at').eq('followed_id', user.id),
-        supabase.from('follows').select('id, created_at').eq('follower_id', user.id),
-      ]);
+          .order('created_at', { ascending: false });
 
-      const allPosts = postsRes.status === 'fulfilled' && postsRes.value.data ? postsRes.value.data : [];
-      const followers = followersRes.status === 'fulfilled' && followersRes.value.data ? followersRes.value.data : [];
-      const following = followingRes.status === 'fulfilled' && followingRes.value.data ? followingRes.value.data : [];
+        if (postsFallback.error) {
+          console.warn('Analytics posts query failed:', postsFallback.error.message);
+          postsRaw = [];
+        } else {
+          postsRaw = postsFallback.data || [];
+        }
+      }
+
+      const allPosts = (postsRaw || []).map((post) => ({
+        ...post,
+        imagen_url: post.foto_url ?? post.imagen_url ?? null,
+        contenido: post.descripcion ?? post.contenido ?? '',
+      }));
+
+      // Followers: try current naming first, then legacy.
+      const followersPrimary = await supabase
+        .from('follows')
+        .select('id, created_at')
+        .eq('following_id', user.id);
+
+      let followers = followersPrimary.data || [];
+      if (followersPrimary.error) {
+        const followersFallback = await supabase
+          .from('follows')
+          .select('id, created_at')
+          .eq('followed_id', user.id);
+        followers = followersFallback.data || [];
+      }
+
+      const followingRes = await supabase
+        .from('follows')
+        .select('id, created_at')
+        .eq('follower_id', user.id);
+
+      const following = followingRes.data || [];
 
       // Get likes and comments for user's posts
       const postIds = allPosts.map(p => p.id);
