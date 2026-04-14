@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Radio, Video, VideoOff, Mic, MicOff, Heart, MessageCircle, Send, Eye, Clock, ChevronLeft, Camera, X, Sparkles, Monitor, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useBroadcaster, useViewer } from '@/hooks/useWebRTC';
-import { useNavigate } from 'react-router-dom';
 
 const CATEGORIES = ['Todos', 'Carpas', 'Spinning', 'Tutoriales', 'Siluros', 'Trucha', 'Black Bass', 'Mar', 'General'];
 
@@ -812,7 +810,6 @@ const OwnStreamView = ({ streamData, mediaStream, sourceType, onEnd }) => {
 // ═══════════════════════════════════════════════════════════════
 const LiveStreamPage = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [streams, setStreams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
@@ -824,7 +821,7 @@ const LiveStreamPage = () => {
     setStreams(data);
     setLoading(false);
 
-  }, [user, navigate]);
+  }, []);
 
   useEffect(() => {
     fetchStreams();
@@ -856,15 +853,8 @@ const LiveStreamPage = () => {
             <h1 className="text-xl md:text-2xl font-black text-white flex items-center gap-2">
               <Radio className="w-6 h-6 text-red-500" /> Directos
             </h1>
-            <p className="text-sm text-blue-300/60 mt-0.5">Transmisiones en vivo de pesca</p>
+            <p className="text-sm text-blue-300/60 mt-0.5">Transmisiones en vivo de pesca. La creación se hace desde Cámara en modo EN VIVO.</p>
           </div>
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => {
-            navigate('/camera?mode=live');
-          }}
-            className="flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-red-900/20 transition-all">
-            <Radio className="w-4 h-4" />
-            <span>Crear directo</span>
-          </motion.button>
         </div>
 
         {/* Stats */}
@@ -923,12 +913,7 @@ const LiveStreamPage = () => {
           <div className="text-center py-16">
             <Radio className="w-12 h-12 text-blue-400/20 mx-auto mb-3" />
             <h3 className="text-lg font-bold text-white mb-1">No hay directos ahora mismo</h3>
-            <p className="text-sm text-blue-300/50 mb-4">¡Sé el primero en iniciar una transmisión!</p>
-            <Button onClick={() => {
-              navigate('/camera?mode=live');
-            }} className="bg-gradient-to-r from-red-600 to-red-500 text-white rounded-xl">
-              <Radio className="w-4 h-4 mr-2" /> Crear directo
-            </Button>
+            <p className="text-sm text-blue-300/50">Cuando alguien inicie un directo desde Cámara, aparecerá aquí automáticamente.</p>
           </div>
         )}
       </div>

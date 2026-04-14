@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Radio } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -26,20 +26,7 @@ const StoriesBar = () => {
     }
   };
 
-  useEffect(() => {
-    fetchStories();
-  }, [user]);
-
-  useEffect(() => {
-    const handleStoriesUpdated = () => {
-      fetchStories();
-    };
-
-    window.addEventListener('stories:updated', handleStoriesUpdated);
-    return () => window.removeEventListener('stories:updated', handleStoriesUpdated);
-  }, [user]);
-
-  const fetchStories = async () => {
+  const fetchStories = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
@@ -177,7 +164,47 @@ const StoriesBar = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, profile]);
+
+  useEffect(() => {
+    fetchStories();
+  }, [fetchStories]);
+
+  useEffect(() => {
+    const handleStoriesUpdated = () => {
+      fetchStories();
+    };
+
+    window.addEventListener('stories:updated', handleStoriesUpdated);
+    return () => window.removeEventListener('stories:updated', handleStoriesUpdated);
+  }, [fetchStories]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`stories-live-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'live_streams',
+      }, () => {
+        fetchStories();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'follows',
+        filter: `follower_id=eq.${user.id}`,
+      }, () => {
+        fetchStories();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchStories]);
 
   const StoryCircle = ({ storyGroup, isOwn = false }) => {
     const hasStories = storyGroup?.stories?.length > 0;
