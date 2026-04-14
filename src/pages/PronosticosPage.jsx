@@ -511,9 +511,18 @@ const calculateFishingChance = ({ species, gear, weather, waterType, selectedDat
     const atmosphere = atmosphericAnalystScore({ hourData: row, species });
 
     // Modelo combinado: biologico + atmosferico, con penalizacion de desacuerdo.
-    const baseCombined = Math.round(result.chance * 0.62 + atmosphere.atmosphericScore * 0.38);
+    const baseCombined = Math.round(result.chance * 0.58 + atmosphere.atmosphericScore * 0.42);
     const disagreementPenalty = Math.abs(result.chance - atmosphere.atmosphericScore) >= 30 ? 8 : 0;
-    const combinedChance = clamp(baseCombined - disagreementPenalty, 0, 99);
+
+    // Calibrador realista: evita probabilidades demasiado optimistas.
+    let combinedChance = clamp(Math.round((baseCombined - disagreementPenalty) * 0.88 - 6), 0, 97);
+
+    // Si uno de los analistas ve condiciones malas, capamos la probabilidad.
+    if (result.chance < 25 || atmosphere.atmosphericScore < 25) {
+      combinedChance = Math.min(combinedChance, 25);
+    } else if (result.chance < 35 || atmosphere.atmosphericScore < 35) {
+      combinedChance = Math.min(combinedChance, 38);
+    }
 
     return {
       ...row,
@@ -543,11 +552,12 @@ const calculateFishingChance = ({ species, gear, weather, waterType, selectedDat
   const bestHour = [...scored].sort((a, b) => b.chance - a.chance)[0];
   const avgChance = Math.round(scored.reduce((acc, item) => acc + item.chance, 0) / scored.length);
   const expectedCatch = clamp(Math.round((avgChance / 100) * 5), 0, 5);
+  const mergedNotes = [...new Set([...(bestHour?.notes || []), ...(bestHour?.atmosphericNotes || [])])];
 
   return {
     chance: avgChance,
     expectedCatch,
-    notes: bestHour?.notes || [],
+    notes: mergedNotes,
     bestHour,
     allHours: scored,
     gearMatch: Boolean(bestHour?.gearMatch),
