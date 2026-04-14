@@ -159,6 +159,7 @@ const SPECIES_SEASONS = {
 const HARD_INCOMPATIBLE_GEAR = {
   // Regla fuerte pedida: carpa no se pesca con señuelos de depredador.
   carpa: ['cucharilla', 'vinilo-jig', 'paseante-popper', 'currican', 'eging', 'mosca'],
+  lucio: ['boilie-maiz', 'feeder-fondo', 'surfcasting', 'eging'],
   barbo: ['paseante-popper', 'eging'],
   salmon: ['surfcasting', 'boilie-maiz', 'eging'],
   dorada: ['boilie-maiz', 'vinilo-jig', 'paseante-popper', 'eging', 'currican'],
@@ -294,6 +295,51 @@ const buildHourlyRows = (weather) => {
   }));
 };
 
+const atmosphericAnalystScore = ({ hourData, species }) => {
+  const temp = hourData.temperature_2m ?? 18;
+  const pressure = hourData.pressure_msl ?? 1013;
+  const wind = hourData.wind_speed_10m ?? 10;
+  const rain = hourData.precipitation ?? 0;
+  const rainProb = hourData.precipitation_probability ?? 20;
+  const humidity = hourData.relative_humidity_2m ?? 60;
+  const cloud = hourData.cloud_cover ?? 45;
+
+  let score = 50;
+  const notes = [];
+
+  if (pressure >= 1008 && pressure <= 1020) score += 10;
+  else if (pressure < 1000 || pressure > 1030) {
+    score -= 14;
+    notes.push('Atmosfera inestable por presion extrema');
+  } else {
+    score -= 4;
+  }
+
+  if (wind <= 12) score += 10;
+  else if (wind <= 20) score += 3;
+  else if (wind <= 30) score -= 8;
+  else {
+    score -= 18;
+    notes.push('Viento muy fuerte');
+  }
+
+  if (rain > 2 || rainProb >= 75) {
+    score -= 15;
+    notes.push('Lluvia intensa/probable');
+  } else if (rainProb <= 35) {
+    score += 5;
+  }
+
+  if (humidity >= 45 && humidity <= 82) score += 4;
+  if (cloud >= 20 && cloud <= 75) score += 5;
+
+  // Ajuste rapido por especie ante calor/frio extremos.
+  if ((species === 'trucha' || species === 'salmon') && temp > 20) score -= 15;
+  if ((species === 'dorada' || species === 'jurel' || species === 'atun') && temp < 12) score -= 12;
+
+  return { atmosphericScore: clamp(Math.round(score), 0, 99), atmosphericNotes: notes };
+};
+
 const scoreHour = ({ species, gear, waterType, hourData, month, locationCatalog }) => {
   const rules = SPECIES_RULES[species] || SPECIES_RULES.carpa;
   const hardIncompatible = (HARD_INCOMPATIBLE_GEAR[species] || []).includes(gear);
@@ -342,7 +388,7 @@ const scoreHour = ({ species, gear, waterType, hourData, month, locationCatalog 
   const cloud = hourData.cloud_cover ?? 45;
   const hour = toHour(hourData.time);
 
-  let score = 40;
+  let score = 35;
   const notes = [];
 
   if (temp >= rules.tempMin && temp <= rules.tempMax) {
@@ -425,8 +471,8 @@ const scoreHour = ({ species, gear, waterType, hourData, month, locationCatalog 
     notes.push('El equipo no es el mas recomendable');
   }
 
-  const chance = clamp(Math.round(score), 5, 99);
-  return { chance, notes, gearMatch, hour, hardIncompatible: false, blockingReason: null };
+  const biologicalScore = clamp(Math.round(score), 0, 99);
+  return { chance: biologicalScore, biologicalScore, notes, gearMatch, hour, hardIncompatible: false, blockingReason: null };
 };
 
 const calculateFishingChance = ({ species, gear, weather, waterType, selectedDate, selectedSpot }) => {
@@ -462,9 +508,18 @@ const calculateFishingChance = ({ species, gear, weather, waterType, selectedDat
 
   const scored = rows.map((row) => {
     const result = scoreHour({ species, gear, waterType, hourData: row, month, locationCatalog });
+    const atmosphere = atmosphericAnalystScore({ hourData: row, species });
+
+    // Modelo combinado: biologico + atmosferico, con penalizacion de desacuerdo.
+    const baseCombined = Math.round(result.chance * 0.62 + atmosphere.atmosphericScore * 0.38);
+    const disagreementPenalty = Math.abs(result.chance - atmosphere.atmosphericScore) >= 30 ? 8 : 0;
+    const combinedChance = clamp(baseCombined - disagreementPenalty, 0, 99);
+
     return {
       ...row,
       ...result,
+      ...atmosphere,
+      chance: combinedChance,
       hourLabel: format(new Date(row.time), 'HH:mm', { locale: es }),
     };
   });
@@ -855,6 +910,9 @@ const PronosticosPage = () => {
                             <p className="text-white text-xl font-black">{forecast.bestHour.hourLabel} ({forecast.bestHour.chance}%)</p>
                             <p className="text-xs text-blue-300 mt-1">
                               Temp {forecast.bestHour.temperature_2m}°C · Viento {forecast.bestHour.wind_speed_10m} km/h · Presion {forecast.bestHour.pressure_msl} hPa
+                            </p>
+                            <p className="text-xs text-blue-300 mt-1">
+                              Analista biologico: {forecast.bestHour.biologicalScore}% · Analista atmosferico: {forecast.bestHour.atmosphericScore}%
                             </p>
                           </div>
                         )}
