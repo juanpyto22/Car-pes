@@ -29,6 +29,31 @@ const CONDITIONS = [
   { id: 'fair', label: 'Aceptable', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' },
 ];
 
+const safeJsonParse = (value, fallback) => {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const getImageUrlFromProduct = (product) => {
+  const rawImage = product.image_url || product.imageUrl || product.photo_url || product.photo || product.image || null;
+  if (!rawImage) return null;
+
+  if (/^(https?:|data:|blob:)/.test(rawImage)) return rawImage;
+
+  const { data } = supabase.storage.from('posts').getPublicUrl(rawImage);
+  return data?.publicUrl || null;
+};
+
+const normalizeProduct = (product) => ({
+  ...product,
+  image_url: getImageUrlFromProduct(product),
+  status: product.status || 'active',
+});
+
 const MarketplacePage = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -39,11 +64,15 @@ const MarketplacePage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dbAvailable, setDbAvailable] = useState(true);
   const [favorites, setFavorites] = useState([]);
+  const [purchasedIds, setPurchasedIds] = useState([]);
+  const [buyingIds, setBuyingIds] = useState([]);
 
   useEffect(() => {
     fetchProducts();
-    const storedFavs = JSON.parse(localStorage.getItem('carpes_mp_favs') || '[]');
+    const storedFavs = safeJsonParse(localStorage.getItem('carpes_mp_favs') || '[]', []);
     setFavorites(storedFavs);
+    const storedBuys = safeJsonParse(localStorage.getItem(`carpes_mp_buys_${user?.id || 'guest'}`) || '[]', []);
+    setPurchasedIds(storedBuys);
   }, [user]);
 
   const fetchProducts = async () => {
@@ -56,12 +85,13 @@ const MarketplacePage = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setProducts(data || []);
+      setProducts((data || []).map(normalizeProduct));
     } catch (err) {
       console.warn('marketplace_products table not available:', err.message);
       setDbAvailable(false);
       const stored = localStorage.getItem('carpes_marketplace');
-      if (stored) setProducts(JSON.parse(stored));
+      const localProducts = safeJsonParse(stored || '[]', []).map(normalizeProduct);
+      setProducts(localProducts);
     } finally {
       setLoading(false);
     }
@@ -98,18 +128,18 @@ const MarketplacePage = () => {
           .single();
 
         if (error) throw error;
-        setProducts(prev => [data, ...prev]);
+        setProducts(prev => [normalizeProduct(data), ...prev]);
       } else {
         const newProduct = {
           id: crypto.randomUUID(),
           ...productData,
-          image_url: productData.imageFile ? URL.createObjectURL(productData.imageFile) : null,
+          image_url: productData.imageDataUrl || null,
           seller_id: user?.id,
           seller: { id: user?.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil },
           status: 'active',
           created_at: new Date().toISOString(),
         };
-        const updated = [newProduct, ...products];
+        const updated = [normalizeProduct(newProduct), ...products];
         setProducts(updated);
         localStorage.setItem('carpes_marketplace', JSON.stringify(updated));
       }
@@ -119,6 +149,39 @@ const MarketplacePage = () => {
     } catch (err) {
       console.error('Error creating product:', err);
       toast({ variant: 'destructive', title: 'Error al publicar' });
+    }
+  };
+
+  const handleBuyProduct = async (product) => {
+    if (!user || product.seller_id === user.id || purchasedIds.includes(product.id)) return;
+
+    setBuyingIds(prev => [...prev, product.id]);
+    try {
+      if (dbAvailable) {
+        const { error } = await supabase.from('marketplace_offers').insert({
+          product_id: product.id,
+          buyer_id: user.id,
+          seller_id: product.seller_id,
+          offer_price: product.price,
+          status: 'pending',
+        });
+
+        if (error) throw error;
+      }
+
+      const updated = [...new Set([...purchasedIds, product.id])];
+      setPurchasedIds(updated);
+      localStorage.setItem(`carpes_mp_buys_${user.id}`, JSON.stringify(updated));
+      toast({ title: 'Compra registrada', description: 'Se ha enviado tu solicitud al vendedor.' });
+    } catch (err) {
+      console.warn('Error registering purchase in DB, using local purchase:', err?.message || err);
+      setDbAvailable(false);
+      const updated = [...new Set([...purchasedIds, product.id])];
+      setPurchasedIds(updated);
+      localStorage.setItem(`carpes_mp_buys_${user.id}`, JSON.stringify(updated));
+      toast({ title: 'Compra guardada', description: 'La compra se guardó en este dispositivo.' });
+    } finally {
+      setBuyingIds(prev => prev.filter(id => id !== product.id));
     }
   };
 
@@ -165,12 +228,6 @@ const MarketplacePage = () => {
             </Button>
           </motion.div>
 
-          {!dbAvailable && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 mb-4 text-sm text-yellow-300">
-              ⚠️ Base de datos no configurada. Los productos se guardan localmente. Ejecuta <span className="font-mono bg-black/20 px-1 rounded">setup-chat-groups.sql</span> para persistir datos.
-            </motion.div>
-          )}
-
           {/* Search */}
           <div className="relative mb-4">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400" />
@@ -212,6 +269,9 @@ const MarketplacePage = () => {
                   isFav={favorites.includes(product.id)}
                   onToggleFav={() => toggleFavorite(product.id)}
                   isOwn={user && product.seller_id === user.id}
+                  isPurchased={purchasedIds.includes(product.id)}
+                  isBuying={buyingIds.includes(product.id)}
+                  onBuy={() => handleBuyProduct(product)}
                 />
               ))}
             </div>
@@ -249,7 +309,7 @@ const MarketplacePage = () => {
 };
 
 // ─── Product Card ──────────────────────────────────────────
-const ProductCard = ({ product, index, isFav, onToggleFav, isOwn }) => {
+const ProductCard = ({ product, index, isFav, onToggleFav, isOwn, isPurchased, isBuying, onBuy }) => {
   const condition = CONDITIONS.find(c => c.id === product.condition) || CONDITIONS[2];
   let timeAgo = '';
   try { timeAgo = formatDistanceToNow(new Date(product.created_at), { addSuffix: true, locale: es }); } catch {}
@@ -313,6 +373,17 @@ const ProductCard = ({ product, index, isFav, onToggleFav, isOwn }) => {
           <span className="text-[11px] text-blue-400 truncate">{product.seller?.username}</span>
           <span className="text-[10px] text-blue-600 ml-auto">{timeAgo}</span>
         </div>
+
+        {!isOwn && (
+          <Button
+            onClick={onBuy}
+            disabled={isPurchased || isBuying}
+            className="mt-3 h-8 w-full rounded-lg bg-cyan-600/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-600/30 disabled:opacity-60"
+            variant="ghost"
+          >
+            {isBuying ? 'Procesando...' : isPurchased ? 'Comprado' : 'Comprar'}
+          </Button>
+        )}
       </div>
     </motion.div>
   );
@@ -328,21 +399,38 @@ const CreateProductModal = ({ onClose, onCreate }) => {
   const [location, setLocation] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [imageDataUrl, setImageDataUrl] = useState(null);
   const [creating, setCreating] = useState(false);
   const fileRef = useRef(null);
 
-  const handleImageSelect = (e) => {
+  const fileToDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const handleImageSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) return;
     setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setImageDataUrl(dataUrl);
+      setImagePreview(dataUrl);
+    } catch {
+      setImageDataUrl(null);
+      setImagePreview(URL.createObjectURL(file));
+    }
   };
 
   const handleSubmit = async () => {
     if (!title.trim() || !price) return;
     setCreating(true);
-    await onCreate({ title, description, price: parseFloat(price), category, condition, location, imageFile });
+    await onCreate({ title, description, price: parseFloat(price), category, condition, location, imageFile, imageDataUrl });
     setCreating(false);
   };
 
