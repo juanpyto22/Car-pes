@@ -48,6 +48,20 @@ const EventsCalendarPage = () => {
     fetchEvents();
   }, [user]);
 
+  const loadLocalEvents = () => {
+    const stored = localStorage.getItem('carpes_events');
+    if (!stored) return [];
+
+    try {
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (parseError) {
+      console.warn('Invalid local events cache, clearing it:', parseError);
+      localStorage.removeItem('carpes_events');
+      return [];
+    }
+  };
+
   const fetchEvents = async () => {
     setLoading(true);
     try {
@@ -65,11 +79,9 @@ const EventsCalendarPage = () => {
       if (error) throw error;
       setEvents(data || []);
     } catch (err) {
-      console.warn('fishing_events table not available, using local state:', err.message);
+      console.warn('fishing_events table not available, using local state:', err?.message || err);
       setDbAvailable(false);
-      // Load from localStorage fallback
-      const stored = localStorage.getItem('carpes_events');
-      if (stored) setEvents(JSON.parse(stored));
+      setEvents(loadLocalEvents());
     } finally {
       setLoading(false);
     }
