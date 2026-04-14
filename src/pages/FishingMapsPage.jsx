@@ -129,6 +129,30 @@ const MapFitBounds = ({ locations, trigger }) => {
   return null;
 };
 
+const RouteViewportController = ({ enabled, userLocation, selectedLocation }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!enabled || !userLocation || !selectedLocation) {
+      return;
+    }
+
+    const bounds = L.latLngBounds([
+      [userLocation[0], userLocation[1]],
+      [selectedLocation.latitude, selectedLocation.longitude],
+    ]);
+
+    map.fitBounds(bounds, {
+      padding: [70, 70],
+      maxZoom: 10,
+      animate: true,
+      duration: 0.6,
+    });
+  }, [enabled, userLocation, selectedLocation, map]);
+
+  return null;
+};
+
 const FishingMapsPage = () => {
   const { toast } = useToast();
 
@@ -139,7 +163,6 @@ const FishingMapsPage = () => {
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [mapTheme, setMapTheme] = useState('terrain');
   const [showRoute, setShowRoute] = useState(false);
-  const routePolylineRef = useRef(null);
 
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
@@ -244,6 +267,15 @@ const FishingMapsPage = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const closeSearchMenuOnScroll = () => {
+      setSearchFocused(false);
+    };
+
+    window.addEventListener('scroll', closeSearchMenuOnScroll, { passive: true });
+    return () => window.removeEventListener('scroll', closeSearchMenuOnScroll);
   }, []);
 
   const countries = useMemo(
@@ -367,9 +399,43 @@ const FishingMapsPage = () => {
   };
 
   const handleNavigate = (location) => {
-    if (userLocation) {
-      setShowRoute(!showRoute);
+    if (!location) {
+      return;
     }
+
+    setSelectedLocation(location);
+    setMapCenter([location.latitude, location.longitude]);
+
+    if (userLocation) {
+      const sameLocation = selectedLocation?.name === location.name;
+      setShowRoute(!(sameLocation && showRoute));
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      toast({
+        variant: 'destructive',
+        title: 'Geolocalizacion no disponible',
+        description: 'Activa tu ubicacion para calcular la ruta en el mapa.',
+      });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const currentUserLocation = [coords.latitude, coords.longitude];
+        setUserLocation(currentUserLocation);
+        setShowRoute(true);
+      },
+      () => {
+        toast({
+          variant: 'destructive',
+          title: 'No se pudo obtener tu ubicacion',
+          description: 'Permite acceso a ubicacion para ver la ruta.',
+        });
+      },
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
   };
 
   const resetAll = () => {
@@ -385,6 +451,7 @@ const FishingMapsPage = () => {
   const currentTheme = MAP_THEMES[mapTheme] || MAP_THEMES.terrain;
 
   const showSearchMenu =
+    !showFilters &&
     searchFocused &&
     (searchQuery.trim().length > 0 || searchHistory.length > 0 || favorites.length > 0);
 
@@ -561,7 +628,15 @@ const FishingMapsPage = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowFilters((prev) => !prev)}
+                onClick={() =>
+                  setShowFilters((prev) => {
+                    const next = !prev;
+                    if (next) {
+                      setSearchFocused(false);
+                    }
+                    return next;
+                  })
+                }
                 className="border-white/20 bg-slate-900/60 text-cyan-100 hover:bg-cyan-900/20"
               >
                 <Filter className="mr-1 h-4 w-4" />
@@ -596,14 +671,14 @@ const FishingMapsPage = () => {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={() => setShowFilters(false)}
-                    className="fixed inset-0 z-[70] bg-black/30 backdrop-blur-xs"
+                    className="fixed inset-0 z-[90] bg-black/45 backdrop-blur-sm"
                   />
                   {/* Modal Flotante */}
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: -10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                    className="fixed top-24 right-4 z-[75] w-96 max-w-[calc(100vw-2rem)] rounded-xl border border-cyan-400/30 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-md"
+                    className="fixed left-1/2 top-1/2 z-[95] w-[min(560px,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-cyan-400/35 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-md md:p-5"
                   >
                     <button
                       onClick={() => setShowFilters(false)}
@@ -692,6 +767,11 @@ const FishingMapsPage = () => {
 
               <MapViewportController center={mapCenter} zoom={mapZoom} />
               <MapFitBounds locations={filteredLocations} trigger={fitTrigger} />
+              <RouteViewportController
+                enabled={showRoute}
+                userLocation={userLocation}
+                selectedLocation={selectedLocation}
+              />
 
               {filteredLocations.map((location) => (
                 <Marker
