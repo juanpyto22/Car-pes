@@ -79,6 +79,21 @@ const SPECIES_RULES = {
   },
 };
 
+const SPECIES_SEASONS = {
+  carpa: { prime: [4, 5, 6, 9, 10], ok: [3, 7, 8, 11] },
+  bass: { prime: [4, 5, 6, 9, 10], ok: [3, 7, 8] },
+  lucio: { prime: [10, 11, 12, 1, 2, 3], ok: [4, 9] },
+  trucha: { prime: [3, 4, 5, 9, 10], ok: [6, 11] },
+  siluro: { prime: [6, 7, 8, 9], ok: [5, 10] },
+  dorada: { prime: [5, 6, 7, 8, 9, 10], ok: [4, 11] },
+  lubina: { prime: [10, 11, 12, 1, 2, 3], ok: [4, 9] },
+};
+
+const HARD_INCOMPATIBLE_GEAR = {
+  // Regla fuerte pedida: carpa no se pesca con señuelos de depredador.
+  carpa: ['cucharilla', 'vinilo-jig', 'paseante-popper', 'currican'],
+};
+
 const typeFromResult = (place) => {
   const text = `${place?.display_name || ''} ${place?.type || ''}`.toLowerCase();
   if (text.includes('reservoir') || text.includes('embalse') || text.includes('pantano')) return 'pantano';
@@ -150,8 +165,20 @@ const buildHourlyRows = (weather) => {
   }));
 };
 
-const scoreHour = ({ species, gear, waterType, hourData }) => {
+const scoreHour = ({ species, gear, waterType, hourData, month }) => {
   const rules = SPECIES_RULES[species] || SPECIES_RULES.carpa;
+  const hardIncompatible = (HARD_INCOMPATIBLE_GEAR[species] || []).includes(gear);
+
+  if (hardIncompatible) {
+    return {
+      chance: 0,
+      notes: ['Tecnica incompatible con la especie objetivo.'],
+      gearMatch: false,
+      hour: toHour(hourData.time),
+      hardIncompatible: true,
+    };
+  }
+
   const temp = hourData.temperature_2m ?? 18;
   const pressure = hourData.pressure_msl ?? 1013;
   const wind = hourData.wind_speed_10m ?? 10;
@@ -204,6 +231,20 @@ const scoreHour = ({ species, gear, waterType, hourData }) => {
   if (cloud >= 30 && cloud <= 80) score += 5;
   if (humidity >= 45 && humidity <= 85) score += 3;
 
+  const season = SPECIES_SEASONS[species];
+  if (season) {
+    if (season.prime.includes(month)) {
+      score += 10;
+      notes.push('Mes muy favorable para la especie');
+    } else if (season.ok.includes(month)) {
+      score += 3;
+      notes.push('Mes aceptable para actividad');
+    } else {
+      score -= 12;
+      notes.push('Mes poco favorable para esta especie');
+    }
+  }
+
   if (rules.water.includes(waterType)) {
     score += 10;
     notes.push('Tipo de agua compatible con la especie');
@@ -231,7 +272,7 @@ const scoreHour = ({ species, gear, waterType, hourData }) => {
   }
 
   const chance = clamp(Math.round(score), 5, 99);
-  return { chance, notes, gearMatch, hour };
+  return { chance, notes, gearMatch, hour, hardIncompatible: false };
 };
 
 const calculateFishingChance = ({ species, gear, weather, waterType, selectedDate }) => {
@@ -243,6 +284,8 @@ const calculateFishingChance = ({ species, gear, weather, waterType, selectedDat
       bestHour: null,
       allHours: [],
       gearMatch: false,
+      hardIncompatible: false,
+      blockingReason: null,
     };
   }
 
@@ -255,17 +298,36 @@ const calculateFishingChance = ({ species, gear, weather, waterType, selectedDat
       bestHour: null,
       allHours: [],
       gearMatch: false,
+      hardIncompatible: false,
+      blockingReason: null,
     };
   }
 
+  const month = Number((selectedDate || '').split('-')[1]) || new Date().getMonth() + 1;
+
   const scored = rows.map((row) => {
-    const result = scoreHour({ species, gear, waterType, hourData: row });
+    const result = scoreHour({ species, gear, waterType, hourData: row, month });
     return {
       ...row,
       ...result,
       hourLabel: format(new Date(row.time), 'HH:mm', { locale: es }),
     };
   });
+
+  const anyHardIncompatible = scored.some((s) => s.hardIncompatible);
+  if (anyHardIncompatible) {
+    const bestHour = scored[0] || null;
+    return {
+      chance: 0,
+      expectedCatch: 0,
+      notes: ['Combinacion especie/tecnica no valida para pesca efectiva.'],
+      bestHour,
+      allHours: scored,
+      gearMatch: false,
+      hardIncompatible: true,
+      blockingReason: 'La tecnica seleccionada no corresponde con la especie objetivo.',
+    };
+  }
 
   const bestHour = [...scored].sort((a, b) => b.chance - a.chance)[0];
   const avgChance = Math.round(scored.reduce((acc, item) => acc + item.chance, 0) / scored.length);
@@ -278,6 +340,8 @@ const calculateFishingChance = ({ species, gear, weather, waterType, selectedDat
     bestHour,
     allHours: scored,
     gearMatch: Boolean(bestHour?.gearMatch),
+    hardIncompatible: false,
+    blockingReason: null,
   };
 };
 
@@ -621,7 +685,7 @@ const PronosticosPage = () => {
                         </p>
                         <p className="text-xs text-blue-300 mt-1">Estimacion: {forecast.expectedCatch} capturas probables.</p>
 
-                        {forecast.bestHour && (
+                        {forecast.bestHour && !forecast.hardIncompatible && (
                           <div className="mt-3 rounded-lg border border-cyan-400/30 bg-slate-950/40 p-3">
                             <p className="text-cyan-200 text-xs font-semibold">Mejor hora recomendada</p>
                             <p className="text-white text-xl font-black">{forecast.bestHour.hourLabel} ({forecast.bestHour.chance}%)</p>
@@ -631,10 +695,20 @@ const PronosticosPage = () => {
                           </div>
                         )}
 
-                        <p className={`text-xs mt-3 ${forecast.gearMatch ? 'text-emerald-300' : 'text-yellow-300'}`}>
-                          {forecast.gearMatch
-                            ? 'Equipo recomendado para la especie: vas bien preparado.'
-                            : 'Tu tecnica no es la mas adecuada para esta especie. Considera cambiar de equipo.'}
+                        {forecast.hardIncompatible && (
+                          <div className="mt-3 rounded-lg border border-red-500/40 bg-red-900/20 p-3">
+                            <p className="text-red-200 text-xs font-semibold">Combinacion no valida</p>
+                            <p className="text-red-100 text-sm mt-1">{forecast.blockingReason || 'La tecnica seleccionada no es valida para la especie.'}</p>
+                            <p className="text-red-200/90 text-xs mt-2">Ajusta la tecnica para obtener una recomendacion horaria real.</p>
+                          </div>
+                        )}
+
+                        <p className={`text-xs mt-3 ${forecast.hardIncompatible ? 'text-red-300' : forecast.gearMatch ? 'text-emerald-300' : 'text-yellow-300'}`}>
+                          {forecast.hardIncompatible
+                            ? 'Probabilidad bloqueada por incompatibilidad especie/tecnica (0%).'
+                            : forecast.gearMatch
+                              ? 'Equipo recomendado para la especie: vas bien preparado.'
+                              : 'Tu tecnica no es la mas adecuada para esta especie. Considera cambiar de equipo.'}
                         </p>
 
                         {forecast.notes.length > 0 && (
