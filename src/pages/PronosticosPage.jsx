@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useLocation } from 'react-router-dom';
 import { addDays, format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { fishingLocations } from '@/data/fishingLocations';
 
 const SPECIES = [
   { id: 'carpa', label: 'Carpa' },
@@ -88,6 +89,37 @@ const typeFromResult = (place) => {
 };
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+
+const normalizeText = (value = '') =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const weatherCodeToText = (code) => {
+  const map = {
+    0: 'Despejado',
+    1: 'Poco nuboso',
+    2: 'Parcialmente nuboso',
+    3: 'Cubierto',
+    45: 'Niebla',
+    48: 'Niebla con escarcha',
+    51: 'Llovizna ligera',
+    53: 'Llovizna moderada',
+    55: 'Llovizna intensa',
+    61: 'Lluvia ligera',
+    63: 'Lluvia moderada',
+    65: 'Lluvia fuerte',
+    71: 'Nieve ligera',
+    73: 'Nieve moderada',
+    75: 'Nieve fuerte',
+    80: 'Chubascos ligeros',
+    81: 'Chubascos moderados',
+    82: 'Chubascos fuertes',
+    95: 'Tormenta',
+  };
+  return map[code] || 'Tiempo variable';
+};
 
 const toHour = (isoDate) => {
   const d = new Date(isoDate);
@@ -261,9 +293,38 @@ const PronosticosPage = () => {
   const [gear, setGear] = useState('cebo-natural');
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [error, setError] = useState(null);
+  const [queryFocused, setQueryFocused] = useState(false);
+  const [selectedSuggestion, setSelectedSuggestion] = useState(null);
 
   const minDate = format(new Date(), 'yyyy-MM-dd');
   const maxDate = format(addDays(new Date(), 15), 'yyyy-MM-dd');
+
+  const spanishWaters = useMemo(() => {
+    return fishingLocations.filter((location) => {
+      const country = normalizeText(location.country || '');
+      const type = normalizeText(location.type || '');
+      return country === 'espana' && ['rio', 'lago', 'embalse', 'mar', 'parque'].includes(type);
+    });
+  }, []);
+
+  const localSuggestions = useMemo(() => {
+    const q = normalizeText(query.trim());
+    if (!q) return [];
+
+    return spanishWaters
+      .filter((spot) => {
+        const haystack = normalizeText(`${spot.name} ${spot.region} ${spot.type} ${spot.description || ''}`);
+        return haystack.includes(q);
+      })
+      .slice(0, 10)
+      .map((spot, idx) => ({
+        place_id: `local-suggest-${idx}-${spot.name}`,
+        lat: String(spot.latitude),
+        lon: String(spot.longitude),
+        display_name: `${spot.name}, ${spot.region}, España`,
+        type: spot.type,
+      }));
+  }, [query, spanishWaters]);
 
   const selectedType = useMemo(() => typeFromResult(selectedSpot), [selectedSpot]);
 
@@ -298,31 +359,71 @@ const PronosticosPage = () => {
   }, [routerLocation.search]);
 
   const searchWaters = async () => {
-    if (!query.trim() || query.trim().length < 2) return;
+    if (!query.trim() || query.trim().length < 1) return;
 
     setLoadingSearch(true);
     setError(null);
 
     try {
+      const qNorm = normalizeText(query.trim());
+
+      const localResults = spanishWaters
+        .filter((spot) => {
+          const haystack = normalizeText(`${spot.name} ${spot.region} ${spot.type} ${spot.description || ''}`);
+          return haystack.includes(qNorm);
+        })
+        .slice(0, 25)
+        .map((spot, idx) => ({
+          place_id: `local-${idx}-${spot.name}`,
+          lat: String(spot.latitude),
+          lon: String(spot.longitude),
+          display_name: `${spot.name}, ${spot.region}, España`,
+          type: spot.type,
+        }));
+
       const q = encodeURIComponent(`${query.trim()} embalse rio mar lago costa Espana`);
       const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=es&limit=40&q=${q}`;
-      const res = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-        },
+
+      let remoteFiltered = [];
+      try {
+        const res = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          remoteFiltered = (data || []).filter((item) => {
+            const text = `${item.display_name || ''} ${item.type || ''}`.toLowerCase();
+            return [
+              'river', 'rio', 'río', 'reservoir', 'embalse', 'pantano', 'sea', 'mar', 'lake', 'laguna', 'coast', 'bay', 'bahia', 'bahía'
+            ].some((k) => text.includes(k));
+          });
+        }
+      } catch (remoteErr) {
+        console.warn('Busqueda remota no disponible, usando base local:', remoteErr);
+      }
+
+      const merged = [...localResults];
+      remoteFiltered.forEach((item) => {
+        const already = merged.some((m) => {
+          const mName = normalizeText((m.display_name || '').split(',')[0]);
+          const rName = normalizeText((item.display_name || '').split(',')[0]);
+          const closeCoord = Math.abs(Number(m.lat) - Number(item.lat)) < 0.03 && Math.abs(Number(m.lon) - Number(item.lon)) < 0.03;
+          return mName === rName || closeCoord;
+        });
+        if (!already) merged.push(item);
       });
 
-      if (!res.ok) throw new Error('No se pudo buscar ubicaciones');
+      setResults(merged);
 
-      const data = await res.json();
-      const filtered = (data || []).filter((item) => {
-        const text = `${item.display_name || ''} ${item.type || ''}`.toLowerCase();
-        return [
-          'river', 'rio', 'río', 'reservoir', 'embalse', 'pantano', 'sea', 'mar', 'lake', 'laguna', 'coast', 'bay', 'bahia', 'bahía'
-        ].some((k) => text.includes(k));
-      });
-
-      setResults(filtered);
+      const preferred = selectedSuggestion || merged[0] || null;
+      if (preferred) {
+        await loadForecast(preferred);
+      } else {
+        setError('No se encontraron masas de agua para esa busqueda.');
+      }
     } catch (err) {
       console.error(err);
       setError('No se pudo completar la busqueda. Intenta de nuevo.');
@@ -340,7 +441,7 @@ const PronosticosPage = () => {
       const lat = Number(spot.lat);
       const lon = Number(spot.lon);
 
-      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,relative_humidity_2m,cloud_cover,precipitation&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,relative_humidity_2m,cloud_cover,precipitation,precipitation_probability&forecast_days=16&timezone=auto`;
+      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,relative_humidity_2m,cloud_cover,precipitation&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,relative_humidity_2m,cloud_cover,precipitation,precipitation_probability&forecast_days=16&timezone=auto`;
       const res = await fetch(weatherUrl);
       if (!res.ok) throw new Error('No se pudo cargar el tiempo');
       const data = await res.json();
@@ -373,11 +474,34 @@ const PronosticosPage = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
                 <input
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setSelectedSuggestion(null);
+                  }}
+                  onFocus={() => setQueryFocused(true)}
+                  onBlur={() => setTimeout(() => setQueryFocused(false), 120)}
                   onKeyDown={(e) => e.key === 'Enter' && searchWaters()}
                   placeholder="Ejemplo: Orellana, Ebro, Delta del Ebro, Guadalquivir, Cantabrico..."
                   className="w-full bg-slate-950/80 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 placeholder-blue-500"
                 />
+
+                {queryFocused && localSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-600 bg-slate-900 shadow-xl">
+                    {localSuggestions.map((spot) => (
+                      <button
+                        key={spot.place_id}
+                        type="button"
+                        onMouseDown={() => {
+                          setQuery((spot.display_name || '').split(',').slice(0, 2).join(',').trim());
+                          setSelectedSuggestion(spot);
+                        }}
+                        className="w-full border-b border-white/5 px-3 py-2 text-left text-sm text-blue-100 hover:bg-slate-800"
+                      >
+                        {spot.display_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <Button onClick={searchWaters} disabled={loadingSearch} className="h-12 px-5 bg-cyan-600 hover:bg-cyan-500">
                 {loadingSearch ? 'Buscando...' : 'Buscar'}
@@ -473,8 +597,11 @@ const PronosticosPage = () => {
                     <>
                       <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
                         <Metric icon={CloudSun} label="Temperatura" value={`${weather.current.temperature_2m} °C`} />
+                        <Metric icon={CloudSun} label="Sensacion" value={`${weather.current.apparent_temperature} °C`} />
+                        <Metric icon={CloudSun} label="Tiempo ahora" value={weatherCodeToText(weather.current.weather_code)} />
                         <Metric icon={Gauge} label="Presion" value={`${weather.current.pressure_msl} hPa`} />
                         <Metric icon={Wind} label="Viento" value={`${weather.current.wind_speed_10m} km/h`} />
+                        <Metric icon={Wind} label="Direccion" value={`${weather.current.wind_direction_10m}°`} />
                         <Metric icon={Droplets} label="Humedad" value={`${weather.current.relative_humidity_2m}%`} />
                         <Metric icon={Waves} label="Tipo de agua" value={selectedType.toUpperCase()} />
                         <Metric icon={Fish} label="Especie" value={SPECIES.find(s => s.id === species)?.label || species} />
