@@ -185,6 +185,40 @@ const MarketplacePage = () => {
     }
   };
 
+  const handleDeleteProduct = async (product) => {
+    if (!user || product.seller_id !== user.id) {
+      toast({ variant: 'destructive', title: 'No puedes eliminar este producto' });
+      return;
+    }
+
+    const confirmDelete = window.confirm('¿Seguro que quieres eliminar este producto?');
+    if (!confirmDelete) return;
+
+    try {
+      if (dbAvailable) {
+        const { error } = await supabase
+          .from('marketplace_products')
+          .delete()
+          .eq('id', product.id)
+          .eq('seller_id', user.id);
+
+        if (error) throw error;
+      }
+
+      setProducts(prev => prev.filter(p => p.id !== product.id));
+
+      if (!dbAvailable) {
+        const updated = products.filter(p => p.id !== product.id);
+        localStorage.setItem('carpes_marketplace', JSON.stringify(updated));
+      }
+
+      toast({ title: 'Producto eliminado' });
+    } catch (err) {
+      console.error('Error deleting product:', err);
+      toast({ variant: 'destructive', title: 'Error al eliminar producto' });
+    }
+  };
+
   const toggleFavorite = (productId) => {
     setFavorites(prev => {
       const updated = prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId];
@@ -272,6 +306,7 @@ const MarketplacePage = () => {
                   isPurchased={purchasedIds.includes(product.id)}
                   isBuying={buyingIds.includes(product.id)}
                   onBuy={() => handleBuyProduct(product)}
+                  onDelete={() => handleDeleteProduct(product)}
                 />
               ))}
             </div>
@@ -309,7 +344,7 @@ const MarketplacePage = () => {
 };
 
 // ─── Product Card ──────────────────────────────────────────
-const ProductCard = ({ product, index, isFav, onToggleFav, isOwn, isPurchased, isBuying, onBuy }) => {
+const ProductCard = ({ product, index, isFav, onToggleFav, isOwn, isPurchased, isBuying, onBuy, onDelete }) => {
   const condition = CONDITIONS.find(c => c.id === product.condition) || CONDITIONS[2];
   let timeAgo = '';
   try { timeAgo = formatDistanceToNow(new Date(product.created_at), { addSuffix: true, locale: es }); } catch {}
@@ -382,6 +417,16 @@ const ProductCard = ({ product, index, isFav, onToggleFav, isOwn, isPurchased, i
             variant="ghost"
           >
             {isBuying ? 'Procesando...' : isPurchased ? 'Comprado' : 'Comprar'}
+          </Button>
+        )}
+
+        {isOwn && (
+          <Button
+            onClick={onDelete}
+            className="mt-3 h-8 w-full rounded-lg bg-red-600/15 text-red-300 border border-red-500/40 hover:bg-red-600/25"
+            variant="ghost"
+          >
+            Eliminar
           </Button>
         )}
       </div>
