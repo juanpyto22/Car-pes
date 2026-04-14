@@ -233,6 +233,59 @@ const streamOps = {
     }
   },
 
+  async fetchGiftRanking(streamId) {
+    try {
+      const { data, error } = await supabase
+        .from('live_stream_gifts')
+        .select('sender_id, value')
+        .eq('stream_id', streamId);
+
+      if (error) {
+        if (error.code === '42P01') return [];
+        throw error;
+      }
+
+      // Aggregate by sender
+      const ranking = {};
+      (data || []).forEach((gift) => {
+        if (!ranking[gift.sender_id]) {
+          ranking[gift.sender_id] = 0;
+        }
+        ranking[gift.sender_id] += gift.value || 0;
+      });
+
+      // Sort by value descending and get top 5
+      const sorted = Object.entries(ranking)
+        .map(([senderId, totalValue]) => ({ senderId, totalValue }))
+        .sort((a, b) => b.totalValue - a.totalValue)
+        .slice(0, 5);
+
+      // Fetch sender profiles
+      const senderIds = sorted.map(r => r.senderId);
+      let profilesMap = {};
+
+      if (senderIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username, nombre, foto_perfil')
+          .in('id', senderIds);
+
+        profilesMap = (profiles || []).reduce((acc, profile) => {
+          acc[profile.id] = profile;
+          return acc;
+        }, {});
+      }
+
+      return sorted.map((r) => ({
+        ...r,
+        sender: profilesMap[r.senderId] || { id: r.senderId, username: 'usuario' },
+      }));
+    } catch (err) {
+      console.error('Error fetching gift ranking:', err);
+      return [];
+    }
+  },
+
   async fetchChat(streamId) {
     try {
       const { data, error } = await supabase
@@ -447,6 +500,7 @@ const StreamViewer = ({ stream, onBack }) => {
   const [showGiftPicker, setShowGiftPicker] = useState(false);
   const [gifts, setGifts] = useState([]);
   const [missingGiftTable, setMissingGiftTable] = useState(false);
+  const [giftRanking, setGiftRanking] = useState([]);
   const chatRef = useRef(null);
   const heartId = useRef(0);
   const remoteVideoRef = useRef(null);
@@ -585,8 +639,10 @@ const StreamViewer = ({ stream, onBack }) => {
 
     const loadGifts = async () => {
       const rows = await streamOps.fetchGifts(stream.id);
+      const ranking = await streamOps.fetchGiftRanking(stream.id);
       if (!active) return;
       setGifts(rows);
+      setGiftRanking(ranking);
     };
 
     loadGifts();
@@ -775,10 +831,28 @@ const StreamViewer = ({ stream, onBack }) => {
               <span className="text-[10px] text-blue-400/60">{chatMessages.length} msgs</span>
             </div>
           </div>
-          {(missingGiftTable || gifts.length > 0) && (
-            <div className="px-3 py-2 border-b border-white/5 bg-slate-950/40">
+          {(giftRanking.length > 0 || missingGiftTable || gifts.length > 0) && (
+            <div className="px-3 py-2 border-b border-white/5 bg-slate-950/40 space-y-1.5">
               {missingGiftTable && (
-                <p className="text-[10px] text-yellow-300/80 mb-1">Activa setup-live-stream-moderation.sql para guardar donaciones.</p>
+                <p className="text-[10px] text-yellow-300/80">Activa setup-live-stream-moderation.sql para guardar donaciones.</p>
+              )}
+              {giftRanking.length > 0 && (
+                <>
+                  <p className="text-[10px] font-bold text-amber-300/90 flex items-center gap-1">
+                    <Gift className="w-3 h-3" /> 🏆 Top Donadores
+                  </p>
+                  <div className="space-y-1">
+                    {giftRanking.map((rank, idx) => (
+                      <div key={rank.senderId} className="flex items-center justify-between text-[10px] px-2 py-1 rounded bg-black/30">
+                        <span className="text-amber-300 font-bold">
+                          {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                          {rank.sender?.username || 'usuario'}
+                        </span>
+                        <span className="text-amber-400 font-semibold">{rank.totalValue} pts</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
               {gifts.slice(0, 3).map((gift) => (
                 <p key={gift.id} className="text-[11px] text-amber-300/90 truncate">

@@ -134,6 +134,7 @@ const CameraPage = () => {
   const [liveAudience, setLiveAudience] = useState([]);
   const [liveMutedUserIds, setLiveMutedUserIds] = useState(new Set());
   const [liveModeratorUserIds, setLiveModeratorUserIds] = useState(new Set());
+  const [startingLive, setStartingLive] = useState(false);
 
   // Refs
   const videoRef = useRef(null);
@@ -477,7 +478,9 @@ const CameraPage = () => {
   // Live: Start / End stream
   // ═══════════════════════════════════════════════════════
   const handleGoLive = async () => {
-    if (!user?.id || !liveTitle.trim()) return;
+    if (!user?.id || !liveTitle.trim() || startingLive) return;
+    
+    setStartingLive(true);
 
     try {
       const nowIso = new Date().toISOString();
@@ -494,69 +497,88 @@ const CameraPage = () => {
 
       let createdStream = null;
 
+      // Try to find existing inactive stream to reuse
       const { data: existingLive } = await supabase
         .from('live_streams')
         .select('*')
         .eq('user_id', user.id)
-        .eq('is_live', true)
         .order('started_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (existingLive?.id) {
-        await supabase
+        // Update existing stream to be live
+        const { data: updateData, error: updateError } = await supabase
           .from('live_streams')
           .update({
             title: liveTitle.trim(),
             category: liveCategory,
+            is_live: true,
             started_at: existingLive.started_at || nowIso,
           })
-          .eq('id', existingLive.id);
+          .eq('id', existingLive.id)
+          .select()
+          .single();
 
-        createdStream = {
-          ...existingLive,
-          title: liveTitle.trim(),
-          category: liveCategory,
-        };
-      } else {
-        const firstAttempt = await supabase.from('live_streams').insert({
-          user_id: user.id,
-          title: liveTitle.trim(),
-          category: liveCategory,
-          is_live: true,
-          started_at: nowIso,
-          viewer_count: 0,
-          like_count: 0,
-        }).select().single();
-
-        if (!firstAttempt.error) {
-          createdStream = firstAttempt.data;
+        if (!updateError && updateData) {
+          createdStream = updateData;
         }
       }
 
+      // If no existing stream, create new one
       if (!createdStream) {
-        // Retry once after forcing closure in case DB still reports an active stream conflict.
+        const { data: newStream, error: insertError } = await supabase
+          .from('live_streams')
+          .insert({
+            user_id: user.id,
+            title: liveTitle.trim(),
+            category: liveCategory,
+            is_live: true,
+            started_at: nowIso,
+            viewer_count: 0,
+            like_count: 0,
+          })
+          .select()
+          .single();
+
+        if (!insertError && newStream) {
+          createdStream = newStream;
+        }
+      }
+
+      // Last resort: try one more insert attempt
+      if (!createdStream) {
         await supabase
           .from('live_streams')
           .update({
             is_live: false,
             ended_at: nowIso,
           })
-          .eq('user_id', user.id)
-          .eq('is_live', true);
+          .eq('user_id', user.id);
 
-        const retry = await supabase.from('live_streams').insert({
-          user_id: user.id,
-          title: liveTitle.trim(),
-          category: liveCategory,
-          is_live: true,
-          started_at: nowIso,
-          viewer_count: 0,
-          like_count: 0,
-        }).select().single();
+        const { data: finalStream, error: finalError } = await supabase
+          .from('live_streams')
+          .insert({
+            user_id: user.id,
+            title: liveTitle.trim(),
+            category: liveCategory,
+            is_live: true,
+            started_at: nowIso,
+            viewer_count: 0,
+            like_count: 0,
+          })
+          .select()
+          .single();
 
-        if (retry.error) throw retry.error;
-        createdStream = retry.data;
+        if (finalError) {
+          throw new Error(`No se pudo crear el directo: ${finalError.message}`);
+        }
+
+        createdStream = finalStream;
+      }
+
+      if (!createdStream) {
+        throw new Error('No se pudo crear o recuperar la transmisión');
       }
 
       setStreamData(createdStream);
@@ -594,9 +616,13 @@ const CameraPage = () => {
           .subscribe();
         liveStatsChannelRef.current = channel;
       }
+
+      toast({ title: '¡Directo iniciado!', description: 'Tu transmisión está en vivo.' });
     } catch (err) {
       console.error('Go live error:', err);
-      toast({ variant: 'destructive', title: 'Error', description: err.message });
+      toast({ variant: 'destructive', title: 'Error al iniciar directo', description: err.message || 'Inténtalo de nuevo.' });
+    } finally {
+      setStartingLive(false);
     }
   };
 
@@ -975,9 +1001,18 @@ const CameraPage = () => {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <button onClick={handleGoLive} disabled={!liveTitle.trim()}
-                      className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-white text-sm font-bold rounded-xl disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
-                      <Radio className="w-4 h-4" /> EN VIVO
+                    <button onClick={handleGoLive} disabled={!liveTitle.trim() || startingLive}
+                      className="w-full py-3 bg-gradient-to-r from-red-600 to-red-500 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
+                      {startingLive ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Iniciando...
+                        </>
+                      ) : (
+                        <>
+                          <Radio className="w-4 h-4" /> EN VIVO
+                        </>
+                      )}
                     </button>
                   </div>
                 </motion.div>
