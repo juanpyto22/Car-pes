@@ -4,8 +4,6 @@ import {
   Search,
   X,
   Filter,
-  Layers,
-  LocateFixed,
   Heart,
   HelpCircle,
   Sparkles,
@@ -127,30 +125,6 @@ const MapFitBounds = ({ locations, trigger }) => {
   return null;
 };
 
-const RouteViewportController = ({ enabled, userLocation, selectedLocation }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!enabled || !userLocation || !selectedLocation) {
-      return;
-    }
-
-    const bounds = L.latLngBounds([
-      [userLocation[0], userLocation[1]],
-      [selectedLocation.latitude, selectedLocation.longitude],
-    ]);
-
-    map.fitBounds(bounds, {
-      padding: [70, 70],
-      maxZoom: 10,
-      animate: true,
-      duration: 0.6,
-    });
-  }, [enabled, userLocation, selectedLocation, map]);
-
-  return null;
-};
-
 const FishingMapsPage = () => {
   const { toast } = useToast();
 
@@ -166,7 +140,6 @@ const FishingMapsPage = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [fitTrigger, setFitTrigger] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -339,7 +312,6 @@ const FishingMapsPage = () => {
     setMapCenter([location.latitude, location.longitude]);
     setMapZoom(zoom);
     setSearchFocused(false);
-    setShowMobileSidebar(false);
 
     if (shouldAddToHistory) {
       addToHistory(location.name);
@@ -366,31 +338,6 @@ const FishingMapsPage = () => {
     });
   };
 
-  const handleUseMyLocation = () => {
-    if (!navigator.geolocation) {
-      toast({
-        variant: 'destructive',
-        title: 'Geolocalizacion no disponible',
-      });
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const location = [coords.latitude, coords.longitude];
-        setMapCenter(location);
-        setMapZoom(11);
-      },
-      () => {
-        toast({
-          variant: 'destructive',
-          title: 'No se pudo obtener tu ubicacion',
-          description: 'Revisa los permisos del navegador e intentalo de nuevo.',
-        });
-      },
-      { enableHighAccuracy: true, timeout: 8000 },
-    );
-  };
 
   const resetAll = () => {
     setFilters({ country: 'España', type: 'all' });
@@ -648,7 +595,7 @@ const FishingMapsPage = () => {
           </div>
         </header>
 
-        <main className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-3 p-4 md:gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <main className="mx-auto grid w-full max-w-[96rem] flex-1 grid-cols-1 gap-3 p-4 md:gap-4">
           <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60">
             <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between p-3">
               <div className="rounded-full border border-cyan-300/30 bg-slate-900/80 px-3 py-1 text-xs text-cyan-100/90 shadow-lg backdrop-blur">
@@ -669,7 +616,7 @@ const FishingMapsPage = () => {
               center={mapCenter}
               zoom={mapZoom}
               zoomControl
-              className="fishing-map h-[45vh] min-h-[380px] w-full md:h-[55vh] lg:h-[calc(100vh-280px)]"
+              className="fishing-map h-[62vh] min-h-[520px] w-full md:h-[68vh] lg:h-[calc(100vh-170px)]"
             >
               <TileLayer url={currentTheme.url} attribution={currentTheme.attribution} />
 

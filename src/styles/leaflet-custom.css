@@ -9,9 +9,7 @@
 }
 
 .leaflet-control-attribution {
-  background: rgba(2, 6, 23, 0.78) !important;
-  color: rgba(224, 242, 254, 0.8) !important;
-  border-top-left-radius: 8px;
+  display: none !important;
 }
 
 .leaflet-control-attribution a {
@@ -125,11 +123,6 @@
     font-size: 12px;
   }
 
-  .leaflet-control-attribution {
-    font-size: 9px;
-    background: rgba(2, 6, 23, 0.85) !important;
-  }
-
   .leaflet-popup-content {
     margin: 6px;
     min-width: 160px;
@@ -165,10 +158,6 @@
 }
 
 @media (max-width: 640px) {
-  .leaflet-control-attribution {
-    font-size: 8px;
-  }
-
   .leaflet-popup-content {
     margin: 4px;
     min-width: 140px;
