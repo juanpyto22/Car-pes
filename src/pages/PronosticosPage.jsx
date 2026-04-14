@@ -94,6 +94,17 @@ const HARD_INCOMPATIBLE_GEAR = {
   carpa: ['cucharilla', 'vinilo-jig', 'paseante-popper', 'currican'],
 };
 
+const HARD_INCOMPATIBLE_WATER = {
+  // Marinas estrictas
+  dorada: ['rio', 'pantano', 'lago', 'agua'],
+  // Dulceacuicolas estrictas
+  carpa: ['mar'],
+  bass: ['mar'],
+  lucio: ['mar'],
+  trucha: ['mar'],
+  siluro: ['mar'],
+};
+
 const typeFromResult = (place) => {
   const text = `${place?.display_name || ''} ${place?.type || ''}`.toLowerCase();
   if (text.includes('reservoir') || text.includes('embalse') || text.includes('pantano')) return 'pantano';
@@ -168,6 +179,7 @@ const buildHourlyRows = (weather) => {
 const scoreHour = ({ species, gear, waterType, hourData, month }) => {
   const rules = SPECIES_RULES[species] || SPECIES_RULES.carpa;
   const hardIncompatible = (HARD_INCOMPATIBLE_GEAR[species] || []).includes(gear);
+  const hardIncompatibleWater = (HARD_INCOMPATIBLE_WATER[species] || []).includes(waterType);
 
   if (hardIncompatible) {
     return {
@@ -176,6 +188,18 @@ const scoreHour = ({ species, gear, waterType, hourData, month }) => {
       gearMatch: false,
       hour: toHour(hourData.time),
       hardIncompatible: true,
+      blockingReason: 'La tecnica seleccionada no corresponde con la especie objetivo.',
+    };
+  }
+
+  if (hardIncompatibleWater) {
+    return {
+      chance: 0,
+      notes: ['Tipo de agua incompatible con la especie objetivo.'],
+      gearMatch: false,
+      hour: toHour(hourData.time),
+      hardIncompatible: true,
+      blockingReason: 'La especie seleccionada no se pesca en este tipo de agua.',
     };
   }
 
@@ -272,7 +296,7 @@ const scoreHour = ({ species, gear, waterType, hourData, month }) => {
   }
 
   const chance = clamp(Math.round(score), 5, 99);
-  return { chance, notes, gearMatch, hour, hardIncompatible: false };
+  return { chance, notes, gearMatch, hour, hardIncompatible: false, blockingReason: null };
 };
 
 const calculateFishingChance = ({ species, gear, weather, waterType, selectedDate }) => {
@@ -316,16 +340,16 @@ const calculateFishingChance = ({ species, gear, weather, waterType, selectedDat
 
   const anyHardIncompatible = scored.some((s) => s.hardIncompatible);
   if (anyHardIncompatible) {
-    const bestHour = scored[0] || null;
+    const firstBlocked = scored.find((s) => s.hardIncompatible) || scored[0] || null;
     return {
       chance: 0,
       expectedCatch: 0,
       notes: ['Combinacion especie/tecnica no valida para pesca efectiva.'],
-      bestHour,
+      bestHour: null,
       allHours: scored,
       gearMatch: false,
       hardIncompatible: true,
-      blockingReason: 'La tecnica seleccionada no corresponde con la especie objetivo.',
+      blockingReason: firstBlocked?.blockingReason || 'Combinacion incompatible para pesca efectiva.',
     };
   }
 
