@@ -49,12 +49,16 @@
   border: 1px solid rgba(103, 232, 249, 0.3);
   border-radius: 14px;
   box-shadow: 0 20px 38px rgba(0, 0, 0, 0.45);
+  max-height: 80vh !important;
 }
 
 .leaflet-popup-content {
   margin: 10px;
-  min-width: 180px;
+  min-width: 200px;
+  max-width: 280px;
   color: #f8fafc;
+  overflow-y: auto;
+  max-height: 70vh;
 }
 
 .leaflet-popup-tip {
@@ -116,13 +120,75 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+  .leaflet-container {
+    font-size: 12px;
+  }
+
   .leaflet-control-attribution {
-    font-size: 10px;
+    font-size: 9px;
+    background: rgba(2, 6, 23, 0.85) !important;
   }
 
   .leaflet-popup-content {
-    margin: 8px;
+    margin: 6px;
     min-width: 160px;
+    max-width: 240px;
+    font-size: 13px;
+  }
+
+  .leaflet-popup-content-wrapper {
+    border-radius: 10px;
+  }
+
+  .leaflet-control-zoom {
+    margin: 10px !important;
+    border-radius: 8px !important;
+  }
+
+  .leaflet-control-zoom a {
+    width: 30px !important;
+    height: 30px !important;
+    line-height: 30px !important;
+    font-size: 14px;
+  }
+
+  .fishing-pin {
+    width: 20px;
+    height: 20px;
+    border-width: 1.5px;
+  }
+
+  .fishing-pin.is-selected {
+    transform: scale(1.1);
+  }
+}
+
+@media (max-width: 640px) {
+  .leaflet-control-attribution {
+    font-size: 8px;
+  }
+
+  .leaflet-popup-content {
+    margin: 4px;
+    min-width: 140px;
+    max-width: 200px;
+    font-size: 12px;
+  }
+
+  .leaflet-popup-tip {
+    display: none;
+  }
+
+  .fishing-pin {
+    width: 18px;
+    height: 18px;
+    border-width: 1.5px;
+  }
+
+  .fishing-pin.is-selected {
+    width: 24px;
+    height: 24px;
+    transform: scale(1);
   }
 }

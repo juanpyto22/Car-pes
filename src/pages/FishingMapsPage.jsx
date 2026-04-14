@@ -145,6 +145,7 @@ const FishingMapsPage = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [fitTrigger, setFitTrigger] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -308,6 +309,7 @@ const FishingMapsPage = () => {
     setMapCenter([location.latitude, location.longitude]);
     setMapZoom(zoom);
     setSearchFocused(false);
+    setShowMobileSidebar(false);
 
     if (shouldAddToHistory) {
       addToHistory(location.name);
@@ -491,7 +493,7 @@ const FishingMapsPage = () => {
                       initial={{ opacity: 0, y: -8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
-                      className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/95 shadow-2xl"
+                      className="absolute left-0 right-0 top-full z-[45] mt-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/95 shadow-2xl"
                     >
                       <div className="max-h-80 overflow-y-auto">
                         {searchQuery.trim() && searchSuggestions.length > 0 && (
@@ -647,13 +649,13 @@ const FishingMapsPage = () => {
           </div>
         </header>
 
-        <main className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <main className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-3 p-4 md:gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
           <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60">
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-[500] flex items-center justify-between p-3">
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between p-3">
               <div className="rounded-full border border-cyan-300/30 bg-slate-900/80 px-3 py-1 text-xs text-cyan-100/90 shadow-lg backdrop-blur">
                 <span className="inline-flex items-center gap-1">
                   <Compass className="h-3.5 w-3.5" />
-                  {filteredLocations.length} resultados activos
+                  {filteredLocations.length} resultados
                 </span>
               </div>
               <div className="rounded-full border border-cyan-300/30 bg-slate-900/80 px-3 py-1 text-xs text-cyan-100/90 shadow-lg backdrop-blur">
@@ -668,7 +670,7 @@ const FishingMapsPage = () => {
               center={mapCenter}
               zoom={mapZoom}
               zoomControl
-              className="fishing-map h-[58vh] min-h-[420px] w-full lg:h-[calc(100vh-250px)]"
+              className="fishing-map h-[45vh] min-h-[380px] w-full md:h-[55vh] lg:h-[calc(100vh-280px)]"
             >
               <TileLayer url={currentTheme.url} attribution={currentTheme.attribution} />
 
@@ -720,28 +722,42 @@ const FishingMapsPage = () => {
               )}
             </MapContainer>
 
-            <div className="absolute bottom-3 right-3 z-[500] flex gap-2">
+            <div className="absolute bottom-3 right-3 z-30 flex gap-2">
               <Button
                 size="sm"
                 onClick={() => setFitTrigger((prev) => prev + 1)}
                 className="border border-white/20 bg-slate-900/90 text-cyan-100 hover:bg-cyan-900/40"
               >
                 <Maximize2 className="mr-1 h-4 w-4" />
-                Ajustar mapa
+                Ajustar
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setShowMobileSidebar(true)}
+                className="lg:hidden border border-white/20 bg-slate-900/90 text-cyan-100 hover:bg-cyan-900/40"
+              >
+                <Layers className="mr-1 h-4 w-4" />
+                Ver ({filteredLocations.length})
               </Button>
             </div>
           </section>
 
-          <aside className="flex min-h-[420px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70">
-            <div className="border-b border-white/10 p-4">
+          <aside className={`fixed lg:static inset-y-0 right-0 z-[55] w-96 lg:w-auto lg:min-h-[420px] flex flex-col overflow-hidden rounded-none lg:rounded-2xl border-l lg:border border-white/10 bg-slate-950/70 transition-transform duration-300 ${showMobileSidebar ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
+            <div className="border-b border-white/10 p-4 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-cyan-200">
                 <Layers className="h-4 w-4" />
                 Resultados
               </h2>
-              <p className="mt-1 text-xs text-cyan-100/70">
-                Selecciona un spot para centrar mapa y abrir acciones.
-              </p>
+              <button
+                onClick={() => setShowMobileSidebar(false)}
+                className="lg:hidden text-white/60 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
+            <p className="hidden lg:block px-4 pt-2 text-xs text-cyan-100/70">
+              Selecciona un spot para centrar mapa y abrir acciones.
+            </p>
 
             <div className="flex-1 space-y-2 overflow-y-auto p-3">
               {filteredLocations.length === 0 && (
@@ -813,7 +829,7 @@ const FishingMapsPage = () => {
               initial={{ y: 30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 30, opacity: 0 }}
-              className="fixed bottom-4 left-1/2 z-50 w-[95%] max-w-2xl -translate-x-1/2 rounded-2xl border border-white/15 bg-slate-950/95 p-4 shadow-2xl backdrop-blur"
+              className="fixed bottom-3 left-1/2 z-40 w-[96%] max-w-2xl -translate-x-1/2 rounded-2xl border border-white/15 bg-slate-950/95 p-3 shadow-2xl backdrop-blur md:bottom-4 md:p-4"
             >
               <div className="flex items-start gap-3">
                 <span className="text-3xl leading-none">{getLocationIcon(selectedLocation.type)}</span>
@@ -863,7 +879,7 @@ const FishingMapsPage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/65 p-4 backdrop-blur-sm"
+              className="fixed inset-0 z-[60] bg-black/65 p-4 backdrop-blur-sm"
               onClick={() => setShowHelp(false)}
             >
               <motion.div
