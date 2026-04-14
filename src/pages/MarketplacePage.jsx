@@ -113,6 +113,37 @@ const MarketplacePage = () => {
   };
 
   const handleCreateProduct = async (productData) => {
+    const createLocalProduct = () => {
+      const newProduct = {
+        id: crypto.randomUUID(),
+        ...productData,
+        image_url: productData.imageDataUrl || null,
+        seller_id: user?.id,
+        seller: { id: user?.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil },
+        status: 'active',
+        created_at: new Date().toISOString(),
+      };
+
+      let created = false;
+      setProducts(prev => {
+        const duplicated = prev.some(p =>
+          p.seller_id === newProduct.seller_id &&
+          p.title === newProduct.title &&
+          Number(p.price) === Number(newProduct.price) &&
+          Math.abs(new Date(p.created_at).getTime() - Date.now()) < 8000
+        );
+
+        if (duplicated) return prev;
+
+        created = true;
+        const updated = [normalizeProduct(newProduct), ...prev];
+        localStorage.setItem('carpes_marketplace', JSON.stringify(updated));
+        return updated;
+      });
+
+      return created;
+    };
+
     try {
       if (dbAvailable) {
         let imageUrl = null;
@@ -126,44 +157,60 @@ const MarketplacePage = () => {
           }
         }
 
-        const { data, error } = await supabase
+        const basePayload = {
+          title: productData.title,
+          description: productData.description,
+          price: productData.price,
+          category: productData.category,
+          condition: productData.condition,
+          location: productData.location,
+          image_url: imageUrl,
+          seller_id: user.id,
+          status: 'active',
+        };
+
+        let insertRes = await supabase
           .from('marketplace_products')
-          .insert({
-            title: productData.title,
-            description: productData.description,
-            price: productData.price,
-            category: productData.category,
-            condition: productData.condition,
-            location: productData.location,
-            image_url: imageUrl,
-            seller_id: user.id,
-            status: 'active',
-          })
-          .select(`*, seller:profiles!marketplace_products_seller_id_fkey(id, username, foto_perfil)`)
+          .insert(basePayload)
+          .select('*')
           .single();
 
-        if (error) throw error;
-        setProducts(prev => [normalizeProduct(data), ...prev]);
-      } else {
-        const newProduct = {
-          id: crypto.randomUUID(),
-          ...productData,
-          image_url: productData.imageDataUrl || null,
-          seller_id: user?.id,
-          seller: { id: user?.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil },
-          status: 'active',
-          created_at: new Date().toISOString(),
-        };
-        const updated = [normalizeProduct(newProduct), ...products];
-        setProducts(updated);
-        localStorage.setItem('carpes_marketplace', JSON.stringify(updated));
-      }
+        if (insertRes.error && /location/i.test(insertRes.error.message || '')) {
+          const { location, ...payloadWithoutLocation } = basePayload;
+          insertRes = await supabase
+            .from('marketplace_products')
+            .insert(payloadWithoutLocation)
+            .select('*')
+            .single();
+        }
 
-      toast({ title: '¡Producto publicado!' });
-      setShowCreate(false);
+        if (insertRes.error) throw insertRes.error;
+
+        const createdProduct = {
+          ...insertRes.data,
+          seller: { id: user.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil },
+        };
+
+        setProducts(prev => [normalizeProduct(createdProduct), ...prev]);
+        toast({ title: '¡Producto publicado!' });
+        setShowCreate(false);
+      } else {
+        createLocalProduct();
+        toast({ title: '¡Producto publicado!' });
+        setShowCreate(false);
+      }
     } catch (err) {
-      console.error('Error creating product:', err);
-      toast({ variant: 'destructive', title: 'Error al publicar' });
+      console.warn('DB publish failed, trying local fallback:', err?.message || err);
+      setDbAvailable(false);
+
+      try {
+        createLocalProduct();
+        toast({ title: '¡Producto publicado!', description: 'Guardado en este dispositivo.' });
+        setShowCreate(false);
+      } catch (localErr) {
+        console.error('Error creating product:', localErr);
+        toast({ variant: 'destructive', title: 'Error al publicar' });
+      }
     }
   };
 
