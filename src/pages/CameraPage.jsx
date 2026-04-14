@@ -4,7 +4,7 @@ import {
   X, Camera, FlipHorizontal2 as FlipCamera, Zap, ZapOff, Image,
   Radio, Type, Send, Circle, Square, ChevronDown, ChevronUp,
   Sparkles, Video, StopCircle, Check, RotateCcw, Download,
-  Volume2, Mic, MicOff, Eye, Heart, MessageCircle, Clock,
+  Volume2, Mic, MicOff, Eye, Heart, MessageCircle, Clock, UserX,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -130,6 +130,8 @@ const CameraPage = () => {
   const [liveViewers, setLiveViewers] = useState(0);
   const [liveLikes, setLiveLikes] = useState(0);
   const [showLiveSetup, setShowLiveSetup] = useState(true);
+  const [showViewersPanel, setShowViewersPanel] = useState(false);
+  const [liveAudience, setLiveAudience] = useState([]);
 
   // Refs
   const videoRef = useRef(null);
@@ -138,8 +140,62 @@ const CameraPage = () => {
   const recordedChunksRef = useRef([]);
   const galleryInputRef = useRef(null);
   const liveIntervalRef = useRef(null);
+  const liveStatsChannelRef = useRef(null);
   const recordIntervalRef = useRef(null);
   const textareaRef = useRef(null);
+
+  const closeLiveStatsChannel = useCallback(() => {
+    if (liveStatsChannelRef.current) {
+      supabase.removeChannel(liveStatsChannelRef.current);
+      liveStatsChannelRef.current = null;
+    }
+  }, []);
+
+  const fetchLiveAudience = useCallback(async (streamId) => {
+    if (!streamId) return;
+    const { data: viewersData, error: viewersError } = await supabase
+      .from('live_stream_viewers')
+      .select('user_id, created_at')
+      .eq('stream_id', streamId);
+
+    if (viewersError) {
+      console.error('Audience fetch error:', viewersError);
+      return;
+    }
+
+    const rows = viewersData || [];
+    setLiveViewers(rows.length);
+
+    const uniqueIds = [...new Set(rows.map(v => v.user_id).filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      setLiveAudience([]);
+      return;
+    }
+
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, username, nombre, foto_perfil')
+      .in('id', uniqueIds);
+
+    const profileMap = (profilesData || []).reduce((acc, item) => {
+      acc[item.id] = item;
+      return acc;
+    }, {});
+
+    setLiveAudience(uniqueIds.map(uid => ({
+      user_id: uid,
+      profile: profileMap[uid] || { id: uid, username: 'usuario' },
+    })));
+  }, []);
+
+  const fetchLiveLikes = useCallback(async (streamId) => {
+    if (!streamId) return;
+    const { count } = await supabase
+      .from('live_stream_likes')
+      .select('id', { count: 'exact', head: true })
+      .eq('stream_id', streamId);
+    setLiveLikes(count || 0);
+  }, []);
 
   // ═══════════════════════════════════════════════════════
   // Camera management
@@ -390,19 +446,63 @@ const CameraPage = () => {
     if (!user?.id || !liveTitle.trim()) return;
 
     try {
+      const nowIso = new Date().toISOString();
+
+      // Always close any previous active stream from this user to avoid ghost streams.
+      await supabase
+        .from('live_streams')
+        .update({
+          is_live: false,
+          ended_at: nowIso,
+        })
+        .eq('user_id', user.id)
+        .eq('is_live', true);
+
       const { data, error } = await supabase.from('live_streams').insert({
         user_id: user.id,
         title: liveTitle.trim(),
         category: liveCategory,
         is_live: true,
-        started_at: new Date().toISOString(),
+        started_at: nowIso,
+        viewer_count: 0,
+        like_count: 0,
       }).select().single();
 
-      if (error) throw error;
-      setStreamData(data);
+      let createdStream = data;
+
+      // Retry once after forcing closure in case DB still reports an active stream conflict.
+      if (error) {
+        await supabase
+          .from('live_streams')
+          .update({
+            is_live: false,
+            ended_at: nowIso,
+          })
+          .eq('user_id', user.id)
+          .eq('is_live', true);
+
+        const retry = await supabase.from('live_streams').insert({
+          user_id: user.id,
+          title: liveTitle.trim(),
+          category: liveCategory,
+          is_live: true,
+          started_at: nowIso,
+          viewer_count: 0,
+          like_count: 0,
+        }).select().single();
+
+        if (retry.error) throw retry.error;
+        createdStream = retry.data;
+      }
+
+      setStreamData(createdStream);
       setIsLive(true);
       setShowLiveSetup(false);
+      setShowViewersPanel(false);
       setLiveDuration(0);
+      setLiveViewers(0);
+      setLiveLikes(0);
+      setLiveAudience([]);
 
       // Duration counter
       liveIntervalRef.current = setInterval(() => {
@@ -410,21 +510,52 @@ const CameraPage = () => {
       }, 1000);
 
       // Subscribe to stats
-      const channel = supabase.channel(`live-stats-${data.id}`);
-      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'live_stream_viewers', filter: `stream_id=eq.${data.id}` }, () => {
-        supabase.from('live_stream_viewers').select('id', { count: 'exact' }).eq('stream_id', data.id).then(({ count }) => setLiveViewers(count || 0));
-      }).on('postgres_changes', { event: '*', schema: 'public', table: 'live_stream_likes', filter: `stream_id=eq.${data.id}` }, () => {
-        supabase.from('live_stream_likes').select('id', { count: 'exact' }).eq('stream_id', data.id).then(({ count }) => setLiveLikes(count || 0));
-      }).subscribe();
+      const finalStreamId = createdStream?.id;
+      if (finalStreamId) {
+        await fetchLiveAudience(finalStreamId);
+        await fetchLiveLikes(finalStreamId);
+
+        closeLiveStatsChannel();
+        const channel = supabase.channel(`camera-live-stats-${finalStreamId}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'live_stream_viewers', filter: `stream_id=eq.${finalStreamId}` }, () => {
+            fetchLiveAudience(finalStreamId);
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'live_stream_likes', filter: `stream_id=eq.${finalStreamId}` }, () => {
+            fetchLiveLikes(finalStreamId);
+          })
+          .subscribe();
+        liveStatsChannelRef.current = channel;
+      }
     } catch (err) {
       console.error('Go live error:', err);
       toast({ variant: 'destructive', title: 'Error', description: err.message });
     }
   };
 
+  const handleKickViewer = async (viewerId) => {
+    if (!streamData?.id || !viewerId) return;
+    try {
+      const { error } = await supabase
+        .from('live_stream_viewers')
+        .delete()
+        .eq('stream_id', streamData.id)
+        .eq('user_id', viewerId);
+
+      if (error) throw error;
+
+      toast({ title: 'Espectador expulsado', description: 'Se ha retirado del directo.' });
+      await fetchLiveAudience(streamData.id);
+    } catch (err) {
+      console.error('Kick viewer error:', err);
+      toast({ variant: 'destructive', title: 'No se pudo expulsar', description: err.message || 'Inténtalo de nuevo.' });
+    }
+  };
+
   const handleEndLive = async () => {
     clearInterval(liveIntervalRef.current);
+    closeLiveStatsChannel();
     if (streamData?.id) {
+      await supabase.from('live_stream_viewers').delete().eq('stream_id', streamData.id);
       await supabase.from('live_streams').update({
         is_live: false,
         ended_at: new Date().toISOString(),
@@ -433,9 +564,11 @@ const CameraPage = () => {
     setIsLive(false);
     setStreamData(null);
     setShowLiveSetup(true);
+    setShowViewersPanel(false);
     setLiveDuration(0);
     setLiveViewers(0);
     setLiveLikes(0);
+    setLiveAudience([]);
     navigate('/live');
   };
 
@@ -443,10 +576,11 @@ const CameraPage = () => {
   useEffect(() => {
     return () => {
       clearInterval(liveIntervalRef.current);
+      closeLiveStatsChannel();
       clearInterval(recordIntervalRef.current);
       if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
     };
-  }, [cameraStream]);
+  }, [cameraStream, closeLiveStatsChannel]);
 
   // ═══════════════════════════════════════════════════════
   // Helpers
@@ -586,7 +720,14 @@ const CameraPage = () => {
 
             {/* ── Top controls overlay ── */}
             <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-3 bg-gradient-to-b from-black/60 to-transparent">
-              <button onClick={() => { if (cameraStream) cameraStream.getTracks().forEach(t => t.stop()); navigate(-1); }}
+              <button onClick={async () => {
+                if (isLive) {
+                  await handleEndLive();
+                  return;
+                }
+                if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+                navigate(-1);
+              }}
                 className="p-2 text-white">
                 <X className="w-6 h-6" />
               </button>
@@ -598,9 +739,14 @@ const CameraPage = () => {
                     <span className="w-1.5 h-1.5 bg-white rounded-full" /> EN VIVO
                   </span>
                   <span className="text-white text-[10px] font-mono bg-black/40 px-1.5 py-0.5 rounded">{fmtTime(liveDuration)}</span>
-                  <span className="flex items-center gap-0.5 text-[10px] text-white bg-black/40 px-1.5 py-0.5 rounded">
+                  <button
+                    type="button"
+                    onClick={() => setShowViewersPanel(v => !v)}
+                    className="flex items-center gap-0.5 text-[10px] text-white bg-black/40 px-1.5 py-0.5 rounded"
+                    title="Ver espectadores"
+                  >
                     <Eye className="w-3 h-3" />{liveViewers}
-                  </span>
+                  </button>
                   <span className="flex items-center gap-0.5 text-[10px] text-red-300 bg-black/40 px-1.5 py-0.5 rounded">
                     <Heart className="w-3 h-3" />{liveLikes}
                   </span>
@@ -683,6 +829,40 @@ const CameraPage = () => {
                   className="px-8 py-3 bg-red-600/90 backdrop-blur text-white font-bold text-sm rounded-full shadow-lg">
                   Finalizar Directo
                 </motion.button>
+              </div>
+            )}
+
+            {mode === 'EN VIVO' && isLive && showViewersPanel && (
+              <div className="absolute right-3 top-16 z-30 w-[320px] max-w-[92vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl">
+                <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-cyan-300" /> Espectadores ({liveAudience.length})
+                  </h4>
+                  <button onClick={() => setShowViewersPanel(false)} className="text-white/60 hover:text-white">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto p-2 space-y-2">
+                  {liveAudience.length === 0 ? (
+                    <p className="text-xs text-white/50 text-center py-3">Aun no hay espectadores conectados.</p>
+                  ) : (
+                    liveAudience.map((viewer) => (
+                      <div key={viewer.user_id} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 border border-white/10 px-2.5 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate">{viewer.profile?.username || viewer.profile?.nombre || 'usuario'}</p>
+                          <p className="text-[10px] text-white/45 truncate">{viewer.user_id}</p>
+                        </div>
+                        <button
+                          onClick={() => handleKickViewer(viewer.user_id)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/35 transition-colors"
+                        >
+                          <UserX className="w-3.5 h-3.5" /> Expulsar
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
 
@@ -779,6 +959,10 @@ const CameraPage = () => {
 
             {/* Mode selector */}
             <ModeSelector mode={mode} setMode={(m) => {
+              if (isLive && m !== 'EN VIVO') {
+                toast({ variant: 'destructive', title: 'Finaliza el directo primero', description: 'No puedes cambiar de modo mientras estas en vivo.' });
+                return;
+              }
               discardCapture();
               setMode(m);
               if (m !== 'TEXTO' && !cameraStream) startCamera(facingMode);

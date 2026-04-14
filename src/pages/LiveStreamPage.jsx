@@ -312,6 +312,7 @@ const StreamViewer = ({ stream, onBack }) => {
   const [newMessage, setNewMessage] = useState('');
   const [hearts, setHearts] = useState([]);
   const [liked, setLiked] = useState(false);
+  const [wasKicked, setWasKicked] = useState(false);
   const chatRef = useRef(null);
   const heartId = useRef(0);
   const remoteVideoRef = useRef(null);
@@ -331,6 +332,50 @@ const StreamViewer = ({ stream, onBack }) => {
     if (user) streamOps.join(stream.id, user.id);
     return () => { if (user) streamOps.leave(stream.id, user.id); };
   }, [stream.id, user]);
+
+  // If the host removes this viewer from live_stream_viewers, force-exit the stream.
+  useEffect(() => {
+    if (!user?.id || !stream?.id) return;
+    let active = true;
+
+    const verifyMembership = async () => {
+      const { data } = await supabase
+        .from('live_stream_viewers')
+        .select('id')
+        .eq('stream_id', stream.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (active && !data && stats.is_live) {
+        setWasKicked(true);
+      }
+    };
+
+    verifyMembership();
+
+    const viewerChannel = supabase
+      .channel(`viewer-membership-${stream.id}-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'live_stream_viewers',
+        filter: `stream_id=eq.${stream.id}`,
+      }, () => {
+        verifyMembership();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(viewerChannel);
+    };
+  }, [stream?.id, user?.id, stats.is_live]);
+
+  useEffect(() => {
+    if (!wasKicked) return;
+    const t = setTimeout(() => onBack(), 1800);
+    return () => clearTimeout(t);
+  }, [wasKicked, onBack]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -389,6 +434,12 @@ const StreamViewer = ({ stream, onBack }) => {
           {!stats.is_live && (
             <div className="absolute inset-0 bg-black/60 z-20 flex items-center justify-center">
               <p className="text-white font-bold text-lg">La transmisión ha finalizado</p>
+            </div>
+          )}
+
+          {wasKicked && (
+            <div className="absolute inset-0 bg-black/70 z-30 flex items-center justify-center px-6">
+              <p className="text-white font-bold text-lg text-center">Has sido expulsado de este directo</p>
             </div>
           )}
 
