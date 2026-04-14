@@ -380,6 +380,7 @@ const FishingMapsPage = () => {
       </Helmet>
 
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#04192b] to-[#102742] text-white">
+        <div className={`transition-[filter,transform] duration-200 ${showHelp ? 'blur-md scale-[0.995]' : ''}`}>
         <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/75 backdrop-blur-xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -666,6 +667,7 @@ const FishingMapsPage = () => {
             </div>
           </section>
         </main>
+        </div>
 
         <AnimatePresence>
           {showHelp && (
@@ -673,7 +675,7 @@ const FishingMapsPage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[60] bg-black/65 p-4 backdrop-blur-sm"
+              className="fixed inset-0 z-[80] bg-black/75 p-4 backdrop-blur-3xl"
               onClick={() => setShowHelp(false)}
             >
               <motion.div

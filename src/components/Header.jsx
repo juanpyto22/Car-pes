@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Bookmark, Map, Users, Calendar, ShoppingBag, BarChart3, Settings, DollarSign, Radio, CloudSun } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +21,7 @@ const Header = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   
   const { unreadCount: notifCount } = useNotifications(user ? profile : null);
   const { unreadCount: msgCount } = useMessages(user || null);
@@ -77,7 +78,15 @@ const Header = () => {
                   </motion.button>
                 </Link>
 
-                <DropdownMenu>
+                {profileMenuOpen && (
+                  <div
+                    className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-3xl"
+                    onClick={() => setProfileMenuOpen(false)}
+                    aria-hidden="true"
+                  />
+                )}
+
+                <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
                   <DropdownMenuTrigger asChild>
                     <button className="focus:outline-none ml-1.5">
                       <Avatar className="w-8 h-8 md:w-9 md:h-9 border-2 border-cyan-500/30 cursor-pointer hover:border-cyan-400 transition-colors">
@@ -88,7 +97,7 @@ const Header = () => {
                       </Avatar>
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52 bg-slate-900/95 border-white/10 text-white backdrop-blur-xl">
+                  <DropdownMenuContent align="end" className="z-[60] w-52 border border-white/10 bg-slate-950/90 text-white backdrop-blur-2xl shadow-2xl shadow-black/40">
                     <DropdownMenuItem onClick={() => navigate(`/profile`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
                       <User className="mr-2 h-4 w-4 text-cyan-400" /> Mi Perfil
                     </DropdownMenuItem>
