@@ -184,6 +184,17 @@ const HARD_INCOMPATIBLE_WATER = {
   salmon: ['mar'],
 };
 
+const POPULAR_WATERS = [
+  'Embalse de Orellana',
+  'Embalse de Mequinenza',
+  'Río Ebro (Tudela)',
+  'Río Tajo (Aranjuez)',
+  'Mar Cantábrico',
+  'Delta del Ebro',
+  'Costa del Sol',
+  'Lago de Sanabria',
+];
+
 // Reglas condicionales: no siempre bloquean, pero pueden penalizar o bloquear
 // segun mes, temperatura o tipo de agua para mayor realismo.
 const CONDITIONAL_BAIT_RULES = {
@@ -713,6 +724,20 @@ const PronosticosPage = () => {
       }));
   }, [query, spanishWaters]);
 
+  const quickWaterSuggestions = useMemo(() => {
+    return POPULAR_WATERS
+      .map((name) => spanishWaters.find((spot) => normalizeText(spot.name) === normalizeText(name)))
+      .filter(Boolean)
+      .slice(0, 8)
+      .map((spot, idx) => ({
+        place_id: `quick-${idx}-${spot.name}`,
+        lat: String(spot.latitude),
+        lon: String(spot.longitude),
+        display_name: `${spot.name}, ${spot.region}, España`,
+        type: spot.type,
+      }));
+  }, [spanishWaters]);
+
   const selectedType = useMemo(() => typeFromResult(selectedSpot), [selectedSpot]);
 
   const forecast = useMemo(() => {
@@ -843,6 +868,15 @@ const PronosticosPage = () => {
     }
   };
 
+  const handleQuickSpot = async (spot) => {
+    setQuery((spot.display_name || '').split(',').slice(0, 2).join(',').trim());
+    setResults((prev) => {
+      const exists = prev.some((item) => item.place_id === spot.place_id || (item.display_name || '').split(',')[0] === (spot.display_name || '').split(',')[0]);
+      return exists ? prev : [spot, ...prev];
+    });
+    await loadForecast(spot);
+  };
+
   return (
     <>
       <Helmet>
@@ -946,7 +980,31 @@ const PronosticosPage = () => {
               <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2"><MapPin className="w-4 h-4 text-cyan-400" /> Resultados</h2>
               <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
                 {results.length === 0 ? (
-                  <p className="text-sm text-blue-400">No hay resultados todavia. Busca un pantano, rio o mar.</p>
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+                      <p className="text-sm text-blue-300 font-semibold">Sugerencias rapidas</p>
+                      <p className="text-xs text-blue-400 mt-1">Pulsa una masa de agua para cargar pronostico real al instante.</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {quickWaterSuggestions.map((spot) => (
+                          <button
+                            key={spot.place_id}
+                            onClick={() => handleQuickSpot(spot)}
+                            className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/20"
+                          >
+                            {(spot.display_name || '').split(',')[0]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3 text-xs text-blue-300 space-y-1.5">
+                      <p className="font-semibold text-blue-200">Que puedes hacer aqui</p>
+                      <p>- Buscar cualquier embalse, rio o mar de Espana.</p>
+                      <p>- Elegir fecha, pez objetivo y tecnica.</p>
+                      <p>- Obtener mejor hora y porcentaje con analista biologico + atmosferico.</p>
+                      <p>- Bloqueo automatico a 0% si el pez o tecnica no son compatibles.</p>
+                    </div>
+                  </div>
                 ) : results.map((spot) => {
                   const isActive = selectedSpot?.place_id === spot.place_id;
                   const type = typeFromResult(spot);
