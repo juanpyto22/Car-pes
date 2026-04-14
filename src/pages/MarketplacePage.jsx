@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ShoppingBag, Plus, X, Search, Camera, MapPin, Tag, Filter, Heart, MessageCircle, ChevronDown, Truck, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -28,6 +28,21 @@ const CONDITIONS = [
   { id: 'good', label: 'Buen estado', color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
   { id: 'fair', label: 'Aceptable', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' },
 ];
+
+const SPANISH_PROVINCES = [
+  'A Coruna', 'Alava', 'Albacete', 'Alicante', 'Almeria', 'Asturias', 'Avila', 'Badajoz', 'Barcelona', 'Burgos',
+  'Caceres', 'Cadiz', 'Cantabria', 'Castellon', 'Ceuta', 'Ciudad Real', 'Cordoba', 'Cuenca', 'Girona', 'Granada',
+  'Guadalajara', 'Guipuzcoa', 'Huelva', 'Huesca', 'Illes Balears', 'Jaen', 'La Rioja', 'Las Palmas', 'Leon', 'Lleida',
+  'Lugo', 'Madrid', 'Malaga', 'Melilla', 'Murcia', 'Navarra', 'Ourense', 'Palencia', 'Pontevedra', 'Salamanca',
+  'Santa Cruz de Tenerife', 'Segovia', 'Sevilla', 'Soria', 'Tarragona', 'Teruel', 'Toledo', 'Valencia', 'Valladolid',
+  'Vizcaya', 'Zamora', 'Zaragoza'
+];
+
+const normalizeText = (value = '') =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
 const safeJsonParse = (value, fallback) => {
   try {
@@ -446,7 +461,17 @@ const CreateProductModal = ({ onClose, onCreate }) => {
   const [imagePreview, setImagePreview] = useState(null);
   const [imageDataUrl, setImageDataUrl] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [locationFocused, setLocationFocused] = useState(false);
   const fileRef = useRef(null);
+
+  const locationSuggestions = useMemo(() => {
+    const query = normalizeText(location.trim());
+    if (!query) return [];
+
+    return SPANISH_PROVINCES
+      .filter((province) => normalizeText(province).includes(query))
+      .slice(0, 8);
+  }, [location]);
 
   const fileToDataUrl = (file) =>
     new Promise((resolve, reject) => {
@@ -546,9 +571,31 @@ const CreateProductModal = ({ onClose, onCreate }) => {
             </div>
             <div>
               <label className="text-sm text-blue-200 mb-1 block">Ubicación</label>
-              <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Madrid..."
-                className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white placeholder-blue-500 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
-              />
+              <div className="relative">
+                <input
+                  value={location}
+                  onChange={e => setLocation(e.target.value)}
+                  onFocus={() => setLocationFocused(true)}
+                  onBlur={() => setTimeout(() => setLocationFocused(false), 120)}
+                  placeholder="Madrid..."
+                  className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white placeholder-blue-500 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                />
+
+                {locationFocused && locationSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-40 overflow-y-auto rounded-xl border border-slate-600 bg-slate-900 shadow-xl">
+                    {locationSuggestions.map((province) => (
+                      <button
+                        key={province}
+                        type="button"
+                        onMouseDown={() => setLocation(province)}
+                        className="w-full border-b border-white/5 px-3 py-2 text-left text-sm text-blue-100 hover:bg-slate-800"
+                      >
+                        {province}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
