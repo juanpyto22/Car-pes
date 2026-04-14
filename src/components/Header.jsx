@@ -80,7 +80,7 @@ const Header = () => {
 
                 {profileMenuOpen && (
                   <div
-                    className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-3xl"
+                    className="fixed bottom-0 left-0 right-0 top-14 z-40 bg-slate-950/35 backdrop-blur-2xl md:top-16"
                     onClick={() => setProfileMenuOpen(false)}
                     aria-hidden="true"
                   />

@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Map as MapIcon,
   Search,
   X,
   Filter,
+  LocateFixed,
+  Navigation,
+  CloudSun,
   Heart,
   HelpCircle,
   Sparkles,
@@ -16,7 +20,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { supabase } from '@/lib/customSupabaseClient';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { fishingLocations, getLocationIcon } from '@/data/fishingLocations';
@@ -125,8 +129,33 @@ const MapFitBounds = ({ locations, trigger }) => {
   return null;
 };
 
+const RouteViewportController = ({ enabled, userLocation, selectedLocation }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!enabled || !userLocation || !selectedLocation) {
+      return;
+    }
+
+    const bounds = L.latLngBounds([
+      [userLocation[0], userLocation[1]],
+      [selectedLocation.latitude, selectedLocation.longitude],
+    ]);
+
+    map.fitBounds(bounds, {
+      padding: [70, 70],
+      maxZoom: 10,
+      animate: true,
+      duration: 0.6,
+    });
+  }, [enabled, userLocation, selectedLocation, map]);
+
+  return null;
+};
+
 const FishingMapsPage = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [communitySpots, setCommunitySpots] = useState([]);
@@ -134,8 +163,10 @@ const FishingMapsPage = () => {
   const [mapCenter, setMapCenter] = useState(SPAIN_CENTER);
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [mapTheme, setMapTheme] = useState('terrain');
+  const [showRoute, setShowRoute] = useState(false);
 
   const [selectedLocation, setSelectedLocation] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
 
   const [showFilters, setShowFilters] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -312,6 +343,7 @@ const FishingMapsPage = () => {
     setMapCenter([location.latitude, location.longitude]);
     setMapZoom(zoom);
     setSearchFocused(false);
+    setShowRoute(false);
 
     if (shouldAddToHistory) {
       addToHistory(location.name);
@@ -336,6 +368,84 @@ const FishingMapsPage = () => {
       });
       return [location, ...prev];
     });
+  };
+
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      toast({
+        variant: 'destructive',
+        title: 'Geolocalizacion no disponible',
+      });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const location = [coords.latitude, coords.longitude];
+        setUserLocation(location);
+        setMapCenter(location);
+        setMapZoom(11);
+      },
+      () => {
+        toast({
+          variant: 'destructive',
+          title: 'No se pudo obtener tu ubicacion',
+          description: 'Revisa los permisos del navegador e intentalo de nuevo.',
+        });
+      },
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  };
+
+  const handleNavigate = (location) => {
+    if (!location) {
+      return;
+    }
+
+    setSelectedLocation(location);
+    setMapCenter([location.latitude, location.longitude]);
+
+    if (userLocation) {
+      const sameLocation = selectedLocation?.name === location.name;
+      setShowRoute(!(sameLocation && showRoute));
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      toast({
+        variant: 'destructive',
+        title: 'Geolocalizacion no disponible',
+        description: 'Activa tu ubicacion para calcular la ruta en el mapa.',
+      });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const currentUserLocation = [coords.latitude, coords.longitude];
+        setUserLocation(currentUserLocation);
+        setShowRoute(true);
+      },
+      () => {
+        toast({
+          variant: 'destructive',
+          title: 'No se pudo obtener tu ubicacion',
+          description: 'Permite acceso a ubicacion para ver la ruta.',
+        });
+      },
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  };
+
+  const handleForecast = (location) => {
+    if (!location) {
+      return;
+    }
+
+    navigate(
+      `/pronosticos?lat=${location.latitude}&lng=${location.longitude}&spot=${encodeURIComponent(location.name)}`,
+      { state: { spot: location } },
+    );
   };
 
 
@@ -403,6 +513,15 @@ const FishingMapsPage = () => {
                 >
                   <HelpCircle className="mr-1 h-4 w-4" />
                   Ayuda
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleUseMyLocation}
+                  className="border-cyan-400/40 text-cyan-200 hover:bg-cyan-900/20"
+                >
+                  <LocateFixed className="mr-1 h-4 w-4" />
+                  Mi ubicacion
                 </Button>
               </div>
             </div>
@@ -623,6 +742,11 @@ const FishingMapsPage = () => {
 
               <MapViewportController center={mapCenter} zoom={mapZoom} />
               <MapFitBounds locations={filteredLocations} trigger={fitTrigger} />
+              <RouteViewportController
+                enabled={showRoute}
+                userLocation={userLocation}
+                selectedLocation={selectedLocation}
+              />
 
               {filteredLocations.map((location) => (
                 <Marker
@@ -641,18 +765,55 @@ const FishingMapsPage = () => {
                         </div>
                       </div>
                       <p className="text-xs text-slate-200">{location.description || 'Spot de pesca recomendado.'}</p>
-                      <div className="pt-1">
+                      <div className="flex flex-wrap gap-2 pt-1">
                         <button
                           onClick={() => selectLocation(location)}
                           className="rounded-md bg-cyan-600 px-2 py-1 text-xs font-medium text-white hover:bg-cyan-500"
                         >
-                          Centrar mapa
+                          Ver detalle
+                        </button>
+                        <button
+                          onClick={() => handleNavigate(location)}
+                          className={`rounded-md px-2 py-1 text-xs font-medium transition ${
+                            showRoute && selectedLocation?.name === location.name
+                              ? 'bg-cyan-500 text-white'
+                              : 'border border-white/20 text-white hover:bg-white/10'
+                          }`}
+                        >
+                          {showRoute && selectedLocation?.name === location.name ? '✓ Ruta activada' : 'Como llegar'}
+                        </button>
+                        <button
+                          onClick={() => handleForecast(location)}
+                          className="rounded-md border border-emerald-300/40 px-2 py-1 text-xs font-medium text-emerald-100 hover:bg-emerald-900/30"
+                        >
+                          Pronostico
                         </button>
                       </div>
                     </div>
                   </Popup>
                 </Marker>
               ))}
+
+              {userLocation && (
+                <Marker position={userLocation} icon={userIcon}>
+                  <Popup>
+                    <p className="text-sm text-white">Estas aqui</p>
+                  </Popup>
+                </Marker>
+              )}
+
+              {showRoute && userLocation && selectedLocation && (
+                <Polyline
+                  positions={[
+                    [userLocation[0], userLocation[1]],
+                    [selectedLocation.latitude, selectedLocation.longitude],
+                  ]}
+                  color="#06b6d4"
+                  weight={3}
+                  opacity={0.8}
+                  dashArray="5, 10"
+                />
+              )}
             </MapContainer>
 
             <div className="absolute bottom-3 right-3 z-30 flex gap-2">
@@ -668,6 +829,71 @@ const FishingMapsPage = () => {
           </section>
         </main>
         </div>
+
+        <AnimatePresence>
+          {selectedLocation && (
+            <motion.div
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 30, opacity: 0 }}
+              className="fixed bottom-3 left-1/2 z-40 w-[96%] max-w-2xl -translate-x-1/2 rounded-2xl border border-white/15 bg-slate-950/95 p-3 shadow-2xl backdrop-blur md:bottom-4 md:p-4"
+            >
+              <div className="flex items-start gap-3">
+                <span className="text-3xl leading-none">{getLocationIcon(selectedLocation.type)}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-lg font-semibold text-white">{selectedLocation.name}</p>
+                  <p className="text-sm text-cyan-200/85">{selectedLocation.region}, {selectedLocation.country}</p>
+                  <p className="mt-2 line-clamp-2 text-sm text-slate-200">{selectedLocation.description}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedLocation(null)}
+                  className="rounded-md p-1 text-cyan-100/70 hover:bg-white/10 hover:text-white"
+                  aria-label="Cerrar detalle"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  onClick={() => handleNavigate(selectedLocation)}
+                  className={`transition ${
+                    showRoute
+                      ? 'bg-cyan-500 hover:bg-cyan-400'
+                      : 'bg-cyan-600 hover:bg-cyan-500'
+                  }`}
+                >
+                  <Navigation className="mr-1 h-4 w-4" />
+                  {showRoute ? '✓ Ruta activada' : 'Como llegar'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleForecast(selectedLocation)}
+                  className="border-emerald-300/40 text-emerald-100 hover:bg-emerald-900/25"
+                >
+                  <CloudSun className="mr-1 h-4 w-4" />
+                  Pronostico
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => toggleFavorite(selectedLocation)}
+                  className="border-white/20 text-cyan-100 hover:bg-rose-900/25"
+                >
+                  <Heart className={`mr-1 h-4 w-4 ${isFavorite(selectedLocation) ? 'fill-current text-rose-400' : ''}`} />
+                  {isFavorite(selectedLocation) ? 'En favoritos' : 'Guardar'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setFitTrigger((prev) => prev + 1)}
+                  className="border-white/20 text-cyan-100 hover:bg-cyan-900/25"
+                >
+                  <Sparkles className="mr-1 h-4 w-4" />
+                  Ver contexto
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {showHelp && (
