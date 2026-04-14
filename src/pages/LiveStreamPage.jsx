@@ -839,6 +839,9 @@ const LiveStreamPage = () => {
 
   const filteredStreams = selectedCategory === 'Todos' ? streams : streams.filter(s => s.category === selectedCategory);
   const otherStreams = filteredStreams.filter(s => s.user_id !== user?.id);
+  const liveCount = otherStreams.length;
+  const viewersCount = otherStreams.reduce((acc, stream) => acc + (stream.viewer_count || 0), 0);
+  const popularCategory = liveCount > 0 ? otherStreams[0]?.category || '-' : '-';
 
   if (viewingStream) {
     return <StreamViewer stream={viewingStream} onBack={() => { setViewingStream(null); fetchStreams(); }} />;
@@ -864,21 +867,21 @@ const LiveStreamPage = () => {
               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               <span className="text-xs text-red-400 font-medium">En vivo</span>
             </div>
-            <p className="text-lg font-bold text-white">{streams.length}</p>
+            <p className="text-lg font-bold text-white">{liveCount}</p>
           </div>
           <div className="bg-slate-900/60 border border-white/5 rounded-xl p-3 text-center">
             <div className="flex items-center justify-center gap-1.5 mb-1">
               <Eye className="w-3.5 h-3.5 text-blue-400" />
               <span className="text-xs text-blue-400 font-medium">Viendo</span>
             </div>
-            <p className="text-lg font-bold text-white">{streams.reduce((a, s) => a + (s.viewer_count || 0), 0)}</p>
+            <p className="text-lg font-bold text-white">{viewersCount}</p>
           </div>
           <div className="bg-slate-900/60 border border-white/5 rounded-xl p-3 text-center">
             <div className="flex items-center justify-center gap-1.5 mb-1">
               <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
               <span className="text-xs text-yellow-400 font-medium">Popular</span>
             </div>
-            <p className="text-lg font-bold text-white">{streams.length > 0 ? streams[0]?.category || '-' : '-'}</p>
+            <p className="text-lg font-bold text-white">{popularCategory}</p>
           </div>
         </div>
 
