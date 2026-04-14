@@ -20,7 +20,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { supabase } from '@/lib/customSupabaseClient';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { fishingLocations, getLocationIcon } from '@/data/fishingLocations';
@@ -138,6 +138,8 @@ const FishingMapsPage = () => {
   const [mapCenter, setMapCenter] = useState(SPAIN_CENTER);
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [mapTheme, setMapTheme] = useState('terrain');
+  const [showRoute, setShowRoute] = useState(false);
+  const routePolylineRef = useRef(null);
 
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
@@ -310,6 +312,7 @@ const FishingMapsPage = () => {
     setMapZoom(zoom);
     setSearchFocused(false);
     setShowMobileSidebar(false);
+    setShowRoute(false);
 
     if (shouldAddToHistory) {
       addToHistory(location.name);
@@ -364,15 +367,9 @@ const FishingMapsPage = () => {
   };
 
   const handleNavigate = (location) => {
-    const target = `${location.latitude},${location.longitude}`;
-
     if (userLocation) {
-      const origin = `${userLocation[0]},${userLocation[1]}`;
-      window.open(`https://www.google.com/maps/dir/${origin}/${target}`, '_blank', 'noopener,noreferrer');
-      return;
+      setShowRoute(!showRoute);
     }
-
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`, '_blank', 'noopener,noreferrer');
   };
 
   const resetAll = () => {
@@ -589,61 +586,80 @@ const FishingMapsPage = () => {
               </Button>
             </div>
 
+            {/* Filtros Modal Flotante */}
             <AnimatePresence>
               {showFilters && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-slate-900/50 p-3"
-                >
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <div>
-                      <label className="mb-1 block text-xs text-cyan-100/80">Pais</label>
-                      <select
-                        value={filters.country}
-                        onChange={(event) => setFilters((prev) => ({ ...prev, country: event.target.value }))}
-                        className="w-full rounded-lg border border-white/20 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300"
-                      >
-                        {countries.map((country) => (
-                          <option key={country} value={country}>
-                            {country === 'all' ? 'Todos los paises' : country}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                <>
+                  {/* Backdrop */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowFilters(false)}
+                    className="fixed inset-0 z-[70] bg-black/30 backdrop-blur-xs"
+                  />
+                  {/* Modal Flotante */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    className="fixed top-24 right-4 z-[75] w-96 max-w-[calc(100vw-2rem)] rounded-xl border border-cyan-400/30 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-md"
+                  >
+                    <button
+                      onClick={() => setShowFilters(false)}
+                      className="absolute right-3 top-3 text-white/60 hover:text-white"
+                    >
+                      <X size={18} />
+                    </button>
+                    <h3 className="mb-4 text-sm font-semibold text-cyan-300">Filtros avanzados</h3>
+                    <div className="grid gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs text-cyan-100/80 font-medium">Pais</label>
+                        <select
+                          value={filters.country}
+                          onChange={(event) => setFilters((prev) => ({ ...prev, country: event.target.value }))}
+                          className="w-full rounded-lg border border-white/20 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300"
+                        >
+                          {countries.map((country) => (
+                            <option key={country} value={country}>
+                              {country === 'all' ? 'Todos los paises' : country}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                    <div>
-                      <label className="mb-1 block text-xs text-cyan-100/80">Tipo</label>
-                      <select
-                        value={filters.type}
-                        onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value }))}
-                        className="w-full rounded-lg border border-white/20 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300"
-                      >
-                        {types.map((type) => (
-                          <option key={type} value={type}>
-                            {type === 'all' ? 'Todos los tipos' : type}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-cyan-100/80 font-medium">Tipo</label>
+                        <select
+                          value={filters.type}
+                          onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value }))}
+                          className="w-full rounded-lg border border-white/20 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300"
+                        >
+                          {types.map((type) => (
+                            <option key={type} value={type}>
+                              {type === 'all' ? 'Todos los tipos' : type}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                    <div>
-                      <label className="mb-1 block text-xs text-cyan-100/80">Tema del mapa</label>
-                      <select
-                        value={mapTheme}
-                        onChange={(event) => setMapTheme(event.target.value)}
-                        className="w-full rounded-lg border border-white/20 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300"
-                      >
-                        {Object.values(MAP_THEMES).map((theme) => (
-                          <option key={theme.id} value={theme.id}>
-                            {theme.label}
-                          </option>
-                        ))}
-                      </select>
+                      <div>
+                        <label className="mb-1 block text-xs text-cyan-100/80 font-medium">Tema del mapa</label>
+                        <select
+                          value={mapTheme}
+                          onChange={(event) => setMapTheme(event.target.value)}
+                          className="w-full rounded-lg border border-white/20 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300"
+                        >
+                          {Object.values(MAP_THEMES).map((theme) => (
+                            <option key={theme.id} value={theme.id}>
+                              {theme.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
+                  </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>
@@ -703,9 +719,13 @@ const FishingMapsPage = () => {
                         </button>
                         <button
                           onClick={() => handleNavigate(location)}
-                          className="rounded-md border border-white/20 px-2 py-1 text-xs text-white hover:bg-white/10"
+                          className={`rounded-md px-2 py-1 text-xs font-medium transition ${
+                            showRoute && selectedLocation?.name === location.name
+                              ? 'bg-cyan-500 text-white'
+                              : 'border border-white/20 text-white hover:bg-white/10'
+                          }`}
                         >
-                          Como llegar
+                          {showRoute && selectedLocation?.name === location.name ? '✓ Ruta activada' : 'Como llegar'}
                         </button>
                       </div>
                     </div>
@@ -719,6 +739,20 @@ const FishingMapsPage = () => {
                     <p className="text-sm text-white">Estas aqui</p>
                   </Popup>
                 </Marker>
+              )}
+
+              {/* Ruta entre usuario y spot */}
+              {showRoute && userLocation && selectedLocation && (
+                <Polyline
+                  positions={[
+                    [userLocation[0], userLocation[1]],
+                    [selectedLocation.latitude, selectedLocation.longitude],
+                  ]}
+                  color="#06b6d4"
+                  weight={3}
+                  opacity={0.8}
+                  dashArray="5, 10"
+                />
               )}
             </MapContainer>
 
@@ -797,10 +831,14 @@ const FishingMapsPage = () => {
                       <Button
                         size="sm"
                         onClick={() => handleNavigate(location)}
-                        className="h-8 flex-1 bg-cyan-600 text-xs hover:bg-cyan-500"
+                        className={`h-8 flex-1 text-xs transition ${
+                          showRoute && selectedLocation?.name === location.name
+                            ? 'bg-cyan-500 hover:bg-cyan-400'
+                            : 'bg-cyan-600 hover:bg-cyan-500'
+                        }`}
                       >
                         <Navigation className="mr-1 h-3.5 w-3.5" />
-                        Llegar
+                        {showRoute && selectedLocation?.name === location.name ? 'Ruta ON' : 'Llegar'}
                       </Button>
                       <Button
                         size="sm"
@@ -848,9 +886,16 @@ const FishingMapsPage = () => {
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button onClick={() => handleNavigate(selectedLocation)} className="bg-cyan-600 hover:bg-cyan-500">
+                <Button 
+                  onClick={() => handleNavigate(selectedLocation)} 
+                  className={`transition ${
+                    showRoute
+                      ? 'bg-cyan-500 hover:bg-cyan-400'
+                      : 'bg-cyan-600 hover:bg-cyan-500'
+                  }`}
+                >
                   <Navigation className="mr-1 h-4 w-4" />
-                  Abrir ruta
+                  {showRoute ? '✓ Ruta activada' : 'Ver ruta'}
                 </Button>
                 <Button
                   variant="outline"
@@ -883,11 +928,10 @@ const FishingMapsPage = () => {
               onClick={() => setShowHelp(false)}
             >
               <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 20, opacity: 0 }}
-                onClick={(event) => event.stopPropagation()}
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
                 className="mx-auto mt-10 w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-950 p-6"
+                onClick={(event) => event.stopPropagation()}
               >
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="flex items-center gap-2 text-xl font-semibold text-white">
