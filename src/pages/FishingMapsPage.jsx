@@ -6,13 +6,11 @@ import {
   Filter,
   Layers,
   LocateFixed,
-  Navigation,
   Heart,
   HelpCircle,
   Sparkles,
   Globe2,
   Compass,
-  Clock,
   Maximize2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,7 +18,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { supabase } from '@/lib/customSupabaseClient';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { fishingLocations, getLocationIcon } from '@/data/fishingLocations';
@@ -162,10 +160,8 @@ const FishingMapsPage = () => {
   const [mapCenter, setMapCenter] = useState(SPAIN_CENTER);
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [mapTheme, setMapTheme] = useState('terrain');
-  const [showRoute, setShowRoute] = useState(false);
 
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [userLocation, setUserLocation] = useState(null);
 
   const [showFilters, setShowFilters] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -344,7 +340,6 @@ const FishingMapsPage = () => {
     setMapZoom(zoom);
     setSearchFocused(false);
     setShowMobileSidebar(false);
-    setShowRoute(false);
 
     if (shouldAddToHistory) {
       addToHistory(location.name);
@@ -383,7 +378,6 @@ const FishingMapsPage = () => {
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const location = [coords.latitude, coords.longitude];
-        setUserLocation(location);
         setMapCenter(location);
         setMapZoom(11);
       },
@@ -392,46 +386,6 @@ const FishingMapsPage = () => {
           variant: 'destructive',
           title: 'No se pudo obtener tu ubicacion',
           description: 'Revisa los permisos del navegador e intentalo de nuevo.',
-        });
-      },
-      { enableHighAccuracy: true, timeout: 8000 },
-    );
-  };
-
-  const handleNavigate = (location) => {
-    if (!location) {
-      return;
-    }
-
-    setSelectedLocation(location);
-    setMapCenter([location.latitude, location.longitude]);
-
-    if (userLocation) {
-      const sameLocation = selectedLocation?.name === location.name;
-      setShowRoute(!(sameLocation && showRoute));
-      return;
-    }
-
-    if (!navigator.geolocation) {
-      toast({
-        variant: 'destructive',
-        title: 'Geolocalizacion no disponible',
-        description: 'Activa tu ubicacion para calcular la ruta en el mapa.',
-      });
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const currentUserLocation = [coords.latitude, coords.longitude];
-        setUserLocation(currentUserLocation);
-        setShowRoute(true);
-      },
-      () => {
-        toast({
-          variant: 'destructive',
-          title: 'No se pudo obtener tu ubicacion',
-          description: 'Permite acceso a ubicacion para ver la ruta.',
         });
       },
       { enableHighAccuracy: true, timeout: 8000 },
@@ -502,15 +456,6 @@ const FishingMapsPage = () => {
                   <HelpCircle className="mr-1 h-4 w-4" />
                   Ayuda
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleUseMyLocation}
-                  className="border-cyan-400/40 text-cyan-200 hover:bg-cyan-900/20"
-                >
-                  <LocateFixed className="mr-1 h-4 w-4" />
-                  Mi ubicacion
-                </Button>
               </div>
             </div>
 
@@ -574,43 +519,6 @@ const FishingMapsPage = () => {
                                   <p className="truncate text-xs text-cyan-200/80">{location.region}, {location.country}</p>
                                 </div>
                                 {isFavorite(location) && <Heart className="h-4 w-4 fill-current text-rose-400" />}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {!searchQuery.trim() && searchHistory.length > 0 && (
-                          <div className="border-b border-white/5 p-2">
-                            <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-300">Historial</p>
-                            {searchHistory.slice(0, 5).map((item) => {
-                              const location = fishingLocations.find((loc) => loc.name === item);
-                              if (!location) return null;
-
-                              return (
-                                <button
-                                  key={`history-${item}`}
-                                  onMouseDown={() => selectLocation(location, { shouldAddToHistory: false })}
-                                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-white/90 hover:bg-amber-900/25"
-                                >
-                                  <Clock className="h-3.5 w-3.5 text-amber-300" />
-                                  <span className="truncate">{item}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {!searchQuery.trim() && favorites.length > 0 && (
-                          <div className="p-2">
-                            <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-rose-300">Favoritos</p>
-                            {favorites.slice(0, 5).map((item) => (
-                              <button
-                                key={`favorite-${item.name}`}
-                                onMouseDown={() => selectLocation(item, { shouldAddToHistory: false })}
-                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-white/90 hover:bg-rose-900/25"
-                              >
-                                <Heart className="h-3.5 w-3.5 fill-current text-rose-400" />
-                                <span className="truncate">{item.name}</span>
                               </button>
                             ))}
                           </div>
@@ -767,11 +675,6 @@ const FishingMapsPage = () => {
 
               <MapViewportController center={mapCenter} zoom={mapZoom} />
               <MapFitBounds locations={filteredLocations} trigger={fitTrigger} />
-              <RouteViewportController
-                enabled={showRoute}
-                userLocation={userLocation}
-                selectedLocation={selectedLocation}
-              />
 
               {filteredLocations.map((location) => (
                 <Marker
@@ -790,50 +693,18 @@ const FishingMapsPage = () => {
                         </div>
                       </div>
                       <p className="text-xs text-slate-200">{location.description || 'Spot de pesca recomendado.'}</p>
-                      <div className="flex gap-2 pt-1">
+                      <div className="pt-1">
                         <button
                           onClick={() => selectLocation(location)}
                           className="rounded-md bg-cyan-600 px-2 py-1 text-xs font-medium text-white hover:bg-cyan-500"
                         >
-                          Ver detalle
-                        </button>
-                        <button
-                          onClick={() => handleNavigate(location)}
-                          className={`rounded-md px-2 py-1 text-xs font-medium transition ${
-                            showRoute && selectedLocation?.name === location.name
-                              ? 'bg-cyan-500 text-white'
-                              : 'border border-white/20 text-white hover:bg-white/10'
-                          }`}
-                        >
-                          {showRoute && selectedLocation?.name === location.name ? '✓ Ruta activada' : 'Como llegar'}
+                          Centrar mapa
                         </button>
                       </div>
                     </div>
                   </Popup>
                 </Marker>
               ))}
-
-              {userLocation && (
-                <Marker position={userLocation} icon={userIcon}>
-                  <Popup>
-                    <p className="text-sm text-white">Estas aqui</p>
-                  </Popup>
-                </Marker>
-              )}
-
-              {/* Ruta entre usuario y spot */}
-              {showRoute && userLocation && selectedLocation && (
-                <Polyline
-                  positions={[
-                    [userLocation[0], userLocation[1]],
-                    [selectedLocation.latitude, selectedLocation.longitude],
-                  ]}
-                  color="#06b6d4"
-                  weight={3}
-                  opacity={0.8}
-                  dashArray="5, 10"
-                />
-              )}
             </MapContainer>
 
             <div className="absolute bottom-3 right-3 z-30 flex gap-2">
@@ -845,158 +716,9 @@ const FishingMapsPage = () => {
                 <Maximize2 className="mr-1 h-4 w-4" />
                 Ajustar
               </Button>
-              <Button
-                size="sm"
-                onClick={() => setShowMobileSidebar(true)}
-                className="lg:hidden border border-white/20 bg-slate-900/90 text-cyan-100 hover:bg-cyan-900/40"
-              >
-                <Layers className="mr-1 h-4 w-4" />
-                Ver ({filteredLocations.length})
-              </Button>
             </div>
           </section>
-
-          <aside className={`fixed lg:static inset-y-0 right-0 z-[55] w-96 lg:w-auto lg:min-h-[420px] flex flex-col overflow-hidden rounded-none lg:rounded-2xl border-l lg:border border-white/10 bg-slate-950/70 transition-transform duration-300 ${showMobileSidebar ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
-            <div className="border-b border-white/10 p-4 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-cyan-200">
-                <Layers className="h-4 w-4" />
-                Resultados
-              </h2>
-              <button
-                onClick={() => setShowMobileSidebar(false)}
-                className="lg:hidden text-white/60 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="hidden lg:block px-4 pt-2 text-xs text-cyan-100/70">
-              Selecciona un spot para centrar mapa y abrir acciones.
-            </p>
-
-            <div className="flex-1 space-y-2 overflow-y-auto p-3">
-              {filteredLocations.length === 0 && (
-                <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4 text-center text-sm text-cyan-100/70">
-                  No hay resultados con el filtro actual.
-                </div>
-              )}
-
-              {filteredLocations.map((location) => {
-                const active = selectedLocation?.name === location.name;
-                const favorite = isFavorite(location);
-
-                return (
-                  <motion.div
-                    key={`list-${location.name}-${location.latitude}`}
-                    layout
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`rounded-xl border p-3 transition ${
-                      active
-                        ? 'border-cyan-300/60 bg-cyan-700/20'
-                        : 'border-white/10 bg-slate-900/55 hover:border-cyan-400/40 hover:bg-slate-800/70'
-                    }`}
-                  >
-                    <button className="w-full text-left" onClick={() => selectLocation(location)}>
-                      <div className="flex items-start gap-3">
-                        <span className="text-xl">{getLocationIcon(location.type)}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-white">{location.name}</p>
-                          <p className="truncate text-xs text-cyan-100/80">{location.region}, {location.country}</p>
-                          <p className="mt-1 text-[11px] uppercase tracking-wide text-cyan-200/70">{location.type}</p>
-                        </div>
-                      </div>
-                    </button>
-
-                    <div className="mt-3 flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleNavigate(location)}
-                        className={`h-8 flex-1 text-xs transition ${
-                          showRoute && selectedLocation?.name === location.name
-                            ? 'bg-cyan-500 hover:bg-cyan-400'
-                            : 'bg-cyan-600 hover:bg-cyan-500'
-                        }`}
-                      >
-                        <Navigation className="mr-1 h-3.5 w-3.5" />
-                        {showRoute && selectedLocation?.name === location.name ? 'Ruta ON' : 'Llegar'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => toggleFavorite(location)}
-                        className={`h-8 flex-1 text-xs ${
-                          favorite
-                            ? 'border-rose-400/60 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25'
-                            : 'border-white/20 text-cyan-100 hover:bg-rose-900/20'
-                        }`}
-                      >
-                        <Heart className={`mr-1 h-3.5 w-3.5 ${favorite ? 'fill-current' : ''}`} />
-                        {favorite ? 'Guardado' : 'Guardar'}
-                      </Button>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </aside>
         </main>
-
-        <AnimatePresence>
-          {selectedLocation && (
-            <motion.div
-              initial={{ y: 30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 30, opacity: 0 }}
-              className="fixed bottom-3 left-1/2 z-40 w-[96%] max-w-2xl -translate-x-1/2 rounded-2xl border border-white/15 bg-slate-950/95 p-3 shadow-2xl backdrop-blur md:bottom-4 md:p-4"
-            >
-              <div className="flex items-start gap-3">
-                <span className="text-3xl leading-none">{getLocationIcon(selectedLocation.type)}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-lg font-semibold text-white">{selectedLocation.name}</p>
-                  <p className="text-sm text-cyan-200/85">{selectedLocation.region}, {selectedLocation.country}</p>
-                  <p className="mt-2 line-clamp-2 text-sm text-slate-200">{selectedLocation.description}</p>
-                </div>
-                <button
-                  onClick={() => setSelectedLocation(null)}
-                  className="rounded-md p-1 text-cyan-100/70 hover:bg-white/10 hover:text-white"
-                  aria-label="Cerrar detalle"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button 
-                  onClick={() => handleNavigate(selectedLocation)} 
-                  className={`transition ${
-                    showRoute
-                      ? 'bg-cyan-500 hover:bg-cyan-400'
-                      : 'bg-cyan-600 hover:bg-cyan-500'
-                  }`}
-                >
-                  <Navigation className="mr-1 h-4 w-4" />
-                  {showRoute ? '✓ Ruta activada' : 'Ver ruta'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => toggleFavorite(selectedLocation)}
-                  className="border-white/20 text-cyan-100 hover:bg-rose-900/25"
-                >
-                  <Heart className={`mr-1 h-4 w-4 ${isFavorite(selectedLocation) ? 'fill-current text-rose-400' : ''}`} />
-                  {isFavorite(selectedLocation) ? 'En favoritos' : 'Guardar'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setFitTrigger((prev) => prev + 1)}
-                  className="border-white/20 text-cyan-100 hover:bg-cyan-900/25"
-                >
-                  <Sparkles className="mr-1 h-4 w-4" />
-                  Ver contexto
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <AnimatePresence>
           {showHelp && (
