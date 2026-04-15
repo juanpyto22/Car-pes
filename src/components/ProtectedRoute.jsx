@@ -6,6 +6,11 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 const ProtectedRoute = ({ children }) => {
   const { user, loading, authError } = useAuth();
 
+  // Wait for auth bootstrap on refresh so route is preserved.
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
   // If there's an auth error and no user, redirect to login
   if (authError && !user) {
     console.warn('Auth error:', authError);

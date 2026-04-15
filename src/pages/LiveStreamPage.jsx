@@ -576,7 +576,7 @@ const useRealtimeStats = (streamId) => {
       if (!mounted) return;
       setStats({
         viewer_count: viewersResult.count ?? streamStats.viewer_count ?? 0,
-        like_count: streamStats.like_count ?? likesResult.count ?? 0,
+        like_count: Math.max(streamStats.like_count ?? 0, likesResult.count ?? 0),
         is_live: streamStats.is_live,
       });
     };
@@ -591,7 +591,11 @@ const useRealtimeStats = (streamId) => {
       }, (payload) => {
         if (mounted) {
           const u = payload.new;
-          setStats({ viewer_count: u.viewer_count || 0, like_count: u.like_count || 0, is_live: u.is_live });
+          setStats((prev) => ({
+            viewer_count: u.viewer_count || 0,
+            like_count: Math.max(u.like_count || 0, prev.like_count || 0),
+            is_live: u.is_live,
+          }));
         }
       })
       .on('postgres_changes', {
