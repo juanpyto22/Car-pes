@@ -253,8 +253,8 @@ const CameraPage = () => {
   const prevLiveLikesRef = useRef(0);
   const viewerPulseTimeoutRef = useRef(null);
   const likePulseTimeoutRef = useRef(null);
-  const [liveViewerPulseLevel, setLiveViewerPulseLevel] = useState('idle');
-  const [liveLikePulseLevel, setLiveLikePulseLevel] = useState('idle');
+  const [liveViewerPulseLevel, setLiveViewerPulseLevel] = useState('idle'); // idle | small | medium | big
+  const [liveLikePulseLevel, setLiveLikePulseLevel] = useState('idle'); // idle | small | medium | big
   const [liveViewerPulseKey, setLiveViewerPulseKey] = useState(0);
   const [liveLikePulseKey, setLiveLikePulseKey] = useState(0);
   const [showLiveSetup, setShowLiveSetup] = useState(true);
@@ -291,13 +291,13 @@ const CameraPage = () => {
     const delta = current - previous;
 
     if (delta > 0) {
-      const level = delta >= 4 ? 'big' : 'small';
+      const level = delta >= 5 ? 'big' : delta >= 2 ? 'medium' : 'small';
       setLiveViewerPulseLevel(level);
       setLiveViewerPulseKey((prev) => prev + 1);
       if (viewerPulseTimeoutRef.current) clearTimeout(viewerPulseTimeoutRef.current);
       viewerPulseTimeoutRef.current = setTimeout(() => {
         setLiveViewerPulseLevel('idle');
-      }, level === 'big' ? 760 : 460);
+      }, level === 'big' ? 820 : level === 'medium' ? 620 : 420);
     }
 
     prevLiveViewersRef.current = current;
@@ -309,13 +309,13 @@ const CameraPage = () => {
     const delta = current - previous;
 
     if (delta > 0) {
-      const level = delta >= 6 ? 'big' : 'small';
+      const level = delta >= 5 ? 'big' : delta >= 2 ? 'medium' : 'small';
       setLiveLikePulseLevel(level);
       setLiveLikePulseKey((prev) => prev + 1);
       if (likePulseTimeoutRef.current) clearTimeout(likePulseTimeoutRef.current);
       likePulseTimeoutRef.current = setTimeout(() => {
         setLiveLikePulseLevel('idle');
-      }, level === 'big' ? 780 : 480);
+      }, level === 'big' ? 840 : level === 'medium' ? 640 : 440);
     }
 
     prevLiveLikesRef.current = current;
@@ -1357,20 +1357,34 @@ const CameraPage = () => {
                     onClick={() => setShowViewersPanel(v => !v)}
                     animate={liveViewerPulseLevel !== 'idle'
                       ? {
-                          backgroundColor: liveViewerPulseLevel === 'big' ? 'rgba(16,185,129,0.34)' : 'rgba(16,185,129,0.24)',
-                          scale: liveViewerPulseLevel === 'big' ? [1, 1.1, 1] : [1, 1.06, 1],
+                          backgroundColor: liveViewerPulseLevel === 'big'
+                            ? 'rgba(16,185,129,0.36)'
+                            : liveViewerPulseLevel === 'medium'
+                              ? 'rgba(16,185,129,0.28)'
+                              : 'rgba(16,185,129,0.2)',
+                          scale: liveViewerPulseLevel === 'big'
+                            ? [1, 1.1, 1]
+                            : liveViewerPulseLevel === 'medium'
+                              ? [1, 1.08, 1]
+                              : [1, 1.05, 1],
                         }
                       : { backgroundColor: 'rgba(0,0,0,0.4)' }}
-                    transition={{ duration: liveViewerPulseLevel === 'big' ? 0.62 : 0.42, ease: 'easeOut' }}
+                    transition={{ duration: liveViewerPulseLevel === 'big' ? 0.64 : liveViewerPulseLevel === 'medium' ? 0.5 : 0.34, ease: 'easeOut' }}
                     className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded transition-colors ${liveViewerPulseLevel !== 'idle' ? 'text-emerald-200' : 'text-white'}`}
                     title="Ver espectadores"
                   >
                     <motion.span
                       key={`live-viewer-pulse-${liveViewerPulseKey}`}
                       animate={liveViewerPulseLevel !== 'idle'
-                        ? { scale: liveViewerPulseLevel === 'big' ? [1, 1.34, 1] : [1, 1.22, 1] }
+                        ? {
+                            scale: liveViewerPulseLevel === 'big'
+                              ? [1, 1.34, 1]
+                              : liveViewerPulseLevel === 'medium'
+                                ? [1, 1.26, 1]
+                                : [1, 1.18, 1],
+                          }
                         : { scale: 1 }}
-                      transition={{ duration: liveViewerPulseLevel === 'big' ? 0.52 : 0.34, ease: 'easeOut' }}
+                      transition={{ duration: liveViewerPulseLevel === 'big' ? 0.54 : liveViewerPulseLevel === 'medium' ? 0.42 : 0.3, ease: 'easeOut' }}
                     >
                       <Eye className="w-3 h-3" />
                     </motion.span>
@@ -1387,19 +1401,33 @@ const CameraPage = () => {
                   <motion.span
                     animate={liveLikePulseLevel !== 'idle'
                       ? {
-                          backgroundColor: liveLikePulseLevel === 'big' ? 'rgba(239,68,68,0.34)' : 'rgba(239,68,68,0.24)',
-                          scale: liveLikePulseLevel === 'big' ? [1, 1.1, 1] : [1, 1.06, 1],
+                          backgroundColor: liveLikePulseLevel === 'big'
+                            ? 'rgba(239,68,68,0.36)'
+                            : liveLikePulseLevel === 'medium'
+                              ? 'rgba(239,68,68,0.28)'
+                              : 'rgba(239,68,68,0.2)',
+                          scale: liveLikePulseLevel === 'big'
+                            ? [1, 1.1, 1]
+                            : liveLikePulseLevel === 'medium'
+                              ? [1, 1.08, 1]
+                              : [1, 1.05, 1],
                         }
                       : { backgroundColor: 'rgba(0,0,0,0.4)' }}
-                    transition={{ duration: liveLikePulseLevel === 'big' ? 0.64 : 0.44, ease: 'easeOut' }}
+                    transition={{ duration: liveLikePulseLevel === 'big' ? 0.66 : liveLikePulseLevel === 'medium' ? 0.52 : 0.36, ease: 'easeOut' }}
                     className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded ${liveLikePulseLevel !== 'idle' ? 'text-red-200' : 'text-red-300'}`}
                   >
                     <motion.span
                       key={`live-like-pulse-${liveLikePulseKey}`}
                       animate={liveLikePulseLevel !== 'idle'
-                        ? { scale: liveLikePulseLevel === 'big' ? [1, 1.36, 1] : [1, 1.24, 1] }
+                        ? {
+                            scale: liveLikePulseLevel === 'big'
+                              ? [1, 1.36, 1]
+                              : liveLikePulseLevel === 'medium'
+                                ? [1, 1.28, 1]
+                                : [1, 1.2, 1],
+                          }
                         : { scale: 1 }}
-                      transition={{ duration: liveLikePulseLevel === 'big' ? 0.56 : 0.36, ease: 'easeOut' }}
+                      transition={{ duration: liveLikePulseLevel === 'big' ? 0.58 : liveLikePulseLevel === 'medium' ? 0.44 : 0.32, ease: 'easeOut' }}
                     >
                       <Heart className="w-3 h-3 fill-current" />
                     </motion.span>

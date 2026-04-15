@@ -160,13 +160,48 @@ export const useLiveStreams = (currentUser) => {
         .from('live_stream_likes')
         .insert({ stream_id: streamId, user_id: currentUser.id });
 
-      if (error && error.code === '23505') {
-        // Already liked — unlike
+      if (error && error.code !== '23505') {
+        throw error;
+      }
+
+      // Cumulative likes: every tap adds one like.
+      let incremented = false;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const { data: streamRow, error: readError } = await supabase
+          .from('live_streams')
+          .select('like_count')
+          .eq('id', streamId)
+          .single();
+
+        if (readError) throw readError;
+
+        const currentLikeCount = streamRow?.like_count || 0;
+        const { data: updatedRow, error: updateError } = await supabase
+          .from('live_streams')
+          .update({ like_count: currentLikeCount + 1 })
+          .eq('id', streamId)
+          .eq('like_count', currentLikeCount)
+          .select('id')
+          .maybeSingle();
+
+        if (updateError) throw updateError;
+        if (updatedRow) {
+          incremented = true;
+          break;
+        }
+      }
+
+      if (!incremented) {
+        const { data: latestRow } = await supabase
+          .from('live_streams')
+          .select('like_count')
+          .eq('id', streamId)
+          .single();
+
         await supabase
-          .from('live_stream_likes')
-          .delete()
-          .eq('stream_id', streamId)
-          .eq('user_id', currentUser.id);
+          .from('live_streams')
+          .update({ like_count: (latestRow?.like_count || 0) + 1 })
+          .eq('id', streamId);
       }
     } catch (err) {
       console.error('Error liking stream:', err);

@@ -220,17 +220,46 @@ const streamOps = {
         throw error;
       }
 
-      // Keep like counter cumulative: each tap adds one like.
-      const { data: streamRow } = await supabase
-        .from('live_streams')
-        .select('like_count')
-        .eq('id', streamId)
-        .single();
+      // Keep cumulative likes and avoid lost updates under concurrent taps.
+      let incremented = false;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const { data: streamRow, error: readError } = await supabase
+          .from('live_streams')
+          .select('like_count')
+          .eq('id', streamId)
+          .single();
 
-      await supabase
-        .from('live_streams')
-        .update({ like_count: (streamRow?.like_count || 0) + 1 })
-        .eq('id', streamId);
+        if (readError) throw readError;
+
+        const currentLikeCount = streamRow?.like_count || 0;
+        const { data: updatedRow, error: updateError } = await supabase
+          .from('live_streams')
+          .update({ like_count: currentLikeCount + 1 })
+          .eq('id', streamId)
+          .eq('like_count', currentLikeCount)
+          .select('id')
+          .maybeSingle();
+
+        if (updateError) throw updateError;
+        if (updatedRow) {
+          incremented = true;
+          break;
+        }
+      }
+
+      if (!incremented) {
+        // Final fallback so one tap still tries to add one like.
+        const { data: latestRow } = await supabase
+          .from('live_streams')
+          .select('like_count')
+          .eq('id', streamId)
+          .single();
+
+        await supabase
+          .from('live_streams')
+          .update({ like_count: (latestRow?.like_count || 0) + 1 })
+          .eq('id', streamId);
+      }
     } catch (err) { console.error('Error liking:', err); }
   },
 
@@ -784,8 +813,8 @@ const StreamViewer = ({ stream, onBack }) => {
   const prevLikeCountRef = useRef(stats.like_count || 0);
   const viewerPulseTimeoutRef = useRef(null);
   const likePulseTimeoutRef = useRef(null);
-  const [viewerPulseLevel, setViewerPulseLevel] = useState('idle');
-  const [likePulseLevel, setLikePulseLevel] = useState('idle');
+  const [viewerPulseLevel, setViewerPulseLevel] = useState('idle'); // idle | small | medium | big
+  const [likePulseLevel, setLikePulseLevel] = useState('idle'); // idle | small | medium | big
   const [viewerPulseKey, setViewerPulseKey] = useState(0);
   const [likePulseKey, setLikePulseKey] = useState(0);
 
@@ -802,13 +831,13 @@ const StreamViewer = ({ stream, onBack }) => {
     const delta = current - previous;
 
     if (delta > 0) {
-      const level = delta >= 4 ? 'big' : 'small';
+      const level = delta >= 5 ? 'big' : delta >= 2 ? 'medium' : 'small';
       setViewerPulseLevel(level);
       setViewerPulseKey((prev) => prev + 1);
       if (viewerPulseTimeoutRef.current) clearTimeout(viewerPulseTimeoutRef.current);
       viewerPulseTimeoutRef.current = setTimeout(() => {
         setViewerPulseLevel('idle');
-      }, level === 'big' ? 760 : 460);
+      }, level === 'big' ? 820 : level === 'medium' ? 620 : 420);
     }
 
     prevViewerCountRef.current = current;
@@ -820,13 +849,13 @@ const StreamViewer = ({ stream, onBack }) => {
     const delta = current - previous;
 
     if (delta > 0) {
-      const level = delta >= 6 ? 'big' : 'small';
+      const level = delta >= 5 ? 'big' : delta >= 2 ? 'medium' : 'small';
       setLikePulseLevel(level);
       setLikePulseKey((prev) => prev + 1);
       if (likePulseTimeoutRef.current) clearTimeout(likePulseTimeoutRef.current);
       likePulseTimeoutRef.current = setTimeout(() => {
         setLikePulseLevel('idle');
-      }, level === 'big' ? 780 : 480);
+      }, level === 'big' ? 840 : level === 'medium' ? 640 : 440);
     }
 
     prevLikeCountRef.current = current;
@@ -1155,19 +1184,33 @@ const StreamViewer = ({ stream, onBack }) => {
           <motion.span
             animate={viewerPulseLevel !== 'idle'
               ? {
-                  backgroundColor: viewerPulseLevel === 'big' ? 'rgba(16,185,129,0.34)' : 'rgba(16,185,129,0.22)',
-                  scale: viewerPulseLevel === 'big' ? [1, 1.1, 1] : [1, 1.06, 1],
+                  backgroundColor: viewerPulseLevel === 'big'
+                    ? 'rgba(16,185,129,0.36)'
+                    : viewerPulseLevel === 'medium'
+                      ? 'rgba(16,185,129,0.28)'
+                      : 'rgba(16,185,129,0.2)',
+                  scale: viewerPulseLevel === 'big'
+                    ? [1, 1.1, 1]
+                    : viewerPulseLevel === 'medium'
+                      ? [1, 1.08, 1]
+                      : [1, 1.05, 1],
                 }
               : { backgroundColor: 'rgba(0,0,0,0)' }}
-            transition={{ duration: viewerPulseLevel === 'big' ? 0.62 : 0.42, ease: 'easeOut' }}
+            transition={{ duration: viewerPulseLevel === 'big' ? 0.64 : viewerPulseLevel === 'medium' ? 0.5 : 0.34, ease: 'easeOut' }}
             className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${viewerPulseLevel !== 'idle' ? 'text-emerald-200' : 'text-blue-300'}`}
           >
             <motion.span
               key={`viewer-pulse-${viewerPulseKey}`}
               animate={viewerPulseLevel !== 'idle'
-                ? { scale: viewerPulseLevel === 'big' ? [1, 1.34, 1] : [1, 1.22, 1] }
+                ? {
+                    scale: viewerPulseLevel === 'big'
+                      ? [1, 1.34, 1]
+                      : viewerPulseLevel === 'medium'
+                        ? [1, 1.26, 1]
+                        : [1, 1.18, 1],
+                  }
                 : { scale: 1 }}
-              transition={{ duration: viewerPulseLevel === 'big' ? 0.52 : 0.34, ease: 'easeOut' }}
+              transition={{ duration: viewerPulseLevel === 'big' ? 0.54 : viewerPulseLevel === 'medium' ? 0.42 : 0.3, ease: 'easeOut' }}
             >
               <Eye className="w-3.5 h-3.5" />
             </motion.span>
@@ -1176,19 +1219,33 @@ const StreamViewer = ({ stream, onBack }) => {
           <motion.span
             animate={likePulseLevel !== 'idle'
               ? {
-                  backgroundColor: likePulseLevel === 'big' ? 'rgba(239,68,68,0.34)' : 'rgba(239,68,68,0.22)',
-                  scale: likePulseLevel === 'big' ? [1, 1.1, 1] : [1, 1.06, 1],
+                  backgroundColor: likePulseLevel === 'big'
+                    ? 'rgba(239,68,68,0.36)'
+                    : likePulseLevel === 'medium'
+                      ? 'rgba(239,68,68,0.28)'
+                      : 'rgba(239,68,68,0.2)',
+                  scale: likePulseLevel === 'big'
+                    ? [1, 1.1, 1]
+                    : likePulseLevel === 'medium'
+                      ? [1, 1.08, 1]
+                      : [1, 1.05, 1],
                 }
               : { backgroundColor: 'rgba(0,0,0,0)' }}
-            transition={{ duration: likePulseLevel === 'big' ? 0.64 : 0.44, ease: 'easeOut' }}
+            transition={{ duration: likePulseLevel === 'big' ? 0.66 : likePulseLevel === 'medium' ? 0.52 : 0.36, ease: 'easeOut' }}
             className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${likePulseLevel !== 'idle' ? 'text-red-200' : 'text-red-400'}`}
           >
             <motion.span
               key={`like-pulse-${likePulseKey}`}
               animate={likePulseLevel !== 'idle'
-                ? { scale: likePulseLevel === 'big' ? [1, 1.36, 1] : [1, 1.24, 1] }
+                ? {
+                    scale: likePulseLevel === 'big'
+                      ? [1, 1.36, 1]
+                      : likePulseLevel === 'medium'
+                        ? [1, 1.28, 1]
+                        : [1, 1.2, 1],
+                  }
                 : { scale: 1 }}
-              transition={{ duration: likePulseLevel === 'big' ? 0.56 : 0.36, ease: 'easeOut' }}
+              transition={{ duration: likePulseLevel === 'big' ? 0.58 : likePulseLevel === 'medium' ? 0.44 : 0.32, ease: 'easeOut' }}
             >
               <Heart className="w-3.5 h-3.5 fill-current" />
             </motion.span>
