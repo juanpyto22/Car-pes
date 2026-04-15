@@ -512,8 +512,18 @@ const CameraPage = () => {
       setCameraStream(stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play?.().catch(() => {});
+          setCameraReady(true);
+        };
+        videoRef.current.oncanplay = () => {
+          setCameraReady(true);
+        };
+        videoRef.current.onplaying = () => {
+          setCameraReady(true);
+        };
+        videoRef.current.play?.().catch(() => {});
       }
-      setCameraReady(true);
     } catch (err) {
       console.error('Camera error:', err);
       setCameraError(err.message || 'No se pudo acceder a la cámara');
@@ -1337,7 +1347,7 @@ const CameraPage = () => {
       {mode !== 'TEXTO' && (
         <div className="flex-1 min-h-0 flex flex-col relative md:flex-row md:items-stretch">
           {/* Camera Feed */}
-          <div className="flex-1 min-h-0 relative bg-black overflow-hidden md:w-[calc(100%-360px)] md:min-w-0">
+          <div className="flex-[1_1_auto] min-h-0 relative bg-black overflow-hidden md:w-[calc(100%-360px)] md:min-w-0">
             {/* Video element */}
             <video
               ref={videoRef}
@@ -1347,7 +1357,7 @@ const CameraPage = () => {
               className={`absolute inset-0 w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''} ${hasCapture ? 'hidden' : ''}`}
             />
 
-            {!cameraStream && !cameraError && !hasCapture && (
+            {(!cameraReady && !cameraError && !hasCapture) && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-[2px] z-10">
                 <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-center shadow-2xl">
                   <div className="h-10 w-10 rounded-full border-2 border-cyan-300 border-t-transparent animate-spin" />
@@ -1881,7 +1891,7 @@ const CameraPage = () => {
           )}
 
           {/* ── Bottom Controls ── */}
-          <div className="bg-black pt-2 pb-[env(safe-area-inset-bottom)]">
+          <div className="shrink-0 bg-black pt-2 pb-[env(safe-area-inset-bottom)]">
             {/* Capture controls (only in HISTORIA mode, no capture yet) */}
             {mode === 'HISTORIA' && !hasCapture && (
               <div className="flex items-center justify-between px-6 py-3">
