@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
+import { enforceFishingOnlyPolicy } from '@/utils/fishingOnlyPolicy';
 
 const LIKE_MSG_PREFIX = '__like__:';
 
@@ -78,6 +79,17 @@ export const useLiveStreams = (currentUser) => {
   const startStream = useCallback(async ({ title, category }) => {
     if (!currentUser) return null;
     try {
+      const policyCheck = await enforceFishingOnlyPolicy({
+        userId: currentUser.id,
+        contentType: 'live',
+        text: title || '',
+        category: category || 'live'
+      });
+
+      if (policyCheck.blocked) {
+        throw new Error('Solo se permiten directos relacionados con pesca. Se aplico moderacion automatica.');
+      }
+
       // End any existing stream first
       await supabase
         .from('live_streams')

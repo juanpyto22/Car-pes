@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { enforceFishingOnlyPolicy } from '@/utils/fishingOnlyPolicy';
 
 // ─────────────────────────────────────────────────────
 // Instagram-like Camera Page
@@ -782,6 +783,23 @@ const CameraPage = () => {
     setPublishing(true);
 
     try {
+      const storyPolicy = await enforceFishingOnlyPolicy({
+        userId: user.id,
+        contentType: 'story',
+        text: mode === 'TEXTO' ? textContent : storyText,
+        category: 'story'
+      });
+
+      if (storyPolicy.blocked) {
+        toast({
+          variant: 'destructive',
+          title: 'Contenido bloqueado',
+          description: 'Solo se permiten historias relacionadas con pesca.'
+        });
+        setPublishing(false);
+        return;
+      }
+
       let mediaUrl = null;
 
       if (mode === 'TEXTO') {
@@ -868,6 +886,23 @@ const CameraPage = () => {
     setStartingLive(true);
 
     try {
+      const livePolicy = await enforceFishingOnlyPolicy({
+        userId: user.id,
+        contentType: 'live',
+        text: liveTitle.trim(),
+        category: liveCategory || 'live'
+      });
+
+      if (livePolicy.blocked) {
+        toast({
+          variant: 'destructive',
+          title: 'Directo bloqueado',
+          description: 'Solo se permiten directos de pesca en esta comunidad.'
+        });
+        setStartingLive(false);
+        return;
+      }
+
       const nowIso = new Date().toISOString();
 
       // Always close any previous active stream from this user to avoid ghost streams.

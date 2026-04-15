@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
+import { enforceFishingOnlyPolicy } from '@/utils/fishingOnlyPolicy';
 
 export const useStories = (currentUser) => {
   const [stories, setStories] = useState([]);
@@ -108,6 +109,22 @@ export const useStories = (currentUser) => {
     if (!currentUser?.id) return false;
 
     try {
+      const policyCheck = await enforceFishingOnlyPolicy({
+        userId: currentUser.id,
+        contentType: 'story',
+        text: storyData?.content || storyData?.caption || '',
+        category: storyData?.type || 'story'
+      });
+
+      if (policyCheck.blocked) {
+        toast({
+          variant: 'destructive',
+          title: 'Contenido bloqueado',
+          description: 'Solo se permite contenido relacionado con pesca en stories.'
+        });
+        return false;
+      }
+
       let mediaUrl = null;
 
       // Upload media if provided

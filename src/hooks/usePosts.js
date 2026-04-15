@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
+import { enforceFishingOnlyPolicy } from '@/utils/fishingOnlyPolicy';
 
 export const usePosts = (options = {}) => {
   const { userId = null, userIds = null, limit = 10 } = options;
@@ -178,6 +179,22 @@ export const usePosts = (options = {}) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
+
+      const policyCheck = await enforceFishingOnlyPolicy({
+        userId: user.id,
+        contentType: 'post',
+        text: postData?.contenido || postData?.content || '',
+        category: postData?.categoria || postData?.category || '',
+        imageUrl: postData?.imagen_url || postData?.image_url || null
+      });
+
+      if (policyCheck.blocked) {
+        return {
+          success: false,
+          code: 'FISHING_ONLY_POLICY',
+          error: policyCheck.message
+        };
+      }
 
       const { data, error } = await supabase
         .from('posts')

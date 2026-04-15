@@ -10,6 +10,7 @@ import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
+import { enforceFishingOnlyPolicy } from '@/utils/fishingOnlyPolicy';
 
 const escapeXml = (value = '') => value
   .replace(/&/g, '&amp;')
@@ -147,6 +148,23 @@ const CreateStoryPage = () => {
     setLoading(true);
 
     try {
+      const policyCheck = await enforceFishingOnlyPolicy({
+        userId: user.id,
+        contentType: 'story',
+        text: textContent,
+        category: mediaType || 'story'
+      });
+
+      if (policyCheck.blocked) {
+        toast({
+          variant: 'destructive',
+          title: 'Contenido bloqueado',
+          description: 'Solo se permite contenido relacionado con pesca.'
+        });
+        setLoading(false);
+        return;
+      }
+
       // If multiple media files, create one story per file
       if (mediaFiles.length > 0) {
         for (let i = 0; i < mediaFiles.length; i++) {

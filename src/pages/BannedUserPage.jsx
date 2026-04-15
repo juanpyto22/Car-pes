@@ -1,11 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, LogOut, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
+import { supabase } from '@/lib/customSupabaseClient';
 
 export default function BannedUserPage({ banType, reason, expiresAt, remainingHours }) {
   const { user, signOut } = useAuth();
+  const [showAppealForm, setShowAppealForm] = useState(false);
+  const [appealText, setAppealText] = useState('');
+  const [appealSubmitting, setAppealSubmitting] = useState(false);
+  const [appealSent, setAppealSent] = useState(false);
+  const [appealError, setAppealError] = useState('');
 
   const handleLogout = async () => {
     await signOut();
@@ -33,6 +39,49 @@ export default function BannedUserPage({ banType, reason, expiresAt, remainingHo
         return 'Permanente';
       default:
         return 'Indefinido';
+    }
+  };
+
+  const submitAppeal = async () => {
+    if (!user?.id || appealSubmitting || appealSent) return;
+
+    const trimmedText = appealText.trim();
+    if (trimmedText.length < 20) {
+      setAppealError('La apelacion debe tener al menos 20 caracteres.');
+      return;
+    }
+
+    setAppealSubmitting(true);
+    setAppealError('');
+
+    try {
+      const { data, error } = await supabase.rpc('submit_ban_appeal', {
+        p_appeal_text: trimmedText,
+        p_ban_type: banType || null,
+        p_ban_reason: reason || null
+      });
+
+      if (error) {
+        const fallback = await supabase.from('ban_appeals').insert({
+          user_id: user.id,
+          ban_type: banType || 'unknown',
+          ban_reason: reason || null,
+          appeal_text: trimmedText,
+          status: 'pending'
+        });
+
+        if (fallback.error) throw fallback.error;
+      }
+
+      if (data === null || data) {
+        setAppealSent(true);
+        setShowAppealForm(false);
+        setAppealText('');
+      }
+    } catch (err) {
+      setAppealError(err.message || 'No se pudo enviar la apelacion.');
+    } finally {
+      setAppealSubmitting(false);
     }
   };
 
@@ -104,6 +153,55 @@ export default function BannedUserPage({ banType, reason, expiresAt, remainingHo
 
           {/* Buttons */}
           <div className="space-y-3">
+            {!appealSent && (
+              <Button
+                onClick={() => {
+                  setShowAppealForm((prev) => !prev);
+                  setAppealError('');
+                }}
+                className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-lg transition"
+              >
+                {showAppealForm ? 'Cancelar reclamacion' : 'Reclamar'}
+              </Button>
+            )}
+
+            {appealSent && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
+                <p className="text-emerald-300 text-sm font-medium">Reclamacion enviada correctamente.</p>
+                <p className="text-emerald-200/80 text-xs mt-1">Nuestro equipo revisara tu caso.</p>
+              </div>
+            )}
+
+            {showAppealForm && !appealSent && (
+              <div className="bg-slate-800/60 border border-white/10 rounded-lg p-4 space-y-3">
+                <label className="text-white/80 text-sm block" htmlFor="appealText">
+                  Explica por que deberiamos levantar la sancion
+                </label>
+                <textarea
+                  id="appealText"
+                  value={appealText}
+                  onChange={(e) => setAppealText(e.target.value)}
+                  placeholder="Describe el contexto de tu publicacion y por que crees que fue un error."
+                  className="w-full min-h-[110px] rounded-lg bg-slate-950/60 border border-white/10 text-white p-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  maxLength={1500}
+                />
+                <div className="flex items-center justify-between text-xs text-white/50">
+                  <span>Minimo 20 caracteres</span>
+                  <span>{appealText.length}/1500</span>
+                </div>
+                {appealError && (
+                  <p className="text-red-300 text-xs">{appealError}</p>
+                )}
+                <Button
+                  onClick={submitAppeal}
+                  disabled={appealSubmitting}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                >
+                  {appealSubmitting ? 'Enviando...' : 'Enviar reclamacion'}
+                </Button>
+              </div>
+            )}
+
             <Button
               onClick={handleLogout}
               className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2"
