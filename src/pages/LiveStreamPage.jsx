@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Radio, Video, VideoOff, Mic, MicOff, Heart, MessageCircle, Send, Eye, Clock, ChevronLeft, Camera, X, Sparkles, Monitor, Wifi, WifiOff, Loader2, Gift, Fish, Shield } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,7 +31,34 @@ const streamOps = {
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
+      const streamIds = data.map((s) => s.id);
       const userIds = [...new Set(data.map(s => s.user_id))];
+
+      let viewersCountMap = {};
+      let likesCountMap = {};
+
+      if (streamIds.length > 0) {
+        const [{ data: viewersRows }, { data: likesRows }] = await Promise.all([
+          supabase
+            .from('live_stream_viewers')
+            .select('stream_id')
+            .in('stream_id', streamIds),
+          supabase
+            .from('live_stream_likes')
+            .select('stream_id')
+            .in('stream_id', streamIds),
+        ]);
+
+        viewersCountMap = (viewersRows || []).reduce((acc, row) => {
+          acc[row.stream_id] = (acc[row.stream_id] || 0) + 1;
+          return acc;
+        }, {});
+
+        likesCountMap = (likesRows || []).reduce((acc, row) => {
+          acc[row.stream_id] = (acc[row.stream_id] || 0) + 1;
+          return acc;
+        }, {});
+      }
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, username, nombre, foto_perfil')
@@ -41,6 +69,8 @@ const streamOps = {
 
       return data.map(s => ({
         ...s,
+        viewer_count: viewersCountMap[s.id] ?? s.viewer_count ?? 0,
+        like_count: likesCountMap[s.id] ?? s.like_count ?? 0,
         user: pMap[s.user_id] || { id: s.user_id, username: 'Usuario' },
       }));
     } catch (err) {
@@ -368,7 +398,28 @@ const useRealtimeStats = (streamId) => {
     if (!streamId) return;
     let mounted = true;
 
-    streamOps.getStats(streamId).then(s => { if (mounted) setStats(s); });
+    const refreshStats = async () => {
+      const [streamStats, viewersResult, likesResult] = await Promise.all([
+        streamOps.getStats(streamId),
+        supabase
+          .from('live_stream_viewers')
+          .select('id', { count: 'exact', head: true })
+          .eq('stream_id', streamId),
+        supabase
+          .from('live_stream_likes')
+          .select('id', { count: 'exact', head: true })
+          .eq('stream_id', streamId),
+      ]);
+
+      if (!mounted) return;
+      setStats({
+        viewer_count: viewersResult.count ?? streamStats.viewer_count ?? 0,
+        like_count: likesResult.count ?? streamStats.like_count ?? 0,
+        is_live: streamStats.is_live,
+      });
+    };
+
+    refreshStats();
 
     const channel = supabase
       .channel(`stats-${streamId}`)
@@ -380,6 +431,18 @@ const useRealtimeStats = (streamId) => {
           const u = payload.new;
           setStats({ viewer_count: u.viewer_count || 0, like_count: u.like_count || 0, is_live: u.is_live });
         }
+      })
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'live_stream_viewers',
+        filter: `stream_id=eq.${streamId}`,
+      }, () => {
+        refreshStats();
+      })
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'live_stream_likes',
+        filter: `stream_id=eq.${streamId}`,
+      }, () => {
+        refreshStats();
       })
       .subscribe();
 
@@ -817,7 +880,7 @@ const StreamViewer = ({ stream, onBack }) => {
         </div>
 
         {/* Chat panel */}
-        <div className="w-full md:w-80 lg:w-96 flex flex-col bg-slate-900/50 border-l border-white/5 max-h-[50vh] md:max-h-none">
+        <div className="w-full md:w-80 lg:w-96 flex flex-col bg-slate-900/70 border-l border-white/5 max-h-[46vh] md:max-h-none md:bg-slate-900/50 rounded-t-2xl md:rounded-none">
           <div className="px-3 py-2.5 border-b border-white/5 flex items-center justify-between">
             <h4 className="text-sm font-semibold text-white flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-cyan-400" /> Chat en vivo
@@ -866,7 +929,7 @@ const StreamViewer = ({ stream, onBack }) => {
               <p className="text-xs text-blue-400/40 text-center py-8">Sé el primero en comentar...</p>
             ) : chatMessages.map(msg => <ChatMessage key={msg.id} message={msg} />)}
           </div>
-          <div className="p-2 border-t border-white/5">
+          <div className="p-2 pb-[calc(env(safe-area-inset-bottom)+8px)] border-t border-white/5 bg-slate-900/90 backdrop-blur-xl">
             {isMuted && (
               <p className="text-[11px] text-yellow-300/90 mb-2">Has sido silenciado en este directo. No puedes enviar mensajes.</p>
             )}
@@ -893,7 +956,7 @@ const StreamViewer = ({ stream, onBack }) => {
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder={isMuted ? 'No puedes enviar mensajes' : 'Enviar mensaje...'}
                 disabled={isMuted}
-                className="flex-1 bg-slate-800/80 border border-white/5 rounded-xl px-3 py-2 text-sm text-white placeholder:text-blue-400/40 focus:outline-none focus:border-cyan-500/30 disabled:opacity-60"
+                className="flex-1 bg-slate-800/90 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-blue-400/50 focus:outline-none focus:border-cyan-500/40 disabled:opacity-60"
               />
               <button onClick={handleSend} className="p-2 text-cyan-400 hover:text-cyan-300"><Send className="w-4 h-4" /></button>
               <button onClick={() => setShowGiftPicker((v) => !v)} className="p-2 text-pink-300 hover:text-pink-200"><Gift className="w-4 h-4" /></button>
@@ -1250,7 +1313,7 @@ const OwnStreamView = ({ streamData, mediaStream, sourceType, onEnd }) => {
         </div>
 
         {/* Chat + Viewers Panel */}
-        <div className="w-full md:w-96 flex flex-col bg-slate-900/50 border-l border-white/5 max-h-[50vh] md:max-h-none">
+        <div className="w-full md:w-96 flex flex-col bg-slate-900/70 border-l border-white/5 max-h-[46vh] md:max-h-none rounded-t-2xl md:rounded-none md:bg-slate-900/50">
           {/* Tabs: Chat / Espectadores */}
           <div className="flex border-b border-white/5">
             <button className="flex-1 px-3 py-2.5 text-xs font-semibold text-white bg-cyan-500/15 border-b-2 border-cyan-500/40">
@@ -1269,7 +1332,7 @@ const OwnStreamView = ({ streamData, mediaStream, sourceType, onEnd }) => {
           </div>
 
           {/* Chat Input */}
-          <div className="p-2 border-t border-white/5 bg-black/20">
+          <div className="p-2 pb-[calc(env(safe-area-inset-bottom)+8px)] border-t border-white/5 bg-slate-900/90 backdrop-blur-xl">
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -1322,6 +1385,7 @@ const OwnStreamView = ({ streamData, mediaStream, sourceType, onEnd }) => {
 // ═══════════════════════════════════════════════════════════════
 const LiveStreamPage = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [streams, setStreams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
@@ -1348,6 +1412,17 @@ const LiveStreamPage = () => {
 
     return () => { supabase.removeChannel(channel); };
   }, [fetchStreams]);
+
+  useEffect(() => {
+    const targetStreamId = location.state?.highlightStreamId;
+    if (!targetStreamId || viewingStream) return;
+
+    const targetStream = streams.find((stream) => stream.id === targetStreamId);
+    if (targetStream) {
+      setViewingStream(targetStream);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, streams, viewingStream]);
 
   const filteredStreams = selectedCategory === 'Todos' ? streams : streams.filter(s => s.category === selectedCategory);
   const otherStreams = filteredStreams.filter(s => s.user_id !== user?.id);

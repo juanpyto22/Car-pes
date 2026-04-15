@@ -14,7 +14,12 @@ const MobileBottomNav = () => {
   const { unreadCount: msgCount } = useMessages(user ? profile : null);
 
   if (!user) return null;
-  if (location.pathname.startsWith('/story/') || location.pathname === '/create-story') return null;
+  if (
+    location.pathname.startsWith('/story/') ||
+    location.pathname === '/create-story' ||
+    location.pathname === '/camera' ||
+    location.pathname === '/live'
+  ) return null;
 
   const navItems = [
     { to: '/feed', icon: Home, label: 'Inicio' },

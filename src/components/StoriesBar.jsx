@@ -305,7 +305,7 @@ const StoriesBar = () => {
     return (
       <button
         type="button"
-        onClick={() => navigate('/live')}
+        onClick={() => navigate('/live', { state: { highlightStreamId: stream.id } })}
         className="flex-shrink-0"
         title={stream.title || 'Directo en vivo'}
       >

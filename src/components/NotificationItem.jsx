@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, UserPlus, Trash2, Check, X } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus, Trash2, Check, X, Radio } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -15,6 +15,7 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
       case 'follow': return <UserPlus className="w-3.5 h-3.5 text-green-400" />;
       case 'follow_request': return <UserPlus className="w-3.5 h-3.5 text-amber-400" />;
       case 'follow_accepted': return <Check className="w-3.5 h-3.5 text-green-400" />;
+      case 'live_started': return <Radio className="w-3.5 h-3.5 text-red-400" />;
       default: return <div className="w-3.5 h-3.5 bg-gray-400 rounded-full" />;
     }
   };
@@ -23,6 +24,7 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
     if (notification.type === 'follow' || notification.type === 'follow_request' || notification.type === 'follow_accepted') {
       return `/profile/${notification.related_user_id}`;
     }
+    if (notification.type === 'live_started') return '/live';
     if (notification.post_id) return `/post/${notification.post_id}`;
     return '#';
   };
@@ -34,6 +36,7 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
       case 'follow': return 'comenzó a seguirte';
       case 'follow_request': return 'quiere seguirte';
       case 'follow_accepted': return 'aceptó tu solicitud de seguimiento';
+      case 'live_started': return 'ha iniciado un directo';
       default: return 'interactuó contigo';
     }
   };

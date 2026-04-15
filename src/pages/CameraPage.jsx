@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
+import { useBroadcaster } from '@/hooks/useWebRTC';
 
 // ─────────────────────────────────────────────────────
 // Instagram-like Camera Page
@@ -138,6 +139,9 @@ const CameraPage = () => {
   const [startingLive, setStartingLive] = useState(false);
   const [liveChatMessages, setLiveChatMessages] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState('');
+
+  // Broadcast camera stream to viewers while live (mobile + desktop)
+  useBroadcaster(streamData?.id, isLive ? cameraStream : null);
 
   // Refs
   const videoRef = useRef(null);
@@ -584,6 +588,35 @@ const CameraPage = () => {
 
       if (!createdStream) {
         throw new Error('No se pudo crear o recuperar la transmisión');
+      }
+
+      // Notify followers that this user has started a live stream.
+      try {
+        const { data: followerRows, error: followerError } = await supabase
+          .from('follows')
+          .select('follower_id')
+          .eq('following_id', user.id);
+
+        if (followerError) throw followerError;
+
+        const followerIds = [...new Set((followerRows || []).map((row) => row.follower_id).filter(Boolean))];
+        if (followerIds.length > 0) {
+          const notificationsPayload = followerIds.map((followerId) => ({
+            user_id: followerId,
+            type: 'live_started',
+            related_user_id: user.id,
+            post_id: null,
+            read: false,
+          }));
+
+          const { error: notificationError } = await supabase
+            .from('notifications')
+            .insert(notificationsPayload);
+
+          if (notificationError) throw notificationError;
+        }
+      } catch (notifyErr) {
+        console.warn('Could not notify followers about live start:', notifyErr?.message || notifyErr);
       }
 
       setStreamData(createdStream);
