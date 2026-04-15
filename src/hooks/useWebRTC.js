@@ -33,7 +33,7 @@ export const useBroadcaster = (streamId, mediaStream) => {
   }, [mediaStream]);
 
   useEffect(() => {
-    if (!streamId || !mediaStream) return;
+    if (!streamId) return;
 
     const channel = supabase.channel(`webrtc-${streamId}`, {
       config: { broadcast: { self: false } },
@@ -53,7 +53,7 @@ export const useBroadcaster = (streamId, mediaStream) => {
       const pc = new RTCPeerConnection(RTC_CONFIG);
       peersRef.current[viewerId] = pc;
 
-      // Add all our media tracks
+      // Add all our media tracks (if available)
       const currentStream = mediaStreamRef.current;
       if (currentStream) {
         currentStream.getTracks().forEach((track) => {
@@ -143,7 +143,7 @@ export const useBroadcaster = (streamId, mediaStream) => {
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [streamId, mediaStream]);
+  }, [streamId]);
 
   // When the media stream changes (e.g., toggling camera/mic), replace tracks on all peers
   useEffect(() => {
@@ -154,6 +154,12 @@ export const useBroadcaster = (streamId, mediaStream) => {
         const sender = senders.find((s) => s.track?.kind === track.kind);
         if (sender) {
           sender.replaceTrack(track).catch(console.error);
+        } else {
+          try {
+            pc.addTrack(track, mediaStream);
+          } catch (err) {
+            console.error('[Broadcaster] Error adding late track:', err);
+          }
         }
       });
     });
@@ -174,6 +180,7 @@ export const useViewer = (streamId, active = true) => {
   const channelRef = useRef(null);
   const viewerIdRef = useRef(generateId());
   const pendingCandidatesRef = useRef([]);
+  const joinRetryIntervalRef = useRef(null);
 
   useEffect(() => {
     if (!streamId || !active) return;
@@ -281,17 +288,34 @@ export const useViewer = (streamId, active = true) => {
       }
     });
 
+    const requestJoin = () => {
+      channel.send({
+        type: 'broadcast',
+        event: 'viewer-join',
+        payload: { viewerId },
+      });
+    };
+
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         // Announce to broadcaster that we want to connect
         setConnectionState('waiting');
         setTimeout(() => {
-          channel.send({
-            type: 'broadcast',
-            event: 'viewer-join',
-            payload: { viewerId },
-          });
+          requestJoin();
         }, 500);
+
+        // Keep retrying join in case the broadcaster subscribed later.
+        if (joinRetryIntervalRef.current) clearInterval(joinRetryIntervalRef.current);
+        joinRetryIntervalRef.current = setInterval(() => {
+          const pcState = pcRef.current?.connectionState;
+          const connected = pcState === 'connected';
+          if (connected) {
+            clearInterval(joinRetryIntervalRef.current);
+            joinRetryIntervalRef.current = null;
+            return;
+          }
+          requestJoin();
+        }, 2000);
       }
     });
 
@@ -301,6 +325,10 @@ export const useViewer = (streamId, active = true) => {
       if (pcRef.current) {
         pcRef.current.close();
         pcRef.current = null;
+      }
+      if (joinRetryIntervalRef.current) {
+        clearInterval(joinRetryIntervalRef.current);
+        joinRetryIntervalRef.current = null;
       }
       pendingCandidatesRef.current = [];
       supabase.removeChannel(channel);

@@ -893,6 +893,48 @@ const CameraPage = () => {
     }
   }, [liveChatMessages]);
 
+  // While live, block browser/tab exits and back navigation to avoid ghost streams.
+  useEffect(() => {
+    if (!isLive) return;
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    const handlePopState = () => {
+      window.history.pushState({ liveLocked: true }, '', window.location.href);
+      toast({
+        variant: 'destructive',
+        title: 'No puedes salir del directo',
+        description: 'Finaliza el directo primero para salir.',
+      });
+    };
+
+    window.history.pushState({ liveLocked: true }, '', window.location.href);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isLive, toast]);
+
+  // Emergency fallback: if component unmounts while stream is still live, mark it ended.
+  useEffect(() => {
+    return () => {
+      if (!isLive || !streamData?.id) return;
+      supabase
+        .from('live_streams')
+        .update({
+          is_live: false,
+          ended_at: new Date().toISOString(),
+        })
+        .eq('id', streamData.id);
+    };
+  }, [isLive, streamData?.id]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
