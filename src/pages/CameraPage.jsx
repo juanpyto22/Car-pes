@@ -296,6 +296,15 @@ const CameraPage = () => {
     .slice(-5)
     .reverse();
   const liveDonationCount = liveDonationMessages.length;
+  const unknownViewerCount = Math.max(0, (liveViewers || 0) - (liveAudience?.length || 0));
+  const displayAudience = [
+    ...liveAudience,
+    ...Array.from({ length: unknownViewerCount }, (_, idx) => ({
+      user_id: `unknown-${idx + 1}`,
+      profile: { username: `Espectador ${idx + 1}` },
+      unknown: true,
+    })),
+  ];
 
   // Refs
   const videoRef = useRef(null);
@@ -1686,10 +1695,10 @@ const CameraPage = () => {
                 </div>
 
                 <div className="max-h-64 overflow-y-auto p-2 space-y-2">
-                  {liveAudience.length === 0 ? (
+                  {displayAudience.length === 0 ? (
                     <p className="text-xs text-white/50 text-center py-3">Aun no hay espectadores conectados.</p>
                   ) : (
-                    liveAudience.map((viewer) => (
+                    displayAudience.map((viewer) => (
                       <div key={viewer.user_id} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 border border-white/10 px-2.5 py-2">
                         <div className="min-w-0">
                           <p className="text-sm text-white truncate flex items-center gap-1.5">
@@ -1703,9 +1712,11 @@ const CameraPage = () => {
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 border border-yellow-500/30">Silenciado</span>
                             )}
                           </p>
-                          <p className="text-[10px] text-white/45 truncate">{viewer.user_id}</p>
+                          <p className="text-[10px] text-white/45 truncate">{viewer.unknown ? 'Pendiente de identificar' : viewer.user_id}</p>
                         </div>
                         <div className="flex items-center gap-1.5">
+                          {!viewer.unknown && (
+                            <>
                           <button
                             onClick={() => handleToggleMuteViewer(viewer.user_id)}
                             className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors ${liveMutedUserIds.has(viewer.user_id) ? 'bg-yellow-600/25 text-yellow-300 hover:bg-yellow-600/35' : 'bg-white/10 text-white hover:bg-white/20'}`}
@@ -1724,6 +1735,8 @@ const CameraPage = () => {
                           >
                             <UserX className="w-3.5 h-3.5" /> Expulsar
                           </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))
@@ -1744,10 +1757,10 @@ const CameraPage = () => {
                 </div>
 
                 <div className="max-h-[68vh] overflow-y-auto p-2 space-y-2">
-                  {liveAudience.length === 0 ? (
+                  {displayAudience.length === 0 ? (
                     <p className="text-xs text-white/50 text-center py-3">Aun no hay espectadores conectados.</p>
                   ) : (
-                    liveAudience.map((viewer) => (
+                    displayAudience.map((viewer) => (
                       <div key={`desktop-panel-${viewer.user_id}`} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 border border-white/10 px-2.5 py-2">
                         <div className="min-w-0">
                           <p className="text-sm text-white truncate flex items-center gap-1.5">
@@ -1761,9 +1774,11 @@ const CameraPage = () => {
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 border border-yellow-500/30">Silenciado</span>
                             )}
                           </p>
-                          <p className="text-[10px] text-white/45 truncate">{viewer.user_id}</p>
+                          <p className="text-[10px] text-white/45 truncate">{viewer.unknown ? 'Pendiente de identificar' : viewer.user_id}</p>
                         </div>
                         <div className="flex items-center gap-1.5">
+                          {!viewer.unknown && (
+                            <>
                           <button
                             onClick={() => handleToggleMuteViewer(viewer.user_id)}
                             className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors ${liveMutedUserIds.has(viewer.user_id) ? 'bg-yellow-600/25 text-yellow-300 hover:bg-yellow-600/35' : 'bg-white/10 text-white hover:bg-white/20'}`}
@@ -1782,6 +1797,8 @@ const CameraPage = () => {
                           >
                             <UserX className="w-3.5 h-3.5" /> Expulsar
                           </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))
@@ -1959,14 +1976,14 @@ const CameraPage = () => {
                     </h5>
                     <span className="text-[10px] text-white/50">{smoothLiveViewers} conectados</span>
                   </div>
-                  {liveAudience.length === 0 ? (
+                  {displayAudience.length === 0 ? (
                     <p className="text-xs text-white/50 text-center py-3">Aun no hay espectadores conectados.</p>
                   ) : (
-                    liveAudience.map((viewer) => (
+                    displayAudience.map((viewer) => (
                       <div key={viewer.user_id} className="flex items-center justify-between gap-2 rounded-xl bg-black/20 border border-white/10 px-2.5 py-2 mb-2 last:mb-0 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
                         <div className="flex items-center gap-2 min-w-0">
                           <Avatar className="h-7 w-7 shrink-0 border border-white/10">
-                            <AvatarImage src={viewer.profile?.foto_perfil || viewer.profile?.avatar_url} className="object-cover" />
+                            <AvatarImage src={viewer.unknown ? null : (viewer.profile?.foto_perfil || viewer.profile?.avatar_url)} className="object-cover" />
                             <AvatarFallback className={`text-[10px] font-bold ${getAvatarToneClass(viewer.profile?.username || viewer.profile?.nombre || viewer.user_id)}`}>
                               {getInitials(viewer.profile?.username || viewer.profile?.nombre || viewer.user_id)}
                             </AvatarFallback>
@@ -1974,9 +1991,9 @@ const CameraPage = () => {
                           <div className="min-w-0">
                             <p className="text-xs text-white truncate flex items-center gap-1.5">
                               {viewer.profile?.username || viewer.profile?.nombre || 'usuario'}
-                              {liveModeratorUserIds.has(viewer.user_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">MOD</span>}
+                              {!viewer.unknown && liveModeratorUserIds.has(viewer.user_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">MOD</span>}
                             </p>
-                            <p className="text-[10px] text-white/45 truncate">{viewer.user_id}</p>
+                            <p className="text-[10px] text-white/45 truncate">{viewer.unknown ? 'Pendiente de identificar' : viewer.user_id}</p>
                           </div>
                         </div>
                         <div className="text-[10px] text-white/50 shrink-0">Conectado</div>
