@@ -136,6 +136,16 @@ const streamOps = {
         { onConflict: 'stream_id,user_id' }
       );
 
+      const { count: viewerCount } = await supabase
+        .from('live_stream_viewers')
+        .select('id', { count: 'exact', head: true })
+        .eq('stream_id', streamId);
+
+      await supabase
+        .from('live_streams')
+        .update({ viewer_count: viewerCount || 0 })
+        .eq('id', streamId);
+
       return { ok: true, banned: false };
     } catch (err) {
       console.error('Error joining:', err);
@@ -146,15 +156,37 @@ const streamOps = {
   async leave(streamId, userId) {
     try {
       await supabase.from('live_stream_viewers').delete().eq('stream_id', streamId).eq('user_id', userId);
+
+      const { count: viewerCount } = await supabase
+        .from('live_stream_viewers')
+        .select('id', { count: 'exact', head: true })
+        .eq('stream_id', streamId);
+
+      await supabase
+        .from('live_streams')
+        .update({ viewer_count: viewerCount || 0 })
+        .eq('id', streamId);
     } catch (err) { console.error('Error leaving:', err); }
   },
 
   async like(streamId, userId) {
     try {
       const { error } = await supabase.from('live_stream_likes').insert({ stream_id: streamId, user_id: userId });
-      if (error && error.code === '23505') {
-        await supabase.from('live_stream_likes').delete().eq('stream_id', streamId).eq('user_id', userId);
+      if (error && error.code !== '23505') {
+        throw error;
       }
+
+      // Keep like counter cumulative: each tap adds one like.
+      const { data: streamRow } = await supabase
+        .from('live_streams')
+        .select('like_count')
+        .eq('id', streamId)
+        .single();
+
+      await supabase
+        .from('live_streams')
+        .update({ like_count: (streamRow?.like_count || 0) + 1 })
+        .eq('id', streamId);
     } catch (err) { console.error('Error liking:', err); }
   },
 
@@ -464,7 +496,7 @@ const useRealtimeStats = (streamId) => {
       if (!mounted) return;
       setStats({
         viewer_count: viewersResult.count ?? streamStats.viewer_count ?? 0,
-        like_count: likesResult.count ?? streamStats.like_count ?? 0,
+        like_count: streamStats.like_count ?? likesResult.count ?? 0,
         is_live: streamStats.is_live,
       });
     };
@@ -867,19 +899,13 @@ const StreamViewer = ({ stream, onBack }) => {
   }, []);
 
   const spawnFishAnimation = useCallback((label, value, key) => {
-    console.log('🎣 spawnFishAnimation called with key:', key, 'label:', label, 'value:', value);
     setFishGiftAnimations((prev) => {
-      if (prev.some((anim) => anim.id === key)) {
-        console.log('⚠️ Animation key already exists, skipping:', key);
-        return prev;
-      }
-      const newAnims = [...prev, { id: key, label, value }].slice(-4);
-      console.log('✅ Animation added. Total animations now:', newAnims.length, 'animations:', newAnims);
-      return newAnims;
+      if (prev.some((anim) => anim.id === key)) return prev;
+      return [...prev, { id: key, label, value }].slice(-4);
     });
   }, []);
 
-  useEffect(() {
+  useEffect(() => {
     if (!chatMessages.length) return;
 
     if (!chatAnimationHydratedRef.current) {
@@ -989,16 +1015,14 @@ const StreamViewer = ({ stream, onBack }) => {
   const handleSendGift = async (gift) => {
     if (!user?.id) return;
 
-    console.log('🎁 handleSendGift called with:', gift);
+    // Trigger animation immediately so it appears even if gift persistence fails.
+    const localAnimKey = `local-${Date.now()}-${gift.id}-${Math.random().toString(36).slice(2, 7)}`;
+    spawnFishAnimation(gift.label, gift.value || 0, localAnimKey);
 
     const result = await streamOps.sendGift(stream.id, user.id, gift);
     if (result?.missingTable) {
       setMissingGiftTable(true);
     }
-
-    console.log('🎁 About to spawn fish animation with key:', `local-${Date.now()}-${gift.id}`);
-    spawnFishAnimation(gift.label, gift.value || 0, `local-${Date.now()}-${gift.id}`);
-    console.log('🎁 Fish animation spawned, current animations count:', fishGiftAnimations.length);
 
     const donationText = `${user.username || 'Usuario'} dono ${gift.label} (${gift.value} pts)`;
     await streamOps.sendChat(stream.id, user.id, donationText);

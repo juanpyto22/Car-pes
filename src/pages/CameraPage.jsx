@@ -249,8 +249,25 @@ const CameraPage = () => {
     }
   }, []);
 
+  const fetchStreamCounters = useCallback(async (streamId) => {
+    if (!streamId) return { viewer_count: 0, like_count: 0 };
+
+    const { data } = await supabase
+      .from('live_streams')
+      .select('viewer_count, like_count')
+      .eq('id', streamId)
+      .maybeSingle();
+
+    return {
+      viewer_count: data?.viewer_count || 0,
+      like_count: data?.like_count || 0,
+    };
+  }, []);
+
   const fetchLiveAudience = useCallback(async (streamId) => {
     if (!streamId) return;
+    const streamCounters = await fetchStreamCounters(streamId);
+
     const { data: viewersData, error: viewersError } = await supabase
       .from('live_stream_viewers')
       .select('user_id, created_at')
@@ -258,11 +275,13 @@ const CameraPage = () => {
 
     if (viewersError) {
       console.error('Audience fetch error:', viewersError);
+      setLiveViewers(streamCounters.viewer_count);
       return;
     }
 
     const rows = viewersData || [];
-    setLiveViewers(rows.length);
+    // Some RLS setups can restrict row visibility for host, so keep the maximum available value.
+    setLiveViewers(Math.max(rows.length, streamCounters.viewer_count));
 
     const uniqueIds = [...new Set(rows.map(v => v.user_id).filter(Boolean))];
     if (uniqueIds.length === 0) {
@@ -284,16 +303,17 @@ const CameraPage = () => {
       user_id: uid,
       profile: profileMap[uid] || { id: uid, username: 'usuario' },
     })));
-  }, []);
+  }, [fetchStreamCounters]);
 
   const fetchLiveLikes = useCallback(async (streamId) => {
     if (!streamId) return;
+    const streamCounters = await fetchStreamCounters(streamId);
     const { count } = await supabase
       .from('live_stream_likes')
       .select('id', { count: 'exact', head: true })
       .eq('stream_id', streamId);
-    setLiveLikes(count || 0);
-  }, []);
+    setLiveLikes(Math.max(count || 0, streamCounters.like_count));
+  }, [fetchStreamCounters]);
 
   const fetchMutedUsers = useCallback(async (streamId) => {
     if (!streamId) return;
@@ -673,10 +693,19 @@ const CameraPage = () => {
 
         closeLiveStatsChannel();
         const channel = supabase.channel(`camera-live-stats-${finalStreamId}`)
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'live_stream_viewers', filter: `stream_id=eq.${finalStreamId}` }, () => {
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'live_stream_viewers', filter: `stream_id=eq.${finalStreamId}` }, (payload) => {
+            if (payload?.eventType === 'INSERT') {
+              setLiveViewers((prev) => prev + 1);
+            } else if (payload?.eventType === 'DELETE') {
+              setLiveViewers((prev) => Math.max(0, prev - 1));
+            }
             fetchLiveAudience(finalStreamId);
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'live_stream_likes', filter: `stream_id=eq.${finalStreamId}` }, () => {
+            fetchLiveLikes(finalStreamId);
+          })
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_streams', filter: `id=eq.${finalStreamId}` }, () => {
+            fetchLiveAudience(finalStreamId);
             fetchLiveLikes(finalStreamId);
           })
           .subscribe();
