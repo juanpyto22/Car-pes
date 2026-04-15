@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { useBroadcaster, useViewer } from '@/hooks/useWebRTC';
+import { useBroadcaster } from '@/hooks/useWebRTC';
 
 const CATEGORIES = ['Todos', 'Carpas', 'Spinning', 'Tutoriales', 'Siluros', 'Trucha', 'Black Bass', 'Mar', 'General'];
 const FRAME_MSG_PREFIX = '__frame__:';
@@ -624,18 +624,9 @@ const StreamViewer = ({ stream, onBack }) => {
   const chatRefDesktop = useRef(null);
   const chatRefMobile = useRef(null);
   const heartId = useRef(0);
-  const remoteVideoRef = useRef(null);
-
-  // WebRTC: connect to broadcaster and receive video
-  const { remoteStream, fallbackFrame, connectionState } = useViewer(stream.id);
   const [dbFallbackFrame, setDbFallbackFrame] = useState(null);
-
-  // Attach remote stream to video element
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
+  const [lastFrameAt, setLastFrameAt] = useState(0);
+  const [frameStatus, setFrameStatus] = useState('waiting');
 
   // Join/leave as viewer
   useEffect(() => {
@@ -809,6 +800,8 @@ const StreamViewer = ({ stream, onBack }) => {
       const frame = await streamOps.fetchLatestFrame(stream.id);
       if (!active || !frame) return;
       setDbFallbackFrame(frame);
+      setLastFrameAt(Date.now());
+      setFrameStatus('live');
     };
 
     loadFrame();
@@ -825,6 +818,8 @@ const StreamViewer = ({ stream, onBack }) => {
         if (!raw.startsWith(FRAME_MSG_PREFIX)) return;
         if (!active) return;
         setDbFallbackFrame(raw.slice(FRAME_MSG_PREFIX.length));
+        setLastFrameAt(Date.now());
+        setFrameStatus('live');
       })
       .subscribe();
 
@@ -839,6 +834,27 @@ const StreamViewer = ({ stream, onBack }) => {
       setDbFallbackFrame(null);
     };
   }, [stream?.id]);
+
+  useEffect(() => {
+    if (!stream?.id) return;
+    const timer = setInterval(() => {
+      if (!lastFrameAt) {
+        setFrameStatus('waiting');
+        return;
+      }
+
+      const delta = Date.now() - lastFrameAt;
+      if (delta > 7000) {
+        setFrameStatus('stale');
+      } else if (delta > 3000) {
+        setFrameStatus('degraded');
+      } else {
+        setFrameStatus('live');
+      }
+    }, 1200);
+
+    return () => clearInterval(timer);
+  }, [stream?.id, lastFrameAt]);
 
   const handleSend = async () => {
     if (!newMessage.trim() || !user) return;
@@ -907,65 +923,37 @@ const StreamViewer = ({ stream, onBack }) => {
             </div>
           )}
 
-          {/* Remote video from broadcaster */}
-          {remoteStream ? (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="w-full h-full object-cover md:object-contain"
-            />
-          ) : (fallbackFrame || dbFallbackFrame) ? (
+          {/* Simple viewer: render frames from this stream */}
+          {dbFallbackFrame ? (
             <img
-              src={fallbackFrame || dbFallbackFrame}
+              src={dbFallbackFrame}
               alt="Retransmision en directo"
               className="w-full h-full object-cover md:object-contain"
             />
           ) : (
             <div className="text-center">
-              {connectionState === 'connected' ? (
-                <>
-                  <Loader2 className="w-10 h-10 text-cyan-400 animate-spin mx-auto" />
-                  <p className="text-cyan-400/60 text-sm mt-3">Recibiendo vídeo...</p>
-                </>
-              ) : connectionState === 'fallback' ? (
-                <>
-                  <Wifi className="w-12 h-12 text-amber-400/70 mx-auto" />
-                  <p className="text-amber-300/80 text-sm mt-3">Modo compatible activo (senal por frames)</p>
-                </>
-              ) : connectionState === 'waiting' || connectionState === 'connecting' ? (
-                <>
-                  <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-                  <p className="text-blue-400/60 text-sm mt-3">Conectando con el streamer...</p>
-                </>
-              ) : connectionState === 'failed' ? (
-                <>
-                  <WifiOff className="w-12 h-12 text-red-400/60 mx-auto" />
-                  <p className="text-red-400/60 text-sm mt-3">Error de conexión. Reintentando...</p>
-                </>
-              ) : (
-                <>
-                  <Wifi className="w-12 h-12 text-blue-400/40 mx-auto" />
-                  <p className="text-blue-400/40 text-sm mt-3">Esperando señal del streamer...</p>
-                </>
-              )}
+              <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
+              <p className="text-blue-400/60 text-sm mt-3">Recibiendo señal del directo...</p>
             </div>
           )}
 
           {/* Connection indicator */}
           <div className="absolute top-3 left-3 z-20">
             <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg backdrop-blur-sm ${
-              connectionState === 'connected' ? 'bg-green-900/50 text-green-400' :
-              connectionState === 'failed' ? 'bg-red-900/50 text-red-400' :
+              frameStatus === 'live' ? 'bg-green-900/50 text-green-400' :
+              frameStatus === 'degraded' ? 'bg-amber-900/50 text-amber-300' :
+              frameStatus === 'stale' ? 'bg-red-900/50 text-red-400' :
               'bg-blue-900/50 text-blue-400'
             }`}>
               <span className={`w-2 h-2 rounded-full ${
-                connectionState === 'connected' ? 'bg-green-400' :
-                connectionState === 'failed' ? 'bg-red-400' :
+                frameStatus === 'live' ? 'bg-green-400' :
+                frameStatus === 'degraded' ? 'bg-amber-300' :
+                frameStatus === 'stale' ? 'bg-red-400' :
                 'bg-blue-400 animate-pulse'
               }`} />
-              {connectionState === 'connected' ? 'Conectado' :
-               connectionState === 'failed' ? 'Reconectando...' :
+              {frameStatus === 'live' ? 'En directo' :
+               frameStatus === 'degraded' ? 'Senal media' :
+               frameStatus === 'stale' ? 'Reintentando...' :
                'Conectando...'}
             </span>
           </div>

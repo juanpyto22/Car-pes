@@ -10,7 +10,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
-import { useBroadcaster } from '@/hooks/useWebRTC';
 
 // ─────────────────────────────────────────────────────
 // Instagram-like Camera Page
@@ -140,9 +139,6 @@ const CameraPage = () => {
   const [startingLive, setStartingLive] = useState(false);
   const [liveChatMessages, setLiveChatMessages] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState('');
-
-  // Broadcast camera stream to viewers while live (mobile + desktop)
-  const { signalQuality } = useBroadcaster(streamData?.id, isLive ? cameraStream : null);
 
   // Refs
   const videoRef = useRef(null);
@@ -1025,15 +1021,6 @@ const CameraPage = () => {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const signalBadgeClass = {
-    excellent: 'text-emerald-300 bg-emerald-900/40',
-    good: 'text-amber-300 bg-amber-900/40',
-    weak: 'text-red-300 bg-red-900/40',
-    broadcasting: 'text-cyan-300 bg-cyan-900/40',
-    offline: 'text-slate-300 bg-slate-800/60',
-    checking: 'text-blue-300 bg-blue-900/40',
-  };
-
   // Is viewing a captured/gallery result (not live camera)?
   const hasCapture = capturedPhoto || recordedVideoURL || galleryPreview;
 
@@ -1182,8 +1169,8 @@ const CameraPage = () => {
                     <span className="w-1.5 h-1.5 bg-white rounded-full" /> EN VIVO
                   </span>
                   <span className="text-white text-[10px] font-mono bg-black/40 px-1.5 py-0.5 rounded">{fmtTime(liveDuration)}</span>
-                  <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${signalBadgeClass[signalQuality?.level] || signalBadgeClass.checking}`}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current" /> {signalQuality?.label || 'Comprobando...'}
+                  <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-cyan-300 bg-cyan-900/40">
+                    <span className="w-1.5 h-1.5 rounded-full bg-current" /> Camara activa
                   </span>
                   <button
                     type="button"
