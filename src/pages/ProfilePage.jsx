@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Users, UserPlus, UserCheck, Edit3, Grid, ImageOff, MessageCircle, Heart, Calendar } from 'lucide-react';
+import { MapPin, Users, UserPlus, UserCheck, Edit3, Grid, ImageOff, MessageCircle, Heart, Calendar, BadgeCheck, ShieldCheck, Clock3 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [proStatus, setProStatus] = useState(null);
   
   // Modal state
   const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -34,6 +35,7 @@ const ProfilePage = () => {
   useEffect(() => {
     if (targetUserId) {
       fetchProfileData();
+      fetchProStatus();
     }
   }, [targetUserId]);
 
@@ -126,6 +128,33 @@ const ProfilePage = () => {
       toast({ variant: "destructive", title: "Error", description: "No se pudo cargar el perfil" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProStatus = async () => {
+    if (!targetUserId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('pro_verification_requests')
+        .select('status, business_type, updated_at')
+        .eq('user_id', targetUserId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code !== '42P01') {
+          console.error('Error cargando estado pro:', error);
+        }
+        setProStatus(null);
+        return;
+      }
+
+      setProStatus(data || null);
+    } catch (err) {
+      console.error('Error cargando estado pro:', err);
+      setProStatus(null);
     }
   };
 
@@ -281,6 +310,21 @@ const ProfilePage = () => {
                       {profile.nombre || profile.username}
                     </h1>
                     <p className="text-cyan-400 font-medium">@{profile.username}</p>
+                    {proStatus?.status === 'approved' && (
+                      <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 font-semibold">
+                        <BadgeCheck className="w-3.5 h-3.5" /> Perfil Pro verificado {proStatus.business_type ? `(${proStatus.business_type})` : ''}
+                      </p>
+                    )}
+                    {isOwnProfile && proStatus?.status === 'pending' && (
+                      <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300 font-semibold">
+                        <Clock3 className="w-3.5 h-3.5" /> Solicitud Pro pendiente de revisión
+                      </p>
+                    )}
+                    {isOwnProfile && proStatus?.status === 'rejected' && (
+                      <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full border border-red-500/30 bg-red-500/10 text-red-300 font-semibold">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Solicitud Pro rechazada (puedes reenviarla en Editar Perfil)
+                      </p>
+                    )}
                   </div>
                   
                   {/* Action Buttons */}
