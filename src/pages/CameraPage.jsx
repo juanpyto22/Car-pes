@@ -1439,18 +1439,6 @@ const CameraPage = () => {
               </div>
             )}
 
-            <AnimatePresence>
-              {fishGiftAnimations.map((anim) => (
-                <FishGiftAnimation
-                  key={anim.id}
-                  id={anim.id}
-                  label={anim.label}
-                  value={anim.value}
-                  onComplete={removeFishAnimation}
-                />
-              ))}
-            </AnimatePresence>
-
             {/* Discard capture button */}
             {hasCapture && mode === 'HISTORIA' && (
               <button onClick={discardCapture}
@@ -1555,6 +1543,13 @@ const CameraPage = () => {
           </div>
         </div>
       )}
+
+      {/* Global Fish Gift Animations - Rendered at top level for full viewport coverage */}
+      <AnimatePresence>
+        {fishGiftAnimations.map((anim) => (
+          <FishGiftAnimation key={anim.id} id={anim.id} label={anim.label} value={anim.value} onComplete={removeFishAnimation} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 };

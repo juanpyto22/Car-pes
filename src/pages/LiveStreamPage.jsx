@@ -393,6 +393,8 @@ const useRealtimeChat = (streamId) => {
     if (!streamId) return;
     let mounted = true;
 
+    setMessages([]);
+
     const refreshChat = async () => {
       const msgs = await streamOps.fetchChat(streamId);
       if (!mounted) return;
@@ -602,6 +604,75 @@ const FloatingHeart = ({ id, onComplete }) => (
   </motion.div>
 );
 
+const FishGiftAnimation = ({ id, onComplete, label, value }) => (
+  <motion.div
+    initial={{ opacity: 0, scale: 0.15, x: 0, y: 150 }}
+    animate={{
+      opacity: [0, 1, 1, 0],
+      scale: [0.15, 1.15, 1.25, 0.75],
+      x: [0, -140, 130, 0],
+      y: [150, -180, 10, 190],
+      rotate: [0, -24, 20, 0],
+    }}
+    transition={{ duration: 2.05, times: [0, 0.28, 0.6, 1], ease: 'easeInOut' }}
+    onAnimationComplete={() => onComplete(id)}
+    className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center"
+  >
+    <div className="relative flex flex-col items-center">
+      {[
+        { x: -70, y: -35, delay: 0.03 },
+        { x: 72, y: -28, delay: 0.08 },
+        { x: -50, y: 48, delay: 0.12 },
+        { x: 58, y: 54, delay: 0.16 },
+      ].map((particle, index) => (
+        <motion.span
+          key={`${id}-spark-${index}`}
+          initial={{ opacity: 0, scale: 0.2, x: 0, y: 0 }}
+          animate={{
+            opacity: [0, 1, 0],
+            scale: [0.2, 1, 0.3],
+            x: [0, particle.x, particle.x * 1.15],
+            y: [0, particle.y, particle.y * 1.1],
+          }}
+          transition={{ duration: 1.15, delay: particle.delay, ease: 'easeOut' }}
+          className="absolute h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_14px_rgba(103,232,249,0.95)]"
+        />
+      ))}
+      <motion.div
+        initial={{ opacity: 0.2, scale: 0.5 }}
+        animate={{ opacity: [0.1, 0.85, 0], scale: [0.45, 1.45, 1.9] }}
+        transition={{ duration: 2.05, times: [0, 0.35, 1], ease: 'easeOut' }}
+        className="absolute inset-0 -z-10 rounded-full bg-cyan-400/20 blur-2xl"
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.6, y: 16 }}
+        animate={{ opacity: [0, 1, 0], scale: [0.55, 1.05, 1.15], y: [16, 0, -16] }}
+        transition={{ duration: 2.05, times: [0, 0.25, 1], ease: 'easeOut' }}
+        className="absolute -bottom-8 left-1/2 h-6 w-24 -translate-x-1/2 rounded-full bg-cyan-300/20 blur-xl"
+      />
+      <motion.div
+        initial={{ scale: 0.75, rotate: -10 }}
+        animate={{ scale: [0.75, 1.12, 1, 1.06], rotate: [-10, 10, -6, 0] }}
+        transition={{ duration: 2.05, times: [0, 0.22, 0.55, 1], ease: 'easeOut' }}
+      >
+        <Fish className="w-18 h-18 md:w-24 md:h-24 text-amber-300 drop-shadow-[0_0_26px_rgba(251,191,36,0.9)] fill-current" />
+      </motion.div>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: [0, 1, 0], scale: [0.75, 1.1, 0.85], y: [0, -2, -12] }}
+        transition={{ duration: 2.05, times: [0, 0.3, 1], ease: 'easeOut' }}
+        className="mt-2 rounded-full bg-slate-950/70 px-3 py-1 text-[10px] font-bold text-cyan-100 backdrop-blur-md border border-cyan-300/30 shadow-lg shadow-cyan-500/10"
+      >
+        <span className="inline-flex items-center gap-1">
+          <Sparkles className="w-3 h-3 text-amber-300" />
+          {label}
+          <span className="text-cyan-300">{value} pts</span>
+        </span>
+      </motion.div>
+    </div>
+  </motion.div>
+);
+
 // ═══════════════════════════════════════════════════════════════
 // Stream Viewer (watching someone else's stream)
 // ═══════════════════════════════════════════════════════════════
@@ -620,13 +691,24 @@ const StreamViewer = ({ stream, onBack }) => {
   const [gifts, setGifts] = useState([]);
   const [missingGiftTable, setMissingGiftTable] = useState(false);
   const [giftRanking, setGiftRanking] = useState([]);
+  const [fishGiftAnimations, setFishGiftAnimations] = useState([]);
   const [mobileChatExpanded, setMobileChatExpanded] = useState(true);
   const chatRefDesktop = useRef(null);
   const chatRefMobile = useRef(null);
   const heartId = useRef(0);
+  const prevGiftIdsRef = useRef(new Set());
+  const prevChatIdsRef = useRef(new Set());
+  const chatAnimationHydratedRef = useRef(false);
   const [dbFallbackFrame, setDbFallbackFrame] = useState(null);
   const [lastFrameAt, setLastFrameAt] = useState(0);
   const [frameStatus, setFrameStatus] = useState('waiting');
+
+  useEffect(() => {
+    prevGiftIdsRef.current = new Set();
+    setFishGiftAnimations([]);
+    prevChatIdsRef.current = new Set();
+    chatAnimationHydratedRef.current = false;
+  }, [stream?.id]);
 
   // Join/leave as viewer
   useEffect(() => {
@@ -754,6 +836,8 @@ const StreamViewer = ({ stream, onBack }) => {
       const rows = await streamOps.fetchGifts(stream.id);
       const ranking = await streamOps.fetchGiftRanking(stream.id);
       if (!active) return;
+
+      prevGiftIdsRef.current = new Set(rows.map((gift) => gift.id));
       setGifts(rows);
       setGiftRanking(ranking);
     };
@@ -777,6 +861,44 @@ const StreamViewer = ({ stream, onBack }) => {
       supabase.removeChannel(giftChannel);
     };
   }, [stream?.id]);
+
+  const removeFishAnimation = useCallback((id) => {
+    setFishGiftAnimations((prev) => prev.filter((anim) => anim.id !== id));
+  }, []);
+
+  const spawnFishAnimation = useCallback((label, value, key) => {
+    console.log('🎣 spawnFishAnimation called with key:', key, 'label:', label, 'value:', value);
+    setFishGiftAnimations((prev) => {
+      if (prev.some((anim) => anim.id === key)) {
+        console.log('⚠️ Animation key already exists, skipping:', key);
+        return prev;
+      }
+      const newAnims = [...prev, { id: key, label, value }].slice(-4);
+      console.log('✅ Animation added. Total animations now:', newAnims.length, 'animations:', newAnims);
+      return newAnims;
+    });
+  }, []);
+
+  useEffect(() {
+    if (!chatMessages.length) return;
+
+    if (!chatAnimationHydratedRef.current) {
+      prevChatIdsRef.current = new Set(chatMessages.map((msg) => msg.id));
+      chatAnimationHydratedRef.current = true;
+      return;
+    }
+
+    const newMessages = chatMessages.filter((msg) => !prevChatIdsRef.current.has(msg.id));
+    prevChatIdsRef.current = new Set(chatMessages.map((msg) => msg.id));
+
+    newMessages.forEach((msg) => {
+      const match = (msg.message || '').match(/dono\s+(.+?)\s+\((\d+)\s*pts\)/i);
+      if (!match) return;
+      if (!/(pez|fish)/i.test(match[1])) return;
+
+      spawnFishAnimation(match[1], Number(match[2]) || 0, `chat-${msg.id}`);
+    });
+  }, [chatMessages, spawnFishAnimation]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -866,10 +988,16 @@ const StreamViewer = ({ stream, onBack }) => {
   const handleSendGift = async (gift) => {
     if (!user?.id) return;
 
+    console.log('🎁 handleSendGift called with:', gift);
+
     const result = await streamOps.sendGift(stream.id, user.id, gift);
     if (result?.missingTable) {
       setMissingGiftTable(true);
     }
+
+    console.log('🎁 About to spawn fish animation with key:', `local-${Date.now()}-${gift.id}`);
+    spawnFishAnimation(gift.label, gift.value || 0, `local-${Date.now()}-${gift.id}`);
+    console.log('🎁 Fish animation spawned, current animations count:', fishGiftAnimations.length);
 
     const donationText = `${user.username || 'Usuario'} dono ${gift.label} (${gift.value} pts)`;
     await streamOps.sendChat(stream.id, user.id, donationText);
@@ -1147,6 +1275,13 @@ const StreamViewer = ({ stream, onBack }) => {
           </div>
         </div>
       </div>
+
+      {/* Global Fish Gift Animations - Rendered at top level for full viewport coverage */}
+      <AnimatePresence>
+        {fishGiftAnimations.map((anim) => (
+          <FishGiftAnimation key={anim.id} id={anim.id} label={anim.label} value={anim.value} onComplete={removeFishAnimation} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 };
