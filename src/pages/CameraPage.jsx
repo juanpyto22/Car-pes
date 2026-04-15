@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 // ─────────────────────────────────────────────────────
 // Instagram-like Camera Page
@@ -35,6 +36,28 @@ const TEXT_COLORS = [
 const LIVE_CATEGORIES = ['Pesca', 'Carpfishing', 'Spinning', 'Tutorials', 'Unboxing', 'Cocina', 'Naturaleza'];
 const FRAME_MSG_PREFIX = '__frame__:';
 const LIKE_MSG_PREFIX = '__like__:';
+
+const getInitials = (value) => {
+  const text = (value || '').trim();
+  if (!text) return '?';
+  const parts = text.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+};
+
+const getAvatarToneClass = (seed = '') => {
+  const tones = [
+    'bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-500/20',
+    'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/20',
+    'bg-amber-500/20 text-amber-200 ring-1 ring-amber-500/20',
+    'bg-fuchsia-500/20 text-fuchsia-200 ring-1 ring-fuchsia-500/20',
+    'bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/20',
+    'bg-rose-500/20 text-rose-200 ring-1 ring-rose-500/20',
+  ];
+  const key = `${seed}`;
+  const index = Array.from(key).reduce((acc, char) => acc + char.charCodeAt(0), 0) % tones.length;
+  return tones[index];
+};
 
 const useSmoothCounter = (target, duration = 260) => {
   const [value, setValue] = useState(Math.max(0, Number(target) || 0));
@@ -272,6 +295,7 @@ const CameraPage = () => {
     .filter((msg) => /dono\s+.+?\s+\(\d+\s*pts\)/i.test(msg.message || ''))
     .slice(-5)
     .reverse();
+  const liveDonationCount = liveDonationMessages.length;
 
   // Refs
   const videoRef = useRef(null);
@@ -1691,48 +1715,102 @@ const CameraPage = () => {
 
           {mode === 'EN VIVO' && isLive && (
             <aside className="hidden md:flex w-[380px] shrink-0 flex-col border-l border-white/10 bg-[#0d1320]/95 backdrop-blur-xl overflow-hidden">
-              <div className="px-3 py-2.5 border-b border-white/10 flex items-center justify-between">
-                <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-cyan-300" /> Espectadores ({smoothLiveViewers})
-                </h4>
-                <span className="text-[10px] text-white/50">En vivo</span>
-              </div>
-
-              <div className="px-3 py-2 border-b border-white/10 bg-cyan-500/5">
-                <div className="flex items-center justify-between text-[11px] text-white/70">
-                  <span className="inline-flex items-center gap-1 text-cyan-300 font-semibold">
-                    <MessageCircle className="w-3.5 h-3.5" /> Chat en vivo
-                  </span>
-                  <span>{liveChatMessages.length} msgs</span>
+              <div className="border-b border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent p-3 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-300/80 font-semibold">Panel del anfitrión</p>
+                    <h4 className="text-sm font-bold text-white truncate">Monitor en vivo</h4>
+                    <p className="text-[11px] text-white/45 truncate">{liveTitle || 'Directo activo'} · {liveCategory}</p>
+                  </div>
+                  <span className="text-[10px] text-white/50 rounded-full border border-white/10 px-2 py-1 bg-white/5">En vivo</span>
                 </div>
-                <div className="mt-2 max-h-[20vh] overflow-hidden rounded-xl border border-white/5 bg-black/20 p-2 space-y-1">
-                  {liveDonationMessages.length > 0 ? (
-                    liveDonationMessages.slice(0, 3).map((msg) => (
-                      <p key={`desktop-donation-${msg.id}`} className="text-[11px] text-amber-200/90 truncate">
-                        {(msg.user?.username || 'Usuario')}: {msg.message}
-                      </p>
-                    ))
-                  ) : (
-                    <p className="text-[11px] text-white/40">Las donaciones aparecerán aquí en tiempo real.</p>
-                  )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
+                    <div className="flex items-center gap-2 text-white/55 text-[10px] uppercase tracking-[0.12em]">
+                      <Eye className="w-3.5 h-3.5 text-cyan-300" /> Espectadores
+                    </div>
+                    <p className="mt-1 text-lg font-bold text-white leading-none">{smoothLiveViewers}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
+                    <div className="flex items-center gap-2 text-white/55 text-[10px] uppercase tracking-[0.12em]">
+                      <Heart className="w-3.5 h-3.5 text-rose-300" /> Me gustas
+                    </div>
+                    <p className="mt-1 text-lg font-bold text-white leading-none">{smoothLiveLikes}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
+                    <div className="flex items-center gap-2 text-white/55 text-[10px] uppercase tracking-[0.12em]">
+                      <MessageCircle className="w-3.5 h-3.5 text-fuchsia-300" /> Mensajes
+                    </div>
+                    <p className="mt-1 text-lg font-bold text-white leading-none">{liveChatMessages.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
+                    <div className="flex items-center gap-2 text-white/55 text-[10px] uppercase tracking-[0.12em]">
+                      <Gift className="w-3.5 h-3.5 text-amber-300" /> Donaciones
+                    </div>
+                    <p className="mt-1 text-lg font-bold text-white leading-none">{liveDonationCount}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-amber-500/15 bg-amber-500/8 p-2">
+                  <div className="flex items-center justify-between text-[11px] text-white/70">
+                    <span className="inline-flex items-center gap-1 text-amber-300 font-semibold">
+                      <Gift className="w-3.5 h-3.5" /> Donaciones recientes
+                    </span>
+                    <span>{liveDonationCount} activas</span>
+                  </div>
+                  <div className="mt-2 max-h-[16vh] overflow-y-auto rounded-xl border border-white/5 bg-black/20 p-2 space-y-1">
+                    {liveDonationMessages.length > 0 ? (
+                      liveDonationMessages.slice(0, 3).map((msg) => (
+                        <div key={`desktop-donation-${msg.id}`} className="flex items-start gap-2 rounded-lg bg-white/5 px-2 py-1.5">
+                          <Avatar className="h-7 w-7 shrink-0 border border-white/10">
+                            <AvatarImage src={msg.user?.foto_perfil || msg.user?.avatar_url} className="object-cover" />
+                            <AvatarFallback className={`text-[10px] font-bold ${getAvatarToneClass(msg.user?.username || msg.user?.nombre || 'usuario')}`}>
+                              {getInitials(msg.user?.username || msg.user?.nombre || 'U')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold text-white truncate">{msg.user?.username || msg.user?.nombre || 'Usuario'}</p>
+                            <p className="text-[11px] text-amber-200/90 line-clamp-2">{msg.message}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[11px] text-white/40">Las donaciones aparecerán aquí en tiempo real.</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
               <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    <h5 className="text-xs font-bold text-white flex items-center gap-1">
+                      <Eye className="w-3.5 h-3.5 text-cyan-300" /> Espectadores
+                    </h5>
+                    <span className="text-[10px] text-white/50">{smoothLiveViewers} conectados</span>
+                  </div>
                   {liveAudience.length === 0 ? (
                     <p className="text-xs text-white/50 text-center py-3">Aun no hay espectadores conectados.</p>
                   ) : (
                     liveAudience.map((viewer) => (
                       <div key={viewer.user_id} className="flex items-center justify-between gap-2 rounded-xl bg-black/20 border border-white/10 px-2.5 py-2 mb-2 last:mb-0">
-                        <div className="min-w-0">
-                          <p className="text-sm text-white truncate flex items-center gap-1.5">
-                            {viewer.profile?.username || viewer.profile?.nombre || 'usuario'}
-                            {liveModeratorUserIds.has(viewer.user_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">MOD</span>}
-                          </p>
-                          <p className="text-[10px] text-white/45 truncate">{viewer.user_id}</p>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Avatar className="h-8 w-8 shrink-0 border border-white/10">
+                            <AvatarImage src={viewer.profile?.foto_perfil || viewer.profile?.avatar_url} className="object-cover" />
+                            <AvatarFallback className={`text-[10px] font-bold ${getAvatarToneClass(viewer.profile?.username || viewer.profile?.nombre || viewer.user_id)}`}>
+                              {getInitials(viewer.profile?.username || viewer.profile?.nombre || viewer.user_id)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="text-sm text-white truncate flex items-center gap-1.5">
+                              {viewer.profile?.username || viewer.profile?.nombre || 'usuario'}
+                              {liveModeratorUserIds.has(viewer.user_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">MOD</span>}
+                            </p>
+                            <p className="text-[10px] text-white/45 truncate">{viewer.user_id}</p>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-white/50">Conectado</div>
+                        <div className="text-[10px] text-white/50 shrink-0">Conectado</div>
                       </div>
                     ))
                   )}
@@ -1754,9 +1832,20 @@ const CameraPage = () => {
                         const name = msg.user?.username || 'Usuario';
                         const color = colors[name.length % colors.length];
                         return (
-                          <motion.div key={`desktop-${msg.id}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-start gap-2 py-1">
-                            <span className={`text-xs font-bold ${color} shrink-0`}>{name}</span>
-                            <span className="text-xs text-gray-300 break-words">{msg.message}</span>
+                          <motion.div key={`desktop-${msg.id}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-start gap-2 rounded-xl bg-black/15 border border-white/5 px-2 py-1.5">
+                            <Avatar className="h-7 w-7 shrink-0 border border-white/10">
+                              <AvatarImage src={msg.user?.foto_perfil || msg.user?.avatar_url} className="object-cover" />
+                              <AvatarFallback className={`text-[10px] font-bold ${getAvatarToneClass(name)}`}>
+                                {getInitials(name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold ${color} shrink-0`}>{name}</span>
+                                {msg.user?.is_moderator && <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">MOD</span>}
+                              </div>
+                              <span className="text-xs text-gray-300 break-words">{msg.message}</span>
+                            </div>
                           </motion.div>
                         );
                       })
