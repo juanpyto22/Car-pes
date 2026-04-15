@@ -258,6 +258,13 @@ const EventsCalendarPage = () => {
             </Button>
           </motion.div>
 
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="md:hidden fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+6.75rem)] z-40 h-12 rounded-full px-5 bg-gradient-to-r from-cyan-600 to-blue-600 shadow-xl shadow-cyan-900/30"
+          >
+            <Plus className="w-4 h-4 mr-2" /> Crear evento
+          </Button>
+
           <div className="grid md:grid-cols-[1fr_300px] gap-6">
             {/* Calendar */}
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-2xl p-4">

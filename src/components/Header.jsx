@@ -97,7 +97,7 @@ const Header = () => {
                       </Avatar>
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="z-[60] w-52 border border-white/10 bg-slate-950/90 text-white backdrop-blur-2xl shadow-2xl shadow-black/40">
+                  <DropdownMenuContent align="end" className="z-[60] w-[min(14rem,calc(100vw-1rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto border border-white/10 bg-slate-950/90 text-white backdrop-blur-2xl shadow-2xl shadow-black/40">
                     <DropdownMenuItem onClick={() => navigate(`/profile`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
                       <User className="mr-2 h-4 w-4 text-cyan-400" /> Mi Perfil
                     </DropdownMenuItem>

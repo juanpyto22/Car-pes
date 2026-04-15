@@ -324,6 +324,13 @@ const MarketplacePage = () => {
             </Button>
           </motion.div>
 
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="md:hidden fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+6.75rem)] z-40 h-12 rounded-full px-5 bg-gradient-to-r from-cyan-600 to-blue-600 shadow-xl shadow-cyan-900/30"
+          >
+            <Plus className="w-4 h-4 mr-2" /> Vender
+          </Button>
+
           {/* Search */}
           <div className="relative mb-4">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400" />
