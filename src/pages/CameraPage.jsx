@@ -352,7 +352,7 @@ const CameraPage = () => {
 
   useEffect(() => {
     if (!isLive) return;
-    setShowViewersPanel(true);
+    setShowViewersPanel(false);
     setShowChatPanel(true);
   }, [isLive, liveAudience.length, liveChatMessages.length]);
 
@@ -817,7 +817,7 @@ const CameraPage = () => {
       setIsLive(true);
       setShowLiveSetup(false);
       // Open live control panels by default so broadcaster can monitor viewers and chat immediately.
-      setShowViewersPanel(true);
+      setShowViewersPanel(false);
       setShowChatPanel(true);
       setLiveDuration(0);
       setLiveViewers(0);
@@ -1623,6 +1623,64 @@ const CameraPage = () => {
                   ) : (
                     liveAudience.map((viewer) => (
                       <div key={viewer.user_id} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 border border-white/10 px-2.5 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate flex items-center gap-1.5">
+                            {viewer.profile?.username || viewer.profile?.nombre || 'usuario'}
+                            {liveModeratorUserIds.has(viewer.user_id) && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 inline-flex items-center gap-1">
+                                <Shield className="w-3 h-3" /> MOD
+                              </span>
+                            )}
+                            {liveMutedUserIds.has(viewer.user_id) && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 border border-yellow-500/30">Silenciado</span>
+                            )}
+                          </p>
+                          <p className="text-[10px] text-white/45 truncate">{viewer.user_id}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleToggleMuteViewer(viewer.user_id)}
+                            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors ${liveMutedUserIds.has(viewer.user_id) ? 'bg-yellow-600/25 text-yellow-300 hover:bg-yellow-600/35' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                          >
+                            <MicOff className="w-3.5 h-3.5" /> {liveMutedUserIds.has(viewer.user_id) ? 'Quitar silencio' : 'Silenciar'}
+                          </button>
+                          <button
+                            onClick={() => handleToggleModerator(viewer.user_id)}
+                            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors ${liveModeratorUserIds.has(viewer.user_id) ? 'bg-cyan-500/25 text-cyan-300 hover:bg-cyan-500/35' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                          >
+                            <Shield className="w-3.5 h-3.5" /> {liveModeratorUserIds.has(viewer.user_id) ? 'Quitar mod' : 'Hacer mod'}
+                          </button>
+                          <button
+                            onClick={() => handleKickViewer(viewer.user_id)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/35 transition-colors"
+                          >
+                            <UserX className="w-3.5 h-3.5" /> Expulsar
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {mode === 'EN VIVO' && isLive && showViewersPanel && (
+              <div className="hidden md:block absolute right-[372px] top-16 z-30 w-[380px] max-w-[42vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl">
+                <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-cyan-300" /> Espectadores ({smoothLiveViewers})
+                  </h4>
+                  <button onClick={() => setShowViewersPanel(false)} className="text-white/60 hover:text-white">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="max-h-[68vh] overflow-y-auto p-2 space-y-2">
+                  {liveAudience.length === 0 ? (
+                    <p className="text-xs text-white/50 text-center py-3">Aun no hay espectadores conectados.</p>
+                  ) : (
+                    liveAudience.map((viewer) => (
+                      <div key={`desktop-panel-${viewer.user_id}`} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 border border-white/10 px-2.5 py-2">
                         <div className="min-w-0">
                           <p className="text-sm text-white truncate flex items-center gap-1.5">
                             {viewer.profile?.username || viewer.profile?.nombre || 'usuario'}
