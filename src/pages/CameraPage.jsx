@@ -437,14 +437,6 @@ const CameraPage = () => {
     })));
   }, [fetchStreamCounters]);
 
-  const refreshLivePresence = useCallback(async (streamId) => {
-    if (!streamId) return;
-    await Promise.all([
-      fetchLiveAudience(streamId),
-      fetchLiveLikes(streamId),
-    ]);
-  }, [fetchLiveAudience, fetchLiveLikes]);
-
   const fetchLiveLikes = useCallback(async (streamId) => {
     if (!streamId) return;
     const streamCounters = await fetchStreamCounters(streamId);
@@ -455,6 +447,14 @@ const CameraPage = () => {
       .like('message', `${LIKE_MSG_PREFIX}%`);
     setLiveLikes(Math.max(count || 0, streamCounters.like_count));
   }, [fetchStreamCounters]);
+
+  const refreshLivePresence = useCallback(async (streamId) => {
+    if (!streamId) return;
+    await Promise.all([
+      fetchLiveAudience(streamId),
+      fetchLiveLikes(streamId),
+    ]);
+  }, [fetchLiveAudience, fetchLiveLikes]);
 
   const fetchMutedUsers = useCallback(async (streamId) => {
     if (!streamId) return;
