@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
 
-// ═══════════════════════════════════════════════════════════════
-// WebRTC Configuration
-// ═══════════════════════════════════════════════════════════════
 const RTC_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -15,17 +12,30 @@ const RTC_CONFIG = {
 
 const generateId = () => Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 
-// ═══════════════════════════════════════════════════════════════
-// BROADCASTER HOOK
-// Manages multiple RTCPeerConnections (one per viewer).
-// Sends the local mediaStream tracks to each connected viewer.
-// Uses Supabase Realtime broadcast channel for signaling.
-// ═══════════════════════════════════════════════════════════════
+const createAndSendOffer = async (viewerId, pc, channel) => {
+  try {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    await channel.send({
+      type: 'broadcast',
+      event: 'offer',
+      payload: {
+        sdp: pc.localDescription.toJSON(),
+        targetId: viewerId,
+      },
+    });
+  } catch (err) {
+    console.error('[Broadcaster] Error creating/sending offer:', err);
+  }
+};
+
 export const useBroadcaster = (streamId, mediaStream) => {
   const peersRef = useRef({});
   const channelRef = useRef(null);
   const mediaStreamRef = useRef(mediaStream);
   const statsIntervalRef = useRef(null);
+
   const [viewerCount, setViewerCount] = useState(0);
   const [signalQuality, setSignalQuality] = useState({ level: 'checking', label: 'Comprobando...' });
 
@@ -57,8 +67,8 @@ export const useBroadcaster = (streamId, mediaStream) => {
             if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.currentRoundTripTime != null) {
               rtt = report.currentRoundTripTime;
             }
-            if (report.type === 'outbound-rtp' && report.kind === 'video') {
-              if (typeof report.framesPerSecond === 'number') fps = report.framesPerSecond;
+            if (report.type === 'outbound-rtp' && report.kind === 'video' && typeof report.framesPerSecond === 'number') {
+              fps = report.framesPerSecond;
             }
           });
 
@@ -73,21 +83,19 @@ export const useBroadcaster = (streamId, mediaStream) => {
       })
     );
 
-    const hasWeak = peerLevels.includes('weak');
-    const hasGood = peerLevels.includes('good');
-
-    if (hasWeak) {
+    if (peerLevels.includes('weak')) {
       setSignalQuality({ level: 'weak', label: 'Senal debil' });
       return;
     }
-    if (hasGood) {
+
+    if (peerLevels.includes('good')) {
       setSignalQuality({ level: 'good', label: 'Senal media' });
       return;
     }
+
     setSignalQuality({ level: 'excellent', label: 'Senal estable' });
   };
 
-  // Keep media stream ref up to date
   useEffect(() => {
     mediaStreamRef.current = mediaStream;
   }, [mediaStream]);
@@ -99,12 +107,10 @@ export const useBroadcaster = (streamId, mediaStream) => {
       config: { broadcast: { self: false } },
     });
 
-    // ─── Viewer wants to connect ───
     channel.on('broadcast', { event: 'viewer-join' }, async ({ payload }) => {
       const { viewerId } = payload;
-      console.log('[Broadcaster] Viewer joined:', viewerId);
+      if (!viewerId) return;
 
-      // Clean up old connection if exists
       if (peersRef.current[viewerId]) {
         peersRef.current[viewerId].close();
         delete peersRef.current[viewerId];
@@ -113,7 +119,6 @@ export const useBroadcaster = (streamId, mediaStream) => {
       const pc = new RTCPeerConnection(RTC_CONFIG);
       peersRef.current[viewerId] = pc;
 
-      // Add all our media tracks (if available)
       const currentStream = mediaStreamRef.current;
       if (currentStream) {
         currentStream.getTracks().forEach((track) => {
@@ -121,74 +126,66 @@ export const useBroadcaster = (streamId, mediaStream) => {
         });
       }
 
-      // Send ICE candidates to this specific viewer
-      pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          channel.send({
-            type: 'broadcast',
-            event: 'ice-candidate',
-            payload: {
-              candidate: e.candidate.toJSON(),
-              targetId: viewerId,
-              fromBroadcaster: true,
-            },
-          });
-        }
+      pc.onicecandidate = (event) => {
+        if (!event.candidate) return;
+        channel.send({
+          type: 'broadcast',
+          event: 'ice-candidate',
+          payload: {
+            candidate: event.candidate.toJSON(),
+            targetId: viewerId,
+            fromBroadcaster: true,
+          },
+        });
+      };
+
+      pc.onnegotiationneeded = async () => {
+        await createAndSendOffer(viewerId, pc, channel);
       };
 
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
-        console.log(`[Broadcaster] Peer ${viewerId}: ${state}`);
         if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-          pc.close();
+          try {
+            pc.close();
+          } catch {
+            // noop
+          }
           delete peersRef.current[viewerId];
           setViewerCount(Object.keys(peersRef.current).length);
         }
         computeSignalQuality();
       };
 
-      // Create and send offer
-      try {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        channel.send({
-          type: 'broadcast',
-          event: 'offer',
-          payload: {
-            sdp: pc.localDescription.toJSON(),
-            targetId: viewerId,
-          },
-        });
-        setViewerCount(Object.keys(peersRef.current).length);
-      } catch (err) {
-        console.error('[Broadcaster] Error creating offer:', err);
-      }
+      await createAndSendOffer(viewerId, pc, channel);
+      setViewerCount(Object.keys(peersRef.current).length);
+      computeSignalQuality();
     });
 
-    // ─── Viewer sent back an answer ───
     channel.on('broadcast', { event: 'answer' }, async ({ payload }) => {
-      const { viewerId, sdp } = payload;
+      const { viewerId, sdp } = payload || {};
       const pc = peersRef.current[viewerId];
-      if (pc && pc.signalingState === 'have-local-offer') {
-        try {
+      if (!pc || !sdp) return;
+
+      try {
+        if (pc.signalingState !== 'closed') {
           await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-        } catch (err) {
-          console.error('[Broadcaster] Error setting answer:', err);
         }
+      } catch (err) {
+        console.error('[Broadcaster] Error setting answer:', err);
       }
     });
 
-    // ─── ICE candidates from viewers ───
     channel.on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
-      if (payload.fromBroadcaster) return; // Ignore our own
+      if (!payload || payload.fromBroadcaster) return;
       const { viewerId, candidate } = payload;
       const pc = peersRef.current[viewerId];
-      if (pc) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (err) {
-          console.error('[Broadcaster] Error adding ICE candidate:', err);
-        }
+      if (!pc || !candidate) return;
+
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.error('[Broadcaster] Error adding ICE candidate:', err);
       }
     });
 
@@ -203,8 +200,13 @@ export const useBroadcaster = (streamId, mediaStream) => {
 
     return () => {
       Object.values(peersRef.current).forEach((pc) => {
-        try { pc.close(); } catch (_) {}
+        try {
+          pc.close();
+        } catch {
+          // noop
+        }
       });
+
       peersRef.current = {};
       setViewerCount(0);
       if (statsIntervalRef.current) {
@@ -212,16 +214,22 @@ export const useBroadcaster = (streamId, mediaStream) => {
         statsIntervalRef.current = null;
       }
       setSignalQuality({ level: 'checking', label: 'Comprobando...' });
+
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
   }, [streamId]);
 
-  // When the media stream changes (e.g., toggling camera/mic), replace tracks on all peers
   useEffect(() => {
     if (!mediaStream) return;
-    Object.values(peersRef.current).forEach((pc) => {
+
+    const channel = channelRef.current;
+    if (!channel) return;
+
+    Object.entries(peersRef.current).forEach(([viewerId, pc]) => {
       const senders = pc.getSenders();
+      let needsRenegotiation = false;
+
       mediaStream.getTracks().forEach((track) => {
         const sender = senders.find((s) => s.track?.kind === track.kind);
         if (sender) {
@@ -229,26 +237,28 @@ export const useBroadcaster = (streamId, mediaStream) => {
         } else {
           try {
             pc.addTrack(track, mediaStream);
+            needsRenegotiation = true;
           } catch (err) {
             console.error('[Broadcaster] Error adding late track:', err);
           }
         }
       });
+
+      if (needsRenegotiation || pc.signalingState === 'stable') {
+        createAndSendOffer(viewerId, pc, channel);
+      }
     });
+
     computeSignalQuality();
   }, [mediaStream]);
 
   return { viewerCount, signalQuality };
 };
 
-// ═══════════════════════════════════════════════════════════════
-// VIEWER HOOK
-// Connects to a broadcaster via WebRTC and receives the media stream.
-// Uses the same Supabase Realtime broadcast channel for signaling.
-// ═══════════════════════════════════════════════════════════════
 export const useViewer = (streamId, active = true) => {
   const [remoteStream, setRemoteStream] = useState(null);
   const [connectionState, setConnectionState] = useState('new');
+
   const pcRef = useRef(null);
   const channelRef = useRef(null);
   const viewerIdRef = useRef(generateId());
@@ -259,74 +269,70 @@ export const useViewer = (streamId, active = true) => {
     if (!streamId || !active) return;
 
     const viewerId = viewerIdRef.current;
-    let pc = null;
-
     const channel = supabase.channel(`webrtc-${streamId}`, {
       config: { broadcast: { self: false } },
     });
 
-    // ─── Received offer from broadcaster ───
-    channel.on('broadcast', { event: 'offer' }, async ({ payload }) => {
-      if (payload.targetId !== viewerId) return;
-      console.log('[Viewer] Received offer from broadcaster');
+    const requestJoin = () => {
+      channel.send({
+        type: 'broadcast',
+        event: 'viewer-join',
+        payload: { viewerId },
+      });
+    };
 
-      // Close old connection if any
+    channel.on('broadcast', { event: 'offer' }, async ({ payload }) => {
+      if (!payload || payload.targetId !== viewerId) return;
+
       if (pcRef.current) {
-        pcRef.current.close();
+        try {
+          pcRef.current.close();
+        } catch {
+          // noop
+        }
       }
 
-      pc = new RTCPeerConnection(RTC_CONFIG);
+      const pc = new RTCPeerConnection(RTC_CONFIG);
       pcRef.current = pc;
       setConnectionState('connecting');
 
-      // Handle incoming media tracks
-      pc.ontrack = (e) => {
-        console.log('[Viewer] Received track:', e.track.kind);
-        if (e.streams && e.streams[0]) {
-          setRemoteStream(e.streams[0]);
+      pc.ontrack = (event) => {
+        if (event.streams && event.streams[0]) {
+          setRemoteStream(event.streams[0]);
         } else {
           const stream = new MediaStream();
-          stream.addTrack(e.track);
+          stream.addTrack(event.track);
           setRemoteStream(stream);
         }
         setConnectionState('connected');
       };
 
-      // Send our ICE candidates to broadcaster
-      pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          channel.send({
-            type: 'broadcast',
-            event: 'ice-candidate',
-            payload: {
-              candidate: e.candidate.toJSON(),
-              viewerId,
-              fromBroadcaster: false,
-            },
-          });
-        }
+      pc.onicecandidate = (event) => {
+        if (!event.candidate) return;
+        channel.send({
+          type: 'broadcast',
+          event: 'ice-candidate',
+          payload: {
+            candidate: event.candidate.toJSON(),
+            viewerId,
+            fromBroadcaster: false,
+          },
+        });
       };
 
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
-        console.log('[Viewer] Connection state:', state);
         setConnectionState(state);
         if (state === 'failed') {
-          // Try to reconnect after a short delay
           setTimeout(() => {
-            channel.send({
-              type: 'broadcast',
-              event: 'viewer-join',
-              payload: { viewerId },
-            });
-          }, 2000);
+            requestJoin();
+          }, 1500);
         }
       };
 
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
 
-        // Apply any pending ICE candidates
         for (const candidate of pendingCandidatesRef.current) {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
         }
@@ -346,9 +352,9 @@ export const useViewer = (streamId, active = true) => {
       }
     });
 
-    // ─── ICE candidates from broadcaster ───
     channel.on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
-      if (!payload.fromBroadcaster || payload.targetId !== viewerId) return;
+      if (!payload || !payload.fromBroadcaster || payload.targetId !== viewerId) return;
+
       if (pcRef.current && pcRef.current.remoteDescription) {
         try {
           await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
@@ -356,33 +362,21 @@ export const useViewer = (streamId, active = true) => {
           console.error('[Viewer] Error adding ICE candidate:', err);
         }
       } else {
-        // Buffer candidates until we have the remote description
         pendingCandidatesRef.current.push(payload.candidate);
       }
     });
 
-    const requestJoin = () => {
-      channel.send({
-        type: 'broadcast',
-        event: 'viewer-join',
-        payload: { viewerId },
-      });
-    };
-
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        // Announce to broadcaster that we want to connect
         setConnectionState('waiting');
         setTimeout(() => {
           requestJoin();
-        }, 500);
+        }, 300);
 
-        // Keep retrying join in case the broadcaster subscribed later.
         if (joinRetryIntervalRef.current) clearInterval(joinRetryIntervalRef.current);
         joinRetryIntervalRef.current = setInterval(() => {
           const pcState = pcRef.current?.connectionState;
-          const connected = pcState === 'connected';
-          if (connected) {
+          if (pcState === 'connected') {
             clearInterval(joinRetryIntervalRef.current);
             joinRetryIntervalRef.current = null;
             return;
@@ -396,13 +390,19 @@ export const useViewer = (streamId, active = true) => {
 
     return () => {
       if (pcRef.current) {
-        pcRef.current.close();
+        try {
+          pcRef.current.close();
+        } catch {
+          // noop
+        }
         pcRef.current = null;
       }
+
       if (joinRetryIntervalRef.current) {
         clearInterval(joinRetryIntervalRef.current);
         joinRetryIntervalRef.current = null;
       }
+
       pendingCandidatesRef.current = [];
       supabase.removeChannel(channel);
       channelRef.current = null;

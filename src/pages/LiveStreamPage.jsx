@@ -365,7 +365,18 @@ const useRealtimeChat = (streamId) => {
     if (!streamId) return;
     let mounted = true;
 
-    streamOps.fetchChat(streamId).then(msgs => { if (mounted) setMessages(msgs); });
+    const refreshChat = async () => {
+      const msgs = await streamOps.fetchChat(streamId);
+      if (!mounted) return;
+      setMessages((prev) => {
+        const prevLast = prev[prev.length - 1]?.id;
+        const nextLast = msgs[msgs.length - 1]?.id;
+        if (prev.length === msgs.length && prevLast === nextLast) return prev;
+        return msgs;
+      });
+    };
+
+    refreshChat();
 
     const channel = supabase
       .channel(`chat-${streamId}`)
@@ -382,7 +393,15 @@ const useRealtimeChat = (streamId) => {
       })
       .subscribe();
 
-    return () => { mounted = false; supabase.removeChannel(channel); };
+    const pollId = setInterval(() => {
+      refreshChat();
+    }, 1800);
+
+    return () => {
+      mounted = false;
+      clearInterval(pollId);
+      supabase.removeChannel(channel);
+    };
   }, [streamId]);
 
   return messages;
@@ -446,7 +465,15 @@ const useRealtimeStats = (streamId) => {
       })
       .subscribe();
 
-    return () => { mounted = false; supabase.removeChannel(channel); };
+    const pollId = setInterval(() => {
+      refreshStats();
+    }, 1500);
+
+    return () => {
+      mounted = false;
+      clearInterval(pollId);
+      supabase.removeChannel(channel);
+    };
   }, [streamId]);
 
   return stats;
