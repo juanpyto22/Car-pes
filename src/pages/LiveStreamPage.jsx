@@ -564,7 +564,9 @@ const StreamViewer = ({ stream, onBack }) => {
   const [gifts, setGifts] = useState([]);
   const [missingGiftTable, setMissingGiftTable] = useState(false);
   const [giftRanking, setGiftRanking] = useState([]);
-  const chatRef = useRef(null);
+  const [mobileChatExpanded, setMobileChatExpanded] = useState(true);
+  const chatRefDesktop = useRef(null);
+  const chatRefMobile = useRef(null);
   const heartId = useRef(0);
   const remoteVideoRef = useRef(null);
 
@@ -730,7 +732,8 @@ const StreamViewer = ({ stream, onBack }) => {
 
   // Auto-scroll chat
   useEffect(() => {
-    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    if (chatRefDesktop.current) chatRefDesktop.current.scrollTop = chatRefDesktop.current.scrollHeight;
+    if (chatRefMobile.current) chatRefMobile.current.scrollTop = chatRefMobile.current.scrollHeight;
   }, [chatMessages]);
 
   // If stream ended, notify and go back
@@ -814,7 +817,7 @@ const StreamViewer = ({ stream, onBack }) => {
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover md:object-contain"
             />
           ) : (
             <div className="text-center">
@@ -859,8 +862,18 @@ const StreamViewer = ({ stream, onBack }) => {
                'Conectando...'}
             </span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setMobileChatExpanded((prev) => !prev)}
+            className="md:hidden absolute top-3 right-3 z-20 inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white border border-white/10"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            {mobileChatExpanded ? 'Ocultar chat' : `Chat (${chatMessages.length})`}
+          </button>
+
           {/* Streamer overlay */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 z-10">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pb-24 md:pb-4 z-10">
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10 border-2 border-red-500">
                 <AvatarImage src={stream.user?.foto_perfil} />
@@ -874,13 +887,85 @@ const StreamViewer = ({ stream, onBack }) => {
               </div>
             </div>
           </div>
+
+          {/* Mobile overlay chat */}
+          <div className="md:hidden absolute left-3 right-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-20">
+            {mobileChatExpanded && (
+              <div className="mb-2 rounded-2xl border border-white/10 bg-slate-950/70 backdrop-blur-xl overflow-hidden">
+                {(giftRanking.length > 0 || missingGiftTable || gifts.length > 0) && (
+                  <div className="px-3 py-2 border-b border-white/10 bg-black/25 space-y-1">
+                    {missingGiftTable && (
+                      <p className="text-[10px] text-yellow-300/85">Activa setup-live-stream-moderation.sql para guardar donaciones.</p>
+                    )}
+                    {giftRanking.length > 0 && (
+                      <p className="text-[10px] font-bold text-amber-300/90 flex items-center gap-1">
+                        <Gift className="w-3 h-3" /> Top donadores
+                      </p>
+                    )}
+                    {gifts.slice(0, 2).map((gift) => (
+                      <p key={gift.id} className="text-[10px] text-amber-300/90 truncate">
+                        {gift.sender?.username || 'usuario'} regalo {gift.gift_name}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                <div ref={chatRefMobile} className="max-h-[24vh] overflow-y-auto px-3 py-2 space-y-0.5 scrollbar-hide">
+                  {chatMessages.length === 0 ? (
+                    <p className="text-xs text-blue-300/60 text-center py-4">Se el primero en comentar...</p>
+                  ) : chatMessages.slice(-30).map(msg => <ChatMessage key={msg.id} message={msg} />)}
+                </div>
+              </div>
+            )}
+
+            {isMuted && (
+              <p className="text-[11px] text-yellow-300/90 mb-2 px-2">Has sido silenciado en este directo.</p>
+            )}
+
+            {showGiftPicker && (
+              <div className="mb-2 rounded-xl border border-white/10 bg-slate-900/90 p-2 space-y-1 backdrop-blur-xl">
+                {GIFT_OPTIONS.map((gift) => (
+                  <button
+                    key={gift.id}
+                    onClick={() => handleSendGift(gift)}
+                    className="w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      {gift.icon === 'rod' ? <Gift className="w-3.5 h-3.5 text-pink-300" /> : <Fish className="w-3.5 h-3.5 text-pink-300" />}
+                      {gift.label}
+                    </span>
+                    <span className="text-amber-300">{gift.value} pts</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="rounded-2xl border border-white/10 bg-slate-900/85 backdrop-blur-xl p-2 pb-[calc(env(safe-area-inset-bottom)+6px)]">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                  placeholder={isMuted ? 'No puedes enviar mensajes' : 'Comenta en directo...'}
+                  disabled={isMuted}
+                  className="flex-1 bg-slate-800/90 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-blue-400/50 focus:outline-none focus:border-cyan-500/40 disabled:opacity-60"
+                />
+                <button onClick={handleSend} className="p-2 text-cyan-400 hover:text-cyan-300"><Send className="w-4 h-4" /></button>
+                <button onClick={() => setShowGiftPicker((v) => !v)} className="p-2 text-pink-300 hover:text-pink-200"><Gift className="w-4 h-4" /></button>
+                <motion.button whileTap={{ scale: 0.8 }} onClick={handleLike} className="p-2">
+                  <Heart className={`w-5 h-5 transition-colors ${liked ? 'text-red-500 fill-red-500' : 'text-red-400 hover:text-red-300'}`} />
+                </motion.button>
+              </div>
+            </div>
+          </div>
+
           <AnimatePresence>
             {hearts.map(id => <FloatingHeart key={id} id={id} onComplete={removeHeart} />)}
           </AnimatePresence>
         </div>
 
         {/* Chat panel */}
-        <div className="w-full md:w-80 lg:w-96 flex flex-col bg-slate-900/70 border-l border-white/5 max-h-[46vh] md:max-h-none md:bg-slate-900/50 rounded-t-2xl md:rounded-none">
+        <div className="hidden md:flex w-full md:w-80 lg:w-96 flex-col bg-slate-900/50 border-l border-white/5 max-h-none rounded-none">
           <div className="px-3 py-2.5 border-b border-white/5 flex items-center justify-between">
             <h4 className="text-sm font-semibold text-white flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-cyan-400" /> Chat en vivo
@@ -924,7 +1009,7 @@ const StreamViewer = ({ stream, onBack }) => {
               ))}
             </div>
           )}
-          <div ref={chatRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 scrollbar-hide">
+          <div ref={chatRefDesktop} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 scrollbar-hide">
             {chatMessages.length === 0 ? (
               <p className="text-xs text-blue-400/40 text-center py-8">Sé el primero en comentar...</p>
             ) : chatMessages.map(msg => <ChatMessage key={msg.id} message={msg} />)}
