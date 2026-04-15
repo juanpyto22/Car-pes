@@ -1714,8 +1714,8 @@ const CameraPage = () => {
           </div>
 
           {mode === 'EN VIVO' && isLive && (
-            <aside className="hidden md:flex w-[380px] shrink-0 flex-col border-l border-white/10 bg-[#0d1320]/95 backdrop-blur-xl overflow-hidden">
-              <div className="border-b border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent p-3 space-y-3">
+            <aside className="hidden md:flex w-[360px] shrink-0 flex-col border-l border-white/10 bg-[#0d1320]/95 backdrop-blur-xl overflow-hidden">
+              <div className="border-b border-white/10 bg-gradient-to-b from-white/[0.08] to-transparent p-2.5 space-y-2.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-300/80 font-semibold">Panel del anfitrión</p>
@@ -1725,30 +1725,42 @@ const CameraPage = () => {
                   <span className="text-[10px] text-white/50 rounded-full border border-white/10 px-2 py-1 bg-white/5">En vivo</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70">
+                    <Clock className="w-3 h-3 text-cyan-300" /> {Math.floor(liveDuration / 60)}:{String(liveDuration % 60).padStart(2, '0')}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70">
+                    <Eye className="w-3 h-3 text-cyan-300" /> {smoothLiveViewers} conectados
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70">
+                    <MessageCircle className="w-3 h-3 text-fuchsia-300" /> {liveChatMessages.length} mensajes
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
                     <div className="flex items-center gap-2 text-white/55 text-[10px] uppercase tracking-[0.12em]">
                       <Eye className="w-3.5 h-3.5 text-cyan-300" /> Espectadores
                     </div>
-                    <p className="mt-1 text-lg font-bold text-white leading-none">{smoothLiveViewers}</p>
+                    <p className="mt-1 text-base font-bold text-white leading-none">{smoothLiveViewers}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
                     <div className="flex items-center gap-2 text-white/55 text-[10px] uppercase tracking-[0.12em]">
                       <Heart className="w-3.5 h-3.5 text-rose-300" /> Me gustas
                     </div>
-                    <p className="mt-1 text-lg font-bold text-white leading-none">{smoothLiveLikes}</p>
+                    <p className="mt-1 text-base font-bold text-white leading-none">{smoothLiveLikes}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
                     <div className="flex items-center gap-2 text-white/55 text-[10px] uppercase tracking-[0.12em]">
                       <MessageCircle className="w-3.5 h-3.5 text-fuchsia-300" /> Mensajes
                     </div>
-                    <p className="mt-1 text-lg font-bold text-white leading-none">{liveChatMessages.length}</p>
+                    <p className="mt-1 text-base font-bold text-white leading-none">{liveChatMessages.length}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
                     <div className="flex items-center gap-2 text-white/55 text-[10px] uppercase tracking-[0.12em]">
                       <Gift className="w-3.5 h-3.5 text-amber-300" /> Donaciones
                     </div>
-                    <p className="mt-1 text-lg font-bold text-white leading-none">{liveDonationCount}</p>
+                    <p className="mt-1 text-base font-bold text-white leading-none">{liveDonationCount}</p>
                   </div>
                 </div>
 
@@ -1759,7 +1771,7 @@ const CameraPage = () => {
                     </span>
                     <span>{liveDonationCount} activas</span>
                   </div>
-                  <div className="mt-2 max-h-[16vh] overflow-y-auto rounded-xl border border-white/5 bg-black/20 p-2 space-y-1">
+                  <div className="mt-2 max-h-[14vh] overflow-y-auto rounded-xl border border-white/5 bg-black/20 p-2 space-y-1">
                     {liveDonationMessages.length > 0 ? (
                       liveDonationMessages.slice(0, 3).map((msg) => (
                         <div key={`desktop-donation-${msg.id}`} className="flex items-start gap-2 rounded-lg bg-white/5 px-2 py-1.5">
@@ -1771,7 +1783,7 @@ const CameraPage = () => {
                           </Avatar>
                           <div className="min-w-0">
                             <p className="text-[11px] font-semibold text-white truncate">{msg.user?.username || msg.user?.nombre || 'Usuario'}</p>
-                            <p className="text-[11px] text-amber-200/90 line-clamp-2">{msg.message}</p>
+                            <p className="max-h-8 overflow-hidden text-[11px] text-amber-200/90">{msg.message}</p>
                           </div>
                         </div>
                       ))
@@ -1782,7 +1794,7 @@ const CameraPage = () => {
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+              <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2">
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
                   <div className="flex items-center justify-between mb-2 px-1">
                     <h5 className="text-xs font-bold text-white flex items-center gap-1">
@@ -1794,16 +1806,16 @@ const CameraPage = () => {
                     <p className="text-xs text-white/50 text-center py-3">Aun no hay espectadores conectados.</p>
                   ) : (
                     liveAudience.map((viewer) => (
-                      <div key={viewer.user_id} className="flex items-center justify-between gap-2 rounded-xl bg-black/20 border border-white/10 px-2.5 py-2 mb-2 last:mb-0">
+                      <div key={viewer.user_id} className="flex items-center justify-between gap-2 rounded-xl bg-black/20 border border-white/10 px-2.5 py-2 mb-2 last:mb-0 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
                         <div className="flex items-center gap-2 min-w-0">
-                          <Avatar className="h-8 w-8 shrink-0 border border-white/10">
+                          <Avatar className="h-7 w-7 shrink-0 border border-white/10">
                             <AvatarImage src={viewer.profile?.foto_perfil || viewer.profile?.avatar_url} className="object-cover" />
                             <AvatarFallback className={`text-[10px] font-bold ${getAvatarToneClass(viewer.profile?.username || viewer.profile?.nombre || viewer.user_id)}`}>
                               {getInitials(viewer.profile?.username || viewer.profile?.nombre || viewer.user_id)}
                             </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
-                            <p className="text-sm text-white truncate flex items-center gap-1.5">
+                            <p className="text-xs text-white truncate flex items-center gap-1.5">
                               {viewer.profile?.username || viewer.profile?.nombre || 'usuario'}
                               {liveModeratorUserIds.has(viewer.user_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">MOD</span>}
                             </p>
@@ -1823,7 +1835,7 @@ const CameraPage = () => {
                     </h5>
                     <span className="text-[10px] text-white/50">{liveChatMessages.length}</span>
                   </div>
-                  <div ref={chatPanelRef} className="max-h-[30vh] overflow-y-auto space-y-1 pr-1">
+                  <div ref={chatPanelRef} className="max-h-[31vh] overflow-y-auto space-y-1 pr-1">
                     {liveChatMessages.length === 0 ? (
                       <p className="text-xs text-blue-400/40 text-center py-6">Esperando mensajes...</p>
                     ) : (
@@ -1833,7 +1845,7 @@ const CameraPage = () => {
                         const color = colors[name.length % colors.length];
                         return (
                           <motion.div key={`desktop-${msg.id}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-start gap-2 rounded-xl bg-black/15 border border-white/5 px-2 py-1.5">
-                            <Avatar className="h-7 w-7 shrink-0 border border-white/10">
+                            <Avatar className="h-6.5 w-6.5 shrink-0 border border-white/10">
                               <AvatarImage src={msg.user?.foto_perfil || msg.user?.avatar_url} className="object-cover" />
                               <AvatarFallback className={`text-[10px] font-bold ${getAvatarToneClass(name)}`}>
                                 {getInitials(name)}
