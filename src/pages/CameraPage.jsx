@@ -291,6 +291,7 @@ const CameraPage = () => {
   const [liveChatMessages, setLiveChatMessages] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState('');
   const [fishGiftAnimations, setFishGiftAnimations] = useState([]);
+  const [desktopViewersPanelPos, setDesktopViewersPanelPos] = useState({ x: null, y: null });
   const liveDonationMessages = liveChatMessages
     .filter((msg) => /dono\s+.+?\s+\(\d+\s*pts\)/i.test(msg.message || ''))
     .slice(-5)
@@ -317,11 +318,13 @@ const CameraPage = () => {
   const recordIntervalRef = useRef(null);
   const textareaRef = useRef(null);
   const chatPanelRef = useRef(null);
+  const desktopViewersPanelRef = useRef(null);
   const liveChatChannelRef = useRef(null);
   const liveFrameIntervalRef = useRef(null);
   const liveFrameCanvasRef = useRef(null);
   const liveChatMessageIdsRef = useRef(new Set());
   const liveChatHydratedRef = useRef(false);
+  const viewersPanelDragStateRef = useRef({ dragging: false, offsetX: 0, offsetY: 0, panelWidth: 360, panelHeight: 520 });
 
   useEffect(() => {
     const previous = prevLiveViewersRef.current;
@@ -382,6 +385,50 @@ const CameraPage = () => {
       return [...prev, { id: key, label, value }].slice(-4);
     });
   }, []);
+
+  const handleDesktopViewersPanelMouseDown = useCallback((event) => {
+    if (event.button !== 0) return;
+    if (!desktopViewersPanelRef.current) return;
+
+    const rect = desktopViewersPanelRef.current.getBoundingClientRect();
+    viewersPanelDragStateRef.current = {
+      dragging: true,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      panelWidth: rect.width,
+      panelHeight: rect.height,
+    };
+
+    if (desktopViewersPanelPos.x === null || desktopViewersPanelPos.y === null) {
+      setDesktopViewersPanelPos({ x: rect.left, y: rect.top });
+    }
+
+    const onMouseMove = (moveEvent) => {
+      if (!viewersPanelDragStateRef.current.dragging) return;
+
+      const { offsetX, offsetY, panelWidth, panelHeight } = viewersPanelDragStateRef.current;
+      const minX = 8;
+      const minY = 8;
+      const maxX = Math.max(minX, window.innerWidth - panelWidth - 8);
+      const maxY = Math.max(minY, window.innerHeight - panelHeight - 8);
+
+      const nextX = Math.min(maxX, Math.max(minX, moveEvent.clientX - offsetX));
+      const nextY = Math.min(maxY, Math.max(minY, moveEvent.clientY - offsetY));
+
+      setDesktopViewersPanelPos({ x: nextX, y: nextY });
+    };
+
+    const onMouseUp = () => {
+      viewersPanelDragStateRef.current.dragging = false;
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [desktopViewersPanelPos.x, desktopViewersPanelPos.y]);
 
   const closeLiveStatsChannel = useCallback(() => {
     if (liveStatsChannelRef.current) {
@@ -1746,12 +1793,16 @@ const CameraPage = () => {
             )}
 
             {mode === 'EN VIVO' && isLive && showViewersPanel && (
-              <div className="hidden md:block absolute right-[368px] top-20 z-30 w-[360px] max-w-[40vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl">
-                <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
+              <div
+                ref={desktopViewersPanelRef}
+                className={`hidden md:block fixed z-30 w-[360px] max-w-[40vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl ${desktopViewersPanelPos.x === null || desktopViewersPanelPos.y === null ? 'right-[368px] top-20' : ''}`}
+                style={desktopViewersPanelPos.x !== null && desktopViewersPanelPos.y !== null ? { left: `${desktopViewersPanelPos.x}px`, top: `${desktopViewersPanelPos.y}px` } : undefined}
+              >
+                <div onMouseDown={handleDesktopViewersPanelMouseDown} className="px-3 py-2 border-b border-white/10 flex items-center justify-between cursor-move">
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
                     <Eye className="w-4 h-4 text-cyan-300" /> Espectadores ({smoothLiveViewers})
                   </h4>
-                  <button onClick={() => setShowViewersPanel(false)} className="text-white/60 hover:text-white">
+                  <button onMouseDown={(e) => e.stopPropagation()} onClick={() => setShowViewersPanel(false)} className="text-white/60 hover:text-white">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
