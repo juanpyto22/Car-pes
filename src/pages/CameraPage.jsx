@@ -249,6 +249,14 @@ const CameraPage = () => {
   const [liveLikes, setLiveLikes] = useState(0);
   const smoothLiveViewers = useSmoothCounter(liveViewers);
   const smoothLiveLikes = useSmoothCounter(liveLikes);
+  const prevLiveViewersRef = useRef(0);
+  const prevLiveLikesRef = useRef(0);
+  const viewerPulseTimeoutRef = useRef(null);
+  const likePulseTimeoutRef = useRef(null);
+  const [liveViewersRising, setLiveViewersRising] = useState(false);
+  const [liveLikesRising, setLiveLikesRising] = useState(false);
+  const [liveViewerPulseKey, setLiveViewerPulseKey] = useState(0);
+  const [liveLikePulseKey, setLiveLikePulseKey] = useState(0);
   const [showLiveSetup, setShowLiveSetup] = useState(true);
   const [showViewersPanel, setShowViewersPanel] = useState(false);
   const [showChatPanel, setShowChatPanel] = useState(false);
@@ -276,6 +284,45 @@ const CameraPage = () => {
   const liveFrameCanvasRef = useRef(null);
   const liveChatMessageIdsRef = useRef(new Set());
   const liveChatHydratedRef = useRef(false);
+
+  useEffect(() => {
+    const previous = prevLiveViewersRef.current;
+    const current = liveViewers || 0;
+
+    if (current > previous) {
+      setLiveViewersRising(true);
+      setLiveViewerPulseKey((prev) => prev + 1);
+      if (viewerPulseTimeoutRef.current) clearTimeout(viewerPulseTimeoutRef.current);
+      viewerPulseTimeoutRef.current = setTimeout(() => {
+        setLiveViewersRising(false);
+      }, 520);
+    }
+
+    prevLiveViewersRef.current = current;
+  }, [liveViewers]);
+
+  useEffect(() => {
+    const previous = prevLiveLikesRef.current;
+    const current = liveLikes || 0;
+
+    if (current > previous) {
+      setLiveLikesRising(true);
+      setLiveLikePulseKey((prev) => prev + 1);
+      if (likePulseTimeoutRef.current) clearTimeout(likePulseTimeoutRef.current);
+      likePulseTimeoutRef.current = setTimeout(() => {
+        setLiveLikesRising(false);
+      }, 520);
+    }
+
+    prevLiveLikesRef.current = current;
+  }, [liveLikes]);
+
+  useEffect(() => {
+    return () => {
+      if (viewerPulseTimeoutRef.current) clearTimeout(viewerPulseTimeoutRef.current);
+      if (likePulseTimeoutRef.current) clearTimeout(likePulseTimeoutRef.current);
+    };
+  }, []);
 
   const removeFishAnimation = useCallback((id) => {
     setFishGiftAnimations((prev) => prev.filter((item) => item.id !== id));
@@ -1301,14 +1348,23 @@ const CameraPage = () => {
                   <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-cyan-300 bg-cyan-900/40">
                     <span className="w-1.5 h-1.5 rounded-full bg-current" /> Camara activa
                   </span>
-                  <button
+                  <motion.button
                     type="button"
                     onClick={() => setShowViewersPanel(v => !v)}
-                     className="flex items-center gap-0.5 text-[10px] text-white bg-black/40 px-1.5 py-0.5 rounded hover:bg-black/60 transition-colors"
+                    animate={liveViewersRising ? { backgroundColor: 'rgba(16,185,129,0.24)', scale: [1, 1.06, 1] } : { backgroundColor: 'rgba(0,0,0,0.4)' }}
+                    transition={{ duration: 0.45, ease: 'easeOut' }}
+                    className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded transition-colors ${liveViewersRising ? 'text-emerald-200' : 'text-white'}`}
                     title="Ver espectadores"
                   >
-                    <Eye className="w-3 h-3" />{smoothLiveViewers}
-                  </button>
+                    <motion.span
+                      key={`live-viewer-pulse-${liveViewerPulseKey}`}
+                      animate={liveViewersRising ? { scale: [1, 1.24, 1] } : { scale: 1 }}
+                      transition={{ duration: 0.38, ease: 'easeOut' }}
+                    >
+                      <Eye className="w-3 h-3" />
+                    </motion.span>
+                    {smoothLiveViewers}
+                  </motion.button>
                    <button
                      type="button"
                      onClick={() => setShowChatPanel(v => !v)}
@@ -1317,9 +1373,20 @@ const CameraPage = () => {
                    >
                      <MessageCircle className="w-3 h-3" />{liveChatMessages.length}
                    </button>
-                  <span className="flex items-center gap-0.5 text-[10px] text-red-300 bg-black/40 px-1.5 py-0.5 rounded">
-                    <Heart className="w-3 h-3" />{smoothLiveLikes}
-                  </span>
+                  <motion.span
+                    animate={liveLikesRising ? { backgroundColor: 'rgba(239,68,68,0.24)', scale: [1, 1.06, 1] } : { backgroundColor: 'rgba(0,0,0,0.4)' }}
+                    transition={{ duration: 0.45, ease: 'easeOut' }}
+                    className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded ${liveLikesRising ? 'text-red-200' : 'text-red-300'}`}
+                  >
+                    <motion.span
+                      key={`live-like-pulse-${liveLikePulseKey}`}
+                      animate={liveLikesRising ? { scale: [1, 1.24, 1] } : { scale: 1 }}
+                      transition={{ duration: 0.38, ease: 'easeOut' }}
+                    >
+                      <Heart className="w-3 h-3 fill-current" />
+                    </motion.span>
+                    {smoothLiveLikes}
+                  </motion.span>
                 </div>
               )}
 

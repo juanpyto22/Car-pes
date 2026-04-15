@@ -780,6 +780,14 @@ const StreamViewer = ({ stream, onBack }) => {
   const [frameStatus, setFrameStatus] = useState('waiting');
   const smoothViewerCount = useSmoothCounter(stats.viewer_count);
   const smoothLikeCount = useSmoothCounter(stats.like_count);
+  const prevViewerCountRef = useRef(stats.viewer_count || 0);
+  const prevLikeCountRef = useRef(stats.like_count || 0);
+  const viewerPulseTimeoutRef = useRef(null);
+  const likePulseTimeoutRef = useRef(null);
+  const [viewerCountRising, setViewerCountRising] = useState(false);
+  const [likeCountRising, setLikeCountRising] = useState(false);
+  const [viewerPulseKey, setViewerPulseKey] = useState(0);
+  const [likePulseKey, setLikePulseKey] = useState(0);
 
   useEffect(() => {
     prevGiftIdsRef.current = new Set();
@@ -787,6 +795,45 @@ const StreamViewer = ({ stream, onBack }) => {
     prevChatIdsRef.current = new Set();
     chatAnimationHydratedRef.current = false;
   }, [stream?.id]);
+
+  useEffect(() => {
+    const previous = prevViewerCountRef.current;
+    const current = stats.viewer_count || 0;
+
+    if (current > previous) {
+      setViewerCountRising(true);
+      setViewerPulseKey((prev) => prev + 1);
+      if (viewerPulseTimeoutRef.current) clearTimeout(viewerPulseTimeoutRef.current);
+      viewerPulseTimeoutRef.current = setTimeout(() => {
+        setViewerCountRising(false);
+      }, 520);
+    }
+
+    prevViewerCountRef.current = current;
+  }, [stats.viewer_count]);
+
+  useEffect(() => {
+    const previous = prevLikeCountRef.current;
+    const current = stats.like_count || 0;
+
+    if (current > previous) {
+      setLikeCountRising(true);
+      setLikePulseKey((prev) => prev + 1);
+      if (likePulseTimeoutRef.current) clearTimeout(likePulseTimeoutRef.current);
+      likePulseTimeoutRef.current = setTimeout(() => {
+        setLikeCountRising(false);
+      }, 520);
+    }
+
+    prevLikeCountRef.current = current;
+  }, [stats.like_count]);
+
+  useEffect(() => {
+    return () => {
+      if (viewerPulseTimeoutRef.current) clearTimeout(viewerPulseTimeoutRef.current);
+      if (likePulseTimeoutRef.current) clearTimeout(likePulseTimeoutRef.current);
+    };
+  }, []);
 
   // Join/leave as viewer
   useEffect(() => {
@@ -1087,7 +1134,7 @@ const StreamViewer = ({ stream, onBack }) => {
   const removeHeart = useCallback((id) => setHearts(prev => prev.filter(h => h !== id)), []);
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
+    <div className="h-[100dvh] bg-slate-950 flex flex-col overflow-hidden">
       {/* Top bar */}
       <div className="flex items-center justify-between px-3 py-2 bg-slate-900/80 border-b border-white/5 sticky top-0 z-40">
         <button onClick={() => onBack()} className="p-2 text-blue-300 hover:text-white transition-colors">
@@ -1101,13 +1148,39 @@ const StreamViewer = ({ stream, onBack }) => {
           ) : (
             <span className="text-xs text-gray-400 font-medium px-2.5 py-1 bg-slate-800 rounded-lg">FINALIZADO</span>
           )}
-          <span className="flex items-center gap-1 text-xs text-blue-300"><Eye className="w-3.5 h-3.5" /> {smoothViewerCount}</span>
-          <span className="flex items-center gap-1 text-xs text-red-400"><Heart className="w-3.5 h-3.5 fill-red-400" /> {smoothLikeCount}</span>
+          <motion.span
+            animate={viewerCountRising ? { backgroundColor: 'rgba(16,185,129,0.22)', scale: [1, 1.06, 1] } : { backgroundColor: 'rgba(0,0,0,0)' }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${viewerCountRising ? 'text-emerald-300' : 'text-blue-300'}`}
+          >
+            <motion.span
+              key={`viewer-pulse-${viewerPulseKey}`}
+              animate={viewerCountRising ? { scale: [1, 1.24, 1] } : { scale: 1 }}
+              transition={{ duration: 0.38, ease: 'easeOut' }}
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </motion.span>
+            {smoothViewerCount}
+          </motion.span>
+          <motion.span
+            animate={likeCountRising ? { backgroundColor: 'rgba(239,68,68,0.22)', scale: [1, 1.06, 1] } : { backgroundColor: 'rgba(0,0,0,0)' }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${likeCountRising ? 'text-red-300' : 'text-red-400'}`}
+          >
+            <motion.span
+              key={`like-pulse-${likePulseKey}`}
+              animate={likeCountRising ? { scale: [1, 1.24, 1] } : { scale: 1 }}
+              transition={{ duration: 0.38, ease: 'easeOut' }}
+            >
+              <Heart className="w-3.5 h-3.5 fill-current" />
+            </motion.span>
+            {smoothLikeCount}
+          </motion.span>
         </div>
         <div className="w-9" />
       </div>
 
-      <div className="relative flex-1 flex flex-col md:flex-row">
+      <div className="relative flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
         {/* Video area - real WebRTC video from broadcaster */}
         <div className="relative flex-1 bg-black flex items-center justify-center min-h-[40vh] md:min-h-0">
           {!stats.is_live && (
@@ -1203,10 +1276,10 @@ const StreamViewer = ({ stream, onBack }) => {
                     ))}
                   </div>
                 )}
-                <div ref={chatRefMobile} className="max-h-[24vh] overflow-y-auto px-3 py-2 space-y-0.5 scrollbar-hide">
+                <div ref={chatRefMobile} className="max-h-[24vh] overflow-hidden px-3 py-2 space-y-0.5">
                   {chatMessages.length === 0 ? (
                     <p className="text-xs text-blue-300/60 text-center py-4">Se el primero en comentar...</p>
-                  ) : chatMessages.slice(-30).map(msg => <ChatMessage key={msg.id} message={msg} />)}
+                  ) : chatMessages.slice(-16).map(msg => <ChatMessage key={msg.id} message={msg} />)}
                 </div>
               </div>
             )}
@@ -1259,7 +1332,7 @@ const StreamViewer = ({ stream, onBack }) => {
         </div>
 
         {/* Chat panel */}
-        <div className="hidden md:flex w-full md:w-80 lg:w-96 flex-col bg-slate-900/50 border-l border-white/5 max-h-none rounded-none">
+        <div className="hidden md:flex w-full md:w-80 lg:w-96 flex-col bg-slate-900/50 border-l border-white/5 rounded-none min-h-0">
           <div className="px-3 py-2.5 border-b border-white/5 flex items-center justify-between">
             <h4 className="text-sm font-semibold text-white flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-cyan-400" /> Chat en vivo
@@ -1303,10 +1376,10 @@ const StreamViewer = ({ stream, onBack }) => {
               ))}
             </div>
           )}
-          <div ref={chatRefDesktop} className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 scrollbar-hide">
+          <div ref={chatRefDesktop} className="flex-1 overflow-hidden px-3 py-2 space-y-0.5">
             {chatMessages.length === 0 ? (
               <p className="text-xs text-blue-400/40 text-center py-8">Sé el primero en comentar...</p>
-            ) : chatMessages.map(msg => <ChatMessage key={msg.id} message={msg} />)}
+            ) : chatMessages.slice(-18).map(msg => <ChatMessage key={msg.id} message={msg} />)}
           </div>
           <div className="p-2 pb-[calc(env(safe-area-inset-bottom)+8px)] border-t border-white/5 bg-slate-900/90 backdrop-blur-xl">
             {isMuted && (
