@@ -810,7 +810,7 @@ const StreamViewer = ({ stream, onBack }) => {
   const [missingGiftTable, setMissingGiftTable] = useState(false);
   const [giftRanking, setGiftRanking] = useState([]);
   const [fishGiftAnimations, setFishGiftAnimations] = useState([]);
-  const [mobileChatExpanded, setMobileChatExpanded] = useState(true);
+  const [mobileChatExpanded, setMobileChatExpanded] = useState(false);
   const chatRefDesktop = useRef(null);
   const chatRefMobile = useRef(null);
   const heartId = useRef(0);
@@ -1178,7 +1178,7 @@ const StreamViewer = ({ stream, onBack }) => {
   const removeHeart = useCallback((id) => setHearts(prev => prev.filter(h => h !== id)), []);
 
   return (
-    <div className="h-[calc(100dvh-72px)] md:h-[calc(100dvh-76px)] bg-slate-950 flex flex-col overflow-hidden">
+    <div className="h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)] bg-slate-950 flex flex-col overflow-hidden">
       {/* Top bar */}
       <div className="flex items-center justify-between px-3 py-2 bg-slate-900/80 border-b border-white/5 z-40">
         <button onClick={() => onBack()} className="p-2 text-blue-300 hover:text-white transition-colors">
@@ -1268,7 +1268,7 @@ const StreamViewer = ({ stream, onBack }) => {
 
       <div className="relative flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
         {/* Video area - real WebRTC video from broadcaster */}
-        <div className="relative flex-1 bg-black flex items-center justify-center min-h-[28vh] md:min-h-0 overflow-hidden">
+        <div className="relative flex-1 bg-black flex items-center justify-center min-h-0 overflow-hidden">
           {!stats.is_live && (
             <div className="absolute inset-0 bg-black/60 z-20 flex items-center justify-center">
               <p className="text-white font-bold text-lg">La transmisión ha finalizado</p>
@@ -1326,7 +1326,7 @@ const StreamViewer = ({ stream, onBack }) => {
           </button>
 
           {/* Streamer overlay */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pb-24 md:pb-4 z-10">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pb-14 md:pb-4 z-10">
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10 border-2 border-red-500">
                 <AvatarImage src={stream.user?.foto_perfil} />
@@ -1362,7 +1362,7 @@ const StreamViewer = ({ stream, onBack }) => {
                     ))}
                   </div>
                 )}
-                <div ref={chatRefMobile} className="max-h-[24vh] overflow-hidden px-3 py-2 space-y-0.5">
+                <div ref={chatRefMobile} className="max-h-[18vh] overflow-hidden px-3 py-2 space-y-0.5">
                   {chatMessages.length === 0 ? (
                     <p className="text-xs text-blue-300/60 text-center py-4">Se el primero en comentar...</p>
                   ) : chatMessages.slice(-16).map(msg => <ChatMessage key={msg.id} message={msg} />)}
@@ -1974,6 +1974,15 @@ const LiveStreamPage = () => {
   const liveCount = otherStreams.length;
   const viewersCount = otherStreams.reduce((acc, stream) => acc + (stream.viewer_count || 0), 0);
   const popularCategory = liveCount > 0 ? otherStreams[0]?.category || '-' : '-';
+
+  useEffect(() => {
+    if (!viewingStream) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [viewingStream]);
 
   if (viewingStream) {
     return <StreamViewer stream={viewingStream} onBack={() => { setViewingStream(null); fetchStreams(); }} />;
