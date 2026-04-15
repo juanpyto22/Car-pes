@@ -34,6 +34,7 @@ const TEXT_COLORS = [
 ];
 
 const LIVE_CATEGORIES = ['Pesca', 'Carpfishing', 'Spinning', 'Tutorials', 'Unboxing', 'Cocina', 'Naturaleza'];
+const FRAME_MSG_PREFIX = '__frame__:';
 
 const escapeXml = (value = '') => value
   .replace(/&/g, '&amp;')
@@ -155,6 +156,8 @@ const CameraPage = () => {
   const textareaRef = useRef(null);
   const chatPanelRef = useRef(null);
   const liveChatChannelRef = useRef(null);
+  const liveFrameIntervalRef = useRef(null);
+  const liveFrameCanvasRef = useRef(null);
 
   const closeLiveStatsChannel = useCallback(() => {
     if (liveStatsChannelRef.current) {
@@ -790,9 +793,16 @@ const CameraPage = () => {
 
   const handleEndLive = async () => {
     clearInterval(liveIntervalRef.current);
+    if (liveFrameIntervalRef.current) {
+      clearInterval(liveFrameIntervalRef.current);
+      liveFrameIntervalRef.current = null;
+    }
     closeLiveStatsChannel();
     if (streamData?.id) {
       await supabase.from('live_stream_viewers').delete().eq('stream_id', streamData.id);
+      await supabase.from('live_stream_likes').delete().eq('stream_id', streamData.id);
+      await supabase.from('live_chat_messages').delete().eq('stream_id', streamData.id);
+      await supabase.from('live_stream_gifts').delete().eq('stream_id', streamData.id);
       await supabase.from('live_stream_bans').delete().eq('stream_id', streamData.id);
       await supabase.from('live_stream_mutes').delete().eq('stream_id', streamData.id);
       await supabase.from('live_stream_moderators').delete().eq('stream_id', streamData.id);
@@ -828,8 +838,10 @@ const CameraPage = () => {
           .order('created_at', { ascending: true })
           .limit(200);
 
+        const chatRows = (data || []).filter((m) => !(m.message || '').startsWith(FRAME_MSG_PREFIX));
+
         if (active) {
-          const userIds = [...new Set((data || []).map(m => m.user_id))];
+          const userIds = [...new Set(chatRows.map(m => m.user_id))];
           if (userIds.length > 0) {
             const { data: profiles } = await supabase
               .from('profiles')
@@ -839,12 +851,12 @@ const CameraPage = () => {
             const pMap = {};
             (profiles || []).forEach(p => { pMap[p.id] = p; });
 
-            setLiveChatMessages((data || []).map(m => ({
+            setLiveChatMessages(chatRows.map(m => ({
               ...m,
               user: pMap[m.user_id] || { id: m.user_id, username: 'Usuario' }
             })));
           } else {
-            setLiveChatMessages(data || []);
+            setLiveChatMessages(chatRows);
           }
         }
       } catch (err) {
@@ -863,6 +875,7 @@ const CameraPage = () => {
         filter: `stream_id=eq.${streamData.id}`,
       }, async (payload) => {
         const msg = payload.new;
+        if ((msg.message || '').startsWith(FRAME_MSG_PREFIX)) return;
         const { data: profile } = await supabase
           .from('profiles')
           .select('id, username, nombre, foto_perfil')
@@ -885,6 +898,64 @@ const CameraPage = () => {
       supabase.removeChannel(channel);
     };
   }, [streamData?.id]);
+
+  // Simple camera broadcast fallback: send periodic frame snapshots to this stream.
+  useEffect(() => {
+    if (!isLive || !streamData?.id || !user?.id || mode !== 'EN VIVO') return;
+
+    if (!liveFrameCanvasRef.current) {
+      liveFrameCanvasRef.current = document.createElement('canvas');
+    }
+
+    if (liveFrameIntervalRef.current) {
+      clearInterval(liveFrameIntervalRef.current);
+      liveFrameIntervalRef.current = null;
+    }
+
+    liveFrameIntervalRef.current = setInterval(async () => {
+      const video = videoRef.current;
+      if (!video || !video.videoWidth || !video.videoHeight) return;
+
+      try {
+        const canvas = liveFrameCanvasRef.current;
+        const targetWidth = 256;
+        const ratio = video.videoHeight / video.videoWidth;
+        const targetHeight = Math.max(144, Math.round(targetWidth * ratio));
+
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        if (facingMode === 'user') {
+          ctx.save();
+          ctx.translate(targetWidth, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+          ctx.restore();
+        } else {
+          ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+        }
+
+        const frame = canvas.toDataURL('image/jpeg', 0.28);
+        await supabase.from('live_chat_messages').insert({
+          stream_id: streamData.id,
+          user_id: user.id,
+          message: `${FRAME_MSG_PREFIX}${frame}`,
+        });
+      } catch (err) {
+        console.error('Error sending frame fallback:', err);
+      }
+    }, 1200);
+
+    return () => {
+      if (liveFrameIntervalRef.current) {
+        clearInterval(liveFrameIntervalRef.current);
+        liveFrameIntervalRef.current = null;
+      }
+    };
+  }, [isLive, streamData?.id, user?.id, mode, facingMode]);
 
   // Auto-scroll chat
   useEffect(() => {

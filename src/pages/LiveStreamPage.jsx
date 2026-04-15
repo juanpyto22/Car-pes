@@ -10,6 +10,7 @@ import { es } from 'date-fns/locale';
 import { useBroadcaster, useViewer } from '@/hooks/useWebRTC';
 
 const CATEGORIES = ['Todos', 'Carpas', 'Spinning', 'Tutoriales', 'Siluros', 'Trucha', 'Black Bass', 'Mar', 'General'];
+const FRAME_MSG_PREFIX = '__frame__:';
 const GIFT_OPTIONS = [
   { id: 'fish_rose', label: 'Pez Rosa', value: 10, icon: 'fish' },
   { id: 'fish_gold', label: 'Pez Dorado', value: 50, icon: 'fish' },
@@ -104,6 +105,9 @@ const streamOps = {
   async end(streamId) {
     try {
       await supabase.from('live_stream_viewers').delete().eq('stream_id', streamId);
+      await supabase.from('live_stream_likes').delete().eq('stream_id', streamId);
+      await supabase.from('live_chat_messages').delete().eq('stream_id', streamId);
+      await supabase.from('live_stream_gifts').delete().eq('stream_id', streamId);
       await supabase.from('live_streams').update({ is_live: false, ended_at: new Date().toISOString() }).eq('id', streamId);
     } catch (err) {
       console.error('Error ending stream:', err);
@@ -327,7 +331,10 @@ const streamOps = {
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
-      const userIds = [...new Set(data.map(m => m.user_id))];
+      const chatRows = data.filter((m) => !(m.message || '').startsWith(FRAME_MSG_PREFIX));
+      if (chatRows.length === 0) return [];
+
+      const userIds = [...new Set(chatRows.map(m => m.user_id))];
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, username, nombre, foto_perfil')
@@ -336,10 +343,31 @@ const streamOps = {
       const pMap = {};
       (profiles || []).forEach(p => { pMap[p.id] = p; });
 
-      return data.map(m => ({ ...m, user: pMap[m.user_id] || { id: m.user_id, username: 'Usuario' } }));
+      return chatRows.map(m => ({ ...m, user: pMap[m.user_id] || { id: m.user_id, username: 'Usuario' } }));
     } catch (err) {
       console.error('Error fetching chat:', err);
       return [];
+    }
+  },
+
+  async fetchLatestFrame(streamId) {
+    try {
+      const { data, error } = await supabase
+        .from('live_chat_messages')
+        .select('message, created_at')
+        .eq('stream_id', streamId)
+        .like('message', `${FRAME_MSG_PREFIX}%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      const raw = data?.message || '';
+      if (!raw.startsWith(FRAME_MSG_PREFIX)) return null;
+      return raw.slice(FRAME_MSG_PREFIX.length);
+    } catch (err) {
+      console.error('Error fetching frame fallback:', err);
+      return null;
     }
   },
 
@@ -385,6 +413,7 @@ const useRealtimeChat = (streamId) => {
         filter: `stream_id=eq.${streamId}`,
       }, async (payload) => {
         const msg = payload.new;
+        if ((msg.message || '').startsWith(FRAME_MSG_PREFIX)) return;
         const { data: profile } = await supabase
           .from('profiles').select('id, username, nombre, foto_perfil').eq('id', msg.user_id).single();
         if (mounted) {
@@ -599,6 +628,7 @@ const StreamViewer = ({ stream, onBack }) => {
 
   // WebRTC: connect to broadcaster and receive video
   const { remoteStream, fallbackFrame, connectionState } = useViewer(stream.id);
+  const [dbFallbackFrame, setDbFallbackFrame] = useState(null);
 
   // Attach remote stream to video element
   useEffect(() => {
@@ -771,6 +801,45 @@ const StreamViewer = ({ stream, onBack }) => {
     }
   }, [stats.is_live, onBack]);
 
+  useEffect(() => {
+    if (!stream?.id) return;
+    let active = true;
+
+    const loadFrame = async () => {
+      const frame = await streamOps.fetchLatestFrame(stream.id);
+      if (!active || !frame) return;
+      setDbFallbackFrame(frame);
+    };
+
+    loadFrame();
+
+    const frameChannel = supabase
+      .channel(`stream-frames-${stream.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'live_chat_messages',
+        filter: `stream_id=eq.${stream.id}`,
+      }, (payload) => {
+        const raw = payload.new?.message || '';
+        if (!raw.startsWith(FRAME_MSG_PREFIX)) return;
+        if (!active) return;
+        setDbFallbackFrame(raw.slice(FRAME_MSG_PREFIX.length));
+      })
+      .subscribe();
+
+    const pollId = setInterval(() => {
+      loadFrame();
+    }, 1200);
+
+    return () => {
+      active = false;
+      clearInterval(pollId);
+      supabase.removeChannel(frameChannel);
+      setDbFallbackFrame(null);
+    };
+  }, [stream?.id]);
+
   const handleSend = async () => {
     if (!newMessage.trim() || !user) return;
     if (isMuted) return;
@@ -846,9 +915,9 @@ const StreamViewer = ({ stream, onBack }) => {
               playsInline
               className="w-full h-full object-cover md:object-contain"
             />
-          ) : fallbackFrame ? (
+          ) : (fallbackFrame || dbFallbackFrame) ? (
             <img
-              src={fallbackFrame}
+              src={fallbackFrame || dbFallbackFrame}
               alt="Retransmision en directo"
               className="w-full h-full object-cover md:object-contain"
             />
