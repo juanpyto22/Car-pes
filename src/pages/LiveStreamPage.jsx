@@ -1178,9 +1178,9 @@ const StreamViewer = ({ stream, onBack }) => {
   const removeHeart = useCallback((id) => setHearts(prev => prev.filter(h => h !== id)), []);
 
   return (
-    <div className="h-full min-h-0 bg-slate-950 flex flex-col overflow-hidden">
+    <div className="h-[calc(100dvh-72px)] md:h-[calc(100dvh-76px)] bg-slate-950 flex flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-slate-900/80 border-b border-white/5 sticky top-0 z-40">
+      <div className="flex items-center justify-between px-3 py-2 bg-slate-900/80 border-b border-white/5 z-40">
         <button onClick={() => onBack()} className="p-2 text-blue-300 hover:text-white transition-colors">
           <ChevronLeft className="w-5 h-5" />
         </button>
@@ -1268,7 +1268,7 @@ const StreamViewer = ({ stream, onBack }) => {
 
       <div className="relative flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
         {/* Video area - real WebRTC video from broadcaster */}
-        <div className="relative flex-1 bg-black flex items-center justify-center min-h-[40vh] md:min-h-0">
+        <div className="relative flex-1 bg-black flex items-center justify-center min-h-[28vh] md:min-h-0 overflow-hidden">
           {!stats.is_live && (
             <div className="absolute inset-0 bg-black/60 z-20 flex items-center justify-center">
               <p className="text-white font-bold text-lg">La transmisión ha finalizado</p>
