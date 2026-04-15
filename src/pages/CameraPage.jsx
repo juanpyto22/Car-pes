@@ -35,6 +35,50 @@ const TEXT_COLORS = [
 const LIVE_CATEGORIES = ['Pesca', 'Carpfishing', 'Spinning', 'Tutorials', 'Unboxing', 'Cocina', 'Naturaleza'];
 const FRAME_MSG_PREFIX = '__frame__:';
 
+const useSmoothCounter = (target, duration = 260) => {
+  const [value, setValue] = useState(Math.max(0, Number(target) || 0));
+  const rafRef = useRef(null);
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    const nextTarget = Math.max(0, Number(target) || 0);
+    const startValue = valueRef.current;
+    const delta = nextTarget - startValue;
+
+    if (delta === 0) return;
+
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    const startAt = performance.now();
+
+    const tick = (now) => {
+      const progress = Math.min(1, (now - startAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(startValue + (delta * eased));
+      setValue(current);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        rafRef.current = null;
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [target, duration]);
+
+  return value;
+};
+
 const escapeXml = (value = '') => value
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -203,6 +247,8 @@ const CameraPage = () => {
   const [liveDuration, setLiveDuration] = useState(0);
   const [liveViewers, setLiveViewers] = useState(0);
   const [liveLikes, setLiveLikes] = useState(0);
+  const smoothLiveViewers = useSmoothCounter(liveViewers);
+  const smoothLiveLikes = useSmoothCounter(liveLikes);
   const [showLiveSetup, setShowLiveSetup] = useState(true);
   const [showViewersPanel, setShowViewersPanel] = useState(false);
   const [showChatPanel, setShowChatPanel] = useState(false);
@@ -1261,7 +1307,7 @@ const CameraPage = () => {
                      className="flex items-center gap-0.5 text-[10px] text-white bg-black/40 px-1.5 py-0.5 rounded hover:bg-black/60 transition-colors"
                     title="Ver espectadores"
                   >
-                    <Eye className="w-3 h-3" />{liveViewers}
+                    <Eye className="w-3 h-3" />{smoothLiveViewers}
                   </button>
                    <button
                      type="button"
@@ -1272,7 +1318,7 @@ const CameraPage = () => {
                      <MessageCircle className="w-3 h-3" />{liveChatMessages.length}
                    </button>
                   <span className="flex items-center gap-0.5 text-[10px] text-red-300 bg-black/40 px-1.5 py-0.5 rounded">
-                    <Heart className="w-3 h-3" />{liveLikes}
+                    <Heart className="w-3 h-3" />{smoothLiveLikes}
                   </span>
                 </div>
               )}

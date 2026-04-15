@@ -17,6 +17,50 @@ const GIFT_OPTIONS = [
   { id: 'fishing_rod', label: 'Cana Pro', value: 120, icon: 'rod' },
 ];
 
+const useSmoothCounter = (target, duration = 260) => {
+  const [value, setValue] = useState(Math.max(0, Number(target) || 0));
+  const rafRef = useRef(null);
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    const nextTarget = Math.max(0, Number(target) || 0);
+    const startValue = valueRef.current;
+    const delta = nextTarget - startValue;
+
+    if (delta === 0) return;
+
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    const startAt = performance.now();
+
+    const tick = (now) => {
+      const progress = Math.min(1, (now - startAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(startValue + (delta * eased));
+      setValue(current);
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        rafRef.current = null;
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [target, duration]);
+
+  return value;
+};
+
 // ═══════════════════════════════════════════════════════════════
 // Helper: direct Supabase operations (avoids hook-in-callback issues)
 // ═══════════════════════════════════════════════════════════════
@@ -734,6 +778,8 @@ const StreamViewer = ({ stream, onBack }) => {
   const [dbFallbackFrame, setDbFallbackFrame] = useState(null);
   const [lastFrameAt, setLastFrameAt] = useState(0);
   const [frameStatus, setFrameStatus] = useState('waiting');
+  const smoothViewerCount = useSmoothCounter(stats.viewer_count);
+  const smoothLikeCount = useSmoothCounter(stats.like_count);
 
   useEffect(() => {
     prevGiftIdsRef.current = new Set();
@@ -1055,8 +1101,8 @@ const StreamViewer = ({ stream, onBack }) => {
           ) : (
             <span className="text-xs text-gray-400 font-medium px-2.5 py-1 bg-slate-800 rounded-lg">FINALIZADO</span>
           )}
-          <span className="flex items-center gap-1 text-xs text-blue-300"><Eye className="w-3.5 h-3.5" /> {stats.viewer_count}</span>
-          <span className="flex items-center gap-1 text-xs text-red-400"><Heart className="w-3.5 h-3.5 fill-red-400" /> {stats.like_count}</span>
+          <span className="flex items-center gap-1 text-xs text-blue-300"><Eye className="w-3.5 h-3.5" /> {smoothViewerCount}</span>
+          <span className="flex items-center gap-1 text-xs text-red-400"><Heart className="w-3.5 h-3.5 fill-red-400" /> {smoothLikeCount}</span>
         </div>
         <div className="w-9" />
       </div>
