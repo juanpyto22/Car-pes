@@ -35,6 +35,7 @@ const TEXT_COLORS = [
 const LIVE_CATEGORIES = ['Pesca', 'Carpfishing', 'Spinning', 'Tutorials', 'Unboxing', 'Cocina', 'Naturaleza'];
 const FRAME_MSG_PREFIX = '__frame__:';
 const LIKE_MSG_PREFIX = '__like__:';
+const LIKE_MSG_PREFIX = '__like__:';
 
 const useSmoothCounter = (target, duration = 260) => {
   const [value, setValue] = useState(Math.max(0, Number(target) || 0));
@@ -268,6 +269,10 @@ const CameraPage = () => {
   const [liveChatMessages, setLiveChatMessages] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState('');
   const [fishGiftAnimations, setFishGiftAnimations] = useState([]);
+  const liveDonationMessages = liveChatMessages
+    .filter((msg) => /dono\s+.+?\s+\(\d+\s*pts\)/i.test(msg.message || ''))
+    .slice(-5)
+    .reverse();
 
   // Refs
   const videoRef = useRef(null);
@@ -763,8 +768,9 @@ const CameraPage = () => {
       setStreamData(createdStream);
       setIsLive(true);
       setShowLiveSetup(false);
-      setShowViewersPanel(false);
-      setShowChatPanel(false);
+      // Open live control panels by default so broadcaster can monitor viewers and chat immediately.
+      setShowViewersPanel(true);
+      setShowChatPanel(true);
       setLiveDuration(0);
       setLiveViewers(0);
       setLiveLikes(0);
@@ -1002,7 +1008,10 @@ const CameraPage = () => {
           .order('created_at', { ascending: true })
           .limit(200);
 
-        const chatRows = (data || []).filter((m) => !(m.message || '').startsWith(FRAME_MSG_PREFIX));
+        const chatRows = (data || []).filter((m) => {
+          const text = m.message || '';
+          return !text.startsWith(FRAME_MSG_PREFIX) && !text.startsWith(LIKE_MSG_PREFIX);
+        });
 
         if (active) {
           if (!liveChatHydratedRef.current) {
@@ -1044,7 +1053,7 @@ const CameraPage = () => {
         filter: `stream_id=eq.${streamData.id}`,
       }, async (payload) => {
         const msg = payload.new;
-        if ((msg.message || '').startsWith(FRAME_MSG_PREFIX)) return;
+        if ((msg.message || '').startsWith(FRAME_MSG_PREFIX) || (msg.message || '').startsWith(LIKE_MSG_PREFIX)) return;
         const { data: profile } = await supabase
           .from('profiles')
           .select('id, username, nombre, foto_perfil')
@@ -1055,7 +1064,7 @@ const CameraPage = () => {
           const messageText = msg.message || '';
           if (liveChatHydratedRef.current && !liveChatMessageIdsRef.current.has(msg.id)) {
             const fishMatch = messageText.match(/dono\s+(.+?)\s+\((\d+)\s*pts\)/i);
-            if (fishMatch && /(pez|fish)/i.test(fishMatch[1])) {
+            if (fishMatch) {
               spawnFishAnimation(fishMatch[1], Number(fishMatch[2]) || 0, `chat-${msg.id}`);
             }
           }
@@ -1533,7 +1542,7 @@ const CameraPage = () => {
               <div className="absolute right-3 top-16 z-30 w-[320px] max-w-[92vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl">
                 <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-cyan-300" /> Espectadores ({liveAudience.length})
+                    <Eye className="w-4 h-4 text-cyan-300" /> Espectadores ({smoothLiveViewers})
                   </h4>
                   <button onClick={() => setShowViewersPanel(false)} className="text-white/60 hover:text-white">
                     <X className="w-4 h-4" />
@@ -1598,6 +1607,19 @@ const CameraPage = () => {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+
+                {liveDonationMessages.length > 0 && (
+                  <div className="px-3 py-2 border-b border-white/10 bg-amber-500/10 space-y-1">
+                    <p className="text-[11px] font-bold text-amber-300 inline-flex items-center gap-1">
+                      <Gift className="w-3.5 h-3.5" /> Donaciones recientes
+                    </p>
+                    {liveDonationMessages.map((msg) => (
+                      <p key={`donation-${msg.id}`} className="text-[11px] text-amber-200/90 truncate">
+                        {(msg.user?.username || 'Usuario')}: {msg.message}
+                      </p>
+                    ))}
+                  </div>
+                )}
 
                 <div ref={chatPanelRef} className="flex-1 overflow-y-auto p-2 space-y-0.5">
                   {liveChatMessages.length === 0 ? (
