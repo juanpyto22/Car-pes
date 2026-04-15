@@ -839,14 +839,6 @@ const StreamViewer = ({ stream, onBack }) => {
   }, [stream?.id]);
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
-
-  useEffect(() => {
     const previous = prevViewerCountRef.current;
     const current = stats.viewer_count || 0;
     const delta = current - previous;
@@ -1186,7 +1178,7 @@ const StreamViewer = ({ stream, onBack }) => {
   const removeHeart = useCallback((id) => setHearts(prev => prev.filter(h => h !== id)), []);
 
   return (
-    <div className="h-[100dvh] bg-slate-950 flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 bg-slate-950 flex flex-col overflow-hidden">
       {/* Top bar */}
       <div className="flex items-center justify-between px-3 py-2 bg-slate-900/80 border-b border-white/5 sticky top-0 z-40">
         <button onClick={() => onBack()} className="p-2 text-blue-300 hover:text-white transition-colors">
