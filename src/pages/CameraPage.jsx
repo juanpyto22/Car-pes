@@ -4,7 +4,7 @@ import {
   X, Camera, FlipHorizontal2 as FlipCamera, Zap, ZapOff, Image,
   Radio, Type, Send, Circle, Square, ChevronDown, ChevronUp,
   Sparkles, Video, StopCircle, Check, RotateCcw, Download,
-  Volume2, Mic, MicOff, Eye, Heart, MessageCircle, Clock, UserX, Shield, Fish,
+  Volume2, Mic, MicOff, Eye, Heart, MessageCircle, Clock, UserX, Shield, Fish, Gift,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
