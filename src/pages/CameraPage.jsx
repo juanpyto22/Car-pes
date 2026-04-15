@@ -313,6 +313,7 @@ const CameraPage = () => {
   const liveFrameCanvasRef = useRef(null);
   const liveChatMessageIdsRef = useRef(new Set());
   const liveChatHydratedRef = useRef(false);
+  const cameraReadyTimeoutRef = useRef(null);
 
   useEffect(() => {
     const previous = prevLiveViewersRef.current;
@@ -360,6 +361,7 @@ const CameraPage = () => {
     return () => {
       if (viewerPulseTimeoutRef.current) clearTimeout(viewerPulseTimeoutRef.current);
       if (likePulseTimeoutRef.current) clearTimeout(likePulseTimeoutRef.current);
+      if (cameraReadyTimeoutRef.current) clearTimeout(cameraReadyTimeoutRef.current);
     };
   }, []);
 
@@ -496,6 +498,10 @@ const CameraPage = () => {
     if (cameraStream) {
       cameraStream.getTracks().forEach(t => t.stop());
     }
+    if (cameraReadyTimeoutRef.current) {
+      clearTimeout(cameraReadyTimeoutRef.current);
+      cameraReadyTimeoutRef.current = null;
+    }
     setCameraReady(false);
     setCameraError(null);
 
@@ -512,8 +518,8 @@ const CameraPage = () => {
       setCameraStream(stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play?.().catch(() => {});
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play?.().catch(() => {});
           setCameraReady(true);
         };
         videoRef.current.oncanplay = () => {
@@ -522,8 +528,18 @@ const CameraPage = () => {
         videoRef.current.onplaying = () => {
           setCameraReady(true);
         };
-        videoRef.current.play?.().catch(() => {});
       }
+
+      cameraReadyTimeoutRef.current = setTimeout(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
+          setCameraReady(true);
+          return;
+        }
+
+        setCameraError('La cámara está conectada pero no está entregando imagen. Revisa permisos o cambia de dispositivo.');
+      }, 2500);
     } catch (err) {
       console.error('Camera error:', err);
       setCameraError(err.message || 'No se pudo acceder a la cámara');
@@ -1347,7 +1363,7 @@ const CameraPage = () => {
       {mode !== 'TEXTO' && (
         <div className="flex-1 min-h-0 flex flex-col relative md:flex-row md:items-stretch">
           {/* Camera Feed */}
-          <div className="flex-[1_1_auto] min-h-0 relative bg-black overflow-hidden md:w-[calc(100%-360px)] md:min-w-0">
+          <div className="flex-1 min-h-0 relative bg-black overflow-hidden md:w-[calc(100%-360px)] md:min-w-0">
             {/* Video element */}
             <video
               ref={videoRef}
