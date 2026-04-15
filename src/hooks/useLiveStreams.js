@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
 
+const LIKE_MSG_PREFIX = '__like__:';
+
 export const useLiveStreams = (currentUser) => {
   const [streams, setStreams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -156,13 +158,13 @@ export const useLiveStreams = (currentUser) => {
   const likeStream = useCallback(async (streamId) => {
     if (!currentUser || !streamId) return;
     try {
-      const { error } = await supabase
-        .from('live_stream_likes')
-        .insert({ stream_id: streamId, user_id: currentUser.id });
-
-      if (error && error.code !== '23505') {
-        throw error;
-      }
+      await supabase
+        .from('live_chat_messages')
+        .insert({
+          stream_id: streamId,
+          user_id: currentUser.id,
+          message: `${LIKE_MSG_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        });
 
       // Cumulative likes: every tap adds one like.
       let incremented = false;

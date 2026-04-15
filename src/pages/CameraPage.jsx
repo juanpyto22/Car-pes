@@ -34,6 +34,7 @@ const TEXT_COLORS = [
 
 const LIVE_CATEGORIES = ['Pesca', 'Carpfishing', 'Spinning', 'Tutorials', 'Unboxing', 'Cocina', 'Naturaleza'];
 const FRAME_MSG_PREFIX = '__frame__:';
+const LIKE_MSG_PREFIX = '__like__:';
 
 const useSmoothCounter = (target, duration = 260) => {
   const [value, setValue] = useState(Math.max(0, Number(target) || 0));
@@ -406,9 +407,10 @@ const CameraPage = () => {
     if (!streamId) return;
     const streamCounters = await fetchStreamCounters(streamId);
     const { count } = await supabase
-      .from('live_stream_likes')
+      .from('live_chat_messages')
       .select('id', { count: 'exact', head: true })
-      .eq('stream_id', streamId);
+      .eq('stream_id', streamId)
+      .like('message', `${LIKE_MSG_PREFIX}%`);
     setLiveLikes(Math.max(count || 0, streamCounters.like_count));
   }, [fetchStreamCounters]);
 
@@ -799,6 +801,9 @@ const CameraPage = () => {
             fetchLiveAudience(finalStreamId);
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'live_stream_likes', filter: `stream_id=eq.${finalStreamId}` }, () => {
+            fetchLiveLikes(finalStreamId);
+          })
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_chat_messages', filter: `stream_id=eq.${finalStreamId}` }, () => {
             fetchLiveLikes(finalStreamId);
           })
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_streams', filter: `id=eq.${finalStreamId}` }, () => {

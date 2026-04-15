@@ -11,6 +11,7 @@ import { useBroadcaster } from '@/hooks/useWebRTC';
 
 const CATEGORIES = ['Todos', 'Carpas', 'Spinning', 'Tutoriales', 'Siluros', 'Trucha', 'Black Bass', 'Mar', 'General'];
 const FRAME_MSG_PREFIX = '__frame__:';
+const LIKE_MSG_PREFIX = '__like__:';
 const GIFT_OPTIONS = [
   { id: 'fish_rose', label: 'Pez Rosa', value: 10, icon: 'fish' },
   { id: 'fish_gold', label: 'Pez Dorado', value: 50, icon: 'fish' },
@@ -215,10 +216,12 @@ const streamOps = {
 
   async like(streamId, userId) {
     try {
-      const { error } = await supabase.from('live_stream_likes').insert({ stream_id: streamId, user_id: userId });
-      if (error && error.code !== '23505') {
-        throw error;
-      }
+      // Register one like event per tap so every tap is counted.
+      await supabase.from('live_chat_messages').insert({
+        stream_id: streamId,
+        user_id: userId,
+        message: `${LIKE_MSG_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      });
 
       // Keep cumulative likes and avoid lost updates under concurrent taps.
       let incremented = false;
@@ -436,7 +439,10 @@ const streamOps = {
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
-      const chatRows = data.filter((m) => !(m.message || '').startsWith(FRAME_MSG_PREFIX));
+      const chatRows = data.filter((m) => {
+        const text = m.message || '';
+        return !text.startsWith(FRAME_MSG_PREFIX) && !text.startsWith(LIKE_MSG_PREFIX);
+      });
       if (chatRows.length === 0) return [];
 
       const userIds = [...new Set(chatRows.map(m => m.user_id))];
@@ -520,7 +526,7 @@ const useRealtimeChat = (streamId) => {
         filter: `stream_id=eq.${streamId}`,
       }, async (payload) => {
         const msg = payload.new;
-        if ((msg.message || '').startsWith(FRAME_MSG_PREFIX)) return;
+        if ((msg.message || '').startsWith(FRAME_MSG_PREFIX) || (msg.message || '').startsWith(LIKE_MSG_PREFIX)) return;
         const { data: profile } = await supabase
           .from('profiles').select('id, username, nombre, foto_perfil').eq('id', msg.user_id).single();
         if (mounted) {
@@ -561,9 +567,10 @@ const useRealtimeStats = (streamId) => {
           .select('id', { count: 'exact', head: true })
           .eq('stream_id', streamId),
         supabase
-          .from('live_stream_likes')
+          .from('live_chat_messages')
           .select('id', { count: 'exact', head: true })
-          .eq('stream_id', streamId),
+          .eq('stream_id', streamId)
+          .like('message', `${LIKE_MSG_PREFIX}%`),
       ]);
 
       if (!mounted) return;
@@ -595,6 +602,12 @@ const useRealtimeStats = (streamId) => {
       })
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'live_stream_likes',
+        filter: `stream_id=eq.${streamId}`,
+      }, () => {
+        refreshStats();
+      })
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'live_chat_messages',
         filter: `stream_id=eq.${streamId}`,
       }, () => {
         refreshStats();
@@ -826,6 +839,14 @@ const StreamViewer = ({ stream, onBack }) => {
   }, [stream?.id]);
 
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
     const previous = prevViewerCountRef.current;
     const current = stats.viewer_count || 0;
     const delta = current - previous;
@@ -1046,8 +1067,6 @@ const StreamViewer = ({ stream, onBack }) => {
     newMessages.forEach((msg) => {
       const match = (msg.message || '').match(/dono\s+(.+?)\s+\((\d+)\s*pts\)/i);
       if (!match) return;
-      if (!/(pez|fish)/i.test(match[1])) return;
-
       spawnFishAnimation(match[1], Number(match[2]) || 0, `chat-${msg.id}`);
     });
   }, [chatMessages, spawnFishAnimation]);
