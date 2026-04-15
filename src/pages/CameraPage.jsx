@@ -1311,9 +1311,9 @@ const CameraPage = () => {
       {/* CAMERA MODE (HISTORIA + EN VIVO) */}
       {/* ═══════════════════════════════════════════════════ */}
       {mode !== 'TEXTO' && (
-        <div className="flex-1 flex flex-col relative">
+        <div className="flex-1 flex flex-col relative md:flex-row md:items-stretch">
           {/* Camera Feed */}
-          <div className="flex-1 relative bg-black overflow-hidden">
+          <div className="flex-1 relative bg-black overflow-hidden md:w-[calc(100%-380px)] md:min-w-0">
             {/* Video element */}
             <video
               ref={videoRef}
@@ -1552,7 +1552,7 @@ const CameraPage = () => {
             )}
 
             {mode === 'EN VIVO' && isLive && showViewersPanel && (
-              <div className="absolute right-3 top-16 z-30 w-[320px] max-w-[92vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl">
+              <div className="absolute right-3 top-16 z-30 w-[320px] max-w-[92vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl md:hidden">
                 <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
                     <Eye className="w-4 h-4 text-cyan-300" /> Espectadores ({smoothLiveViewers})
@@ -1611,7 +1611,7 @@ const CameraPage = () => {
 
             {/* LIVE ACTIVE: Chat Panel */}
             {mode === 'EN VIVO' && isLive && showChatPanel && (
-              <div className="absolute left-3 top-16 z-30 w-[320px] max-w-[92vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl flex flex-col max-h-[70vh]">
+              <div className="absolute left-3 top-16 z-30 w-[320px] max-w-[92vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl flex flex-col max-h-[70vh] md:hidden">
                 <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
                     <MessageCircle className="w-4 h-4 text-cyan-300" /> Chat en vivo
@@ -1688,6 +1688,84 @@ const CameraPage = () => {
               </div>
             )}
           </div>
+
+          {mode === 'EN VIVO' && isLive && (
+            <aside className="hidden md:flex w-[380px] shrink-0 flex-col border-l border-white/10 bg-[#0d1320]/95 backdrop-blur-xl overflow-hidden">
+              <div className="px-3 py-2.5 border-b border-white/10 flex items-center justify-between">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-cyan-300" /> Espectadores ({smoothLiveViewers})
+                </h4>
+                <span className="text-[10px] text-white/50">En vivo</span>
+              </div>
+
+              <div className="px-3 py-2 border-b border-white/10 bg-cyan-500/5">
+                <div className="flex items-center justify-between text-[11px] text-white/70">
+                  <span className="inline-flex items-center gap-1 text-cyan-300 font-semibold">
+                    <MessageCircle className="w-3.5 h-3.5" /> Chat en vivo
+                  </span>
+                  <span>{liveChatMessages.length} msgs</span>
+                </div>
+                <div className="mt-2 max-h-[20vh] overflow-hidden rounded-xl border border-white/5 bg-black/20 p-2 space-y-1">
+                  {liveDonationMessages.length > 0 ? (
+                    liveDonationMessages.slice(0, 3).map((msg) => (
+                      <p key={`desktop-donation-${msg.id}`} className="text-[11px] text-amber-200/90 truncate">
+                        {(msg.user?.username || 'Usuario')}: {msg.message}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-[11px] text-white/40">Las donaciones aparecerán aquí en tiempo real.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
+                  {liveAudience.length === 0 ? (
+                    <p className="text-xs text-white/50 text-center py-3">Aun no hay espectadores conectados.</p>
+                  ) : (
+                    liveAudience.map((viewer) => (
+                      <div key={viewer.user_id} className="flex items-center justify-between gap-2 rounded-xl bg-black/20 border border-white/10 px-2.5 py-2 mb-2 last:mb-0">
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate flex items-center gap-1.5">
+                            {viewer.profile?.username || viewer.profile?.nombre || 'usuario'}
+                            {liveModeratorUserIds.has(viewer.user_id) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">MOD</span>}
+                          </p>
+                          <p className="text-[10px] text-white/45 truncate">{viewer.user_id}</p>
+                        </div>
+                        <div className="text-[10px] text-white/50">Conectado</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <h5 className="text-xs font-bold text-white flex items-center gap-1">
+                      <MessageCircle className="w-3.5 h-3.5 text-cyan-300" /> Comentarios
+                    </h5>
+                    <span className="text-[10px] text-white/50">{liveChatMessages.length}</span>
+                  </div>
+                  <div ref={chatPanelRef} className="max-h-[30vh] overflow-y-auto space-y-1 pr-1">
+                    {liveChatMessages.length === 0 ? (
+                      <p className="text-xs text-blue-400/40 text-center py-6">Esperando mensajes...</p>
+                    ) : (
+                      liveChatMessages.slice(-40).map((msg) => {
+                        const colors = ['text-cyan-400', 'text-green-400', 'text-yellow-400', 'text-pink-400', 'text-purple-400', 'text-orange-400'];
+                        const name = msg.user?.username || 'Usuario';
+                        const color = colors[name.length % colors.length];
+                        return (
+                          <motion.div key={`desktop-${msg.id}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-start gap-2 py-1">
+                            <span className={`text-xs font-bold ${color} shrink-0`}>{name}</span>
+                            <span className="text-xs text-gray-300 break-words">{msg.message}</span>
+                          </motion.div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </aside>
+          )}
 
           {/* ── Bottom Controls ── */}
           <div className="bg-black pt-2 pb-[env(safe-area-inset-bottom)]">
