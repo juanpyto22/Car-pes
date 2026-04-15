@@ -965,7 +965,8 @@ const CameraPage = () => {
 
       try {
         const canvas = liveFrameCanvasRef.current;
-        const targetWidth = 640;
+        // Optimized dimensions: 512px width for faster processing & transmission
+        const targetWidth = 512;
         const ratio = video.videoHeight / video.videoWidth;
         const targetHeight = Math.max(360, Math.round(targetWidth * ratio));
 
@@ -985,7 +986,9 @@ const CameraPage = () => {
           ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
         }
 
-        const frame = canvas.toDataURL('image/webp', 0.58);
+        // Optimized frame capture: higher quality, faster interval for smooth streaming
+        // 512px @ 0.70 quality every 300ms = ~3.3 FPS smooth playback
+        const frame = canvas.toDataURL('image/webp', 0.70);
         await supabase.from('live_chat_messages').insert({
           stream_id: streamData.id,
           user_id: user.id,
@@ -994,7 +997,7 @@ const CameraPage = () => {
       } catch (err) {
         console.error('Error sending frame fallback:', err);
       }
-    }, 700);
+    }, 300);
 
     return () => {
       if (liveFrameIntervalRef.current) {

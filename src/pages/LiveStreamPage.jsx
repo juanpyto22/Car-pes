@@ -945,9 +945,10 @@ const StreamViewer = ({ stream, onBack }) => {
       })
       .subscribe();
 
+    // Optimized polling: 500ms instead of 1200ms for smoother frame updates
     const pollId = setInterval(() => {
       loadFrame();
-    }, 1200);
+    }, 500);
 
     return () => {
       active = false;
