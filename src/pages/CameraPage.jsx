@@ -456,6 +456,17 @@ const CameraPage = () => {
     ]);
   }, [fetchLiveAudience, fetchLiveLikes]);
 
+  // Fallback polling for host monitor in case realtime websocket fails.
+  useEffect(() => {
+    if (!isLive || !streamData?.id) return;
+
+    const pollId = setInterval(() => {
+      refreshLivePresence(streamData.id);
+    }, 1800);
+
+    return () => clearInterval(pollId);
+  }, [isLive, streamData?.id, refreshLivePresence]);
+
   const fetchMutedUsers = useCallback(async (streamId) => {
     if (!streamId) return;
     const { data, error } = await supabase
@@ -1081,6 +1092,13 @@ const CameraPage = () => {
 
     fetchChat();
 
+    const pollId = setInterval(() => {
+      fetchChat();
+      if (streamData?.id) {
+        refreshLivePresence(streamData.id);
+      }
+    }, 1800);
+
     const channel = supabase
       .channel(`camera-chat-${streamData.id}`)
       .on('postgres_changes', {
@@ -1119,9 +1137,10 @@ const CameraPage = () => {
 
     return () => {
       active = false;
+      clearInterval(pollId);
       supabase.removeChannel(channel);
     };
-  }, [streamData?.id, spawnFishAnimation]);
+  }, [streamData?.id, spawnFishAnimation, refreshLivePresence]);
 
   // Simple camera broadcast fallback: send periodic frame snapshots to this stream.
   useEffect(() => {
