@@ -253,8 +253,8 @@ const CameraPage = () => {
   const prevLiveLikesRef = useRef(0);
   const viewerPulseTimeoutRef = useRef(null);
   const likePulseTimeoutRef = useRef(null);
-  const [liveViewersRising, setLiveViewersRising] = useState(false);
-  const [liveLikesRising, setLiveLikesRising] = useState(false);
+  const [liveViewerPulseLevel, setLiveViewerPulseLevel] = useState('idle');
+  const [liveLikePulseLevel, setLiveLikePulseLevel] = useState('idle');
   const [liveViewerPulseKey, setLiveViewerPulseKey] = useState(0);
   const [liveLikePulseKey, setLiveLikePulseKey] = useState(0);
   const [showLiveSetup, setShowLiveSetup] = useState(true);
@@ -288,14 +288,16 @@ const CameraPage = () => {
   useEffect(() => {
     const previous = prevLiveViewersRef.current;
     const current = liveViewers || 0;
+    const delta = current - previous;
 
-    if (current > previous) {
-      setLiveViewersRising(true);
+    if (delta > 0) {
+      const level = delta >= 4 ? 'big' : 'small';
+      setLiveViewerPulseLevel(level);
       setLiveViewerPulseKey((prev) => prev + 1);
       if (viewerPulseTimeoutRef.current) clearTimeout(viewerPulseTimeoutRef.current);
       viewerPulseTimeoutRef.current = setTimeout(() => {
-        setLiveViewersRising(false);
-      }, 520);
+        setLiveViewerPulseLevel('idle');
+      }, level === 'big' ? 760 : 460);
     }
 
     prevLiveViewersRef.current = current;
@@ -304,14 +306,16 @@ const CameraPage = () => {
   useEffect(() => {
     const previous = prevLiveLikesRef.current;
     const current = liveLikes || 0;
+    const delta = current - previous;
 
-    if (current > previous) {
-      setLiveLikesRising(true);
+    if (delta > 0) {
+      const level = delta >= 6 ? 'big' : 'small';
+      setLiveLikePulseLevel(level);
       setLiveLikePulseKey((prev) => prev + 1);
       if (likePulseTimeoutRef.current) clearTimeout(likePulseTimeoutRef.current);
       likePulseTimeoutRef.current = setTimeout(() => {
-        setLiveLikesRising(false);
-      }, 520);
+        setLiveLikePulseLevel('idle');
+      }, level === 'big' ? 780 : 480);
     }
 
     prevLiveLikesRef.current = current;
@@ -1351,15 +1355,22 @@ const CameraPage = () => {
                   <motion.button
                     type="button"
                     onClick={() => setShowViewersPanel(v => !v)}
-                    animate={liveViewersRising ? { backgroundColor: 'rgba(16,185,129,0.24)', scale: [1, 1.06, 1] } : { backgroundColor: 'rgba(0,0,0,0.4)' }}
-                    transition={{ duration: 0.45, ease: 'easeOut' }}
-                    className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded transition-colors ${liveViewersRising ? 'text-emerald-200' : 'text-white'}`}
+                    animate={liveViewerPulseLevel !== 'idle'
+                      ? {
+                          backgroundColor: liveViewerPulseLevel === 'big' ? 'rgba(16,185,129,0.34)' : 'rgba(16,185,129,0.24)',
+                          scale: liveViewerPulseLevel === 'big' ? [1, 1.1, 1] : [1, 1.06, 1],
+                        }
+                      : { backgroundColor: 'rgba(0,0,0,0.4)' }}
+                    transition={{ duration: liveViewerPulseLevel === 'big' ? 0.62 : 0.42, ease: 'easeOut' }}
+                    className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded transition-colors ${liveViewerPulseLevel !== 'idle' ? 'text-emerald-200' : 'text-white'}`}
                     title="Ver espectadores"
                   >
                     <motion.span
                       key={`live-viewer-pulse-${liveViewerPulseKey}`}
-                      animate={liveViewersRising ? { scale: [1, 1.24, 1] } : { scale: 1 }}
-                      transition={{ duration: 0.38, ease: 'easeOut' }}
+                      animate={liveViewerPulseLevel !== 'idle'
+                        ? { scale: liveViewerPulseLevel === 'big' ? [1, 1.34, 1] : [1, 1.22, 1] }
+                        : { scale: 1 }}
+                      transition={{ duration: liveViewerPulseLevel === 'big' ? 0.52 : 0.34, ease: 'easeOut' }}
                     >
                       <Eye className="w-3 h-3" />
                     </motion.span>
@@ -1374,14 +1385,21 @@ const CameraPage = () => {
                      <MessageCircle className="w-3 h-3" />{liveChatMessages.length}
                    </button>
                   <motion.span
-                    animate={liveLikesRising ? { backgroundColor: 'rgba(239,68,68,0.24)', scale: [1, 1.06, 1] } : { backgroundColor: 'rgba(0,0,0,0.4)' }}
-                    transition={{ duration: 0.45, ease: 'easeOut' }}
-                    className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded ${liveLikesRising ? 'text-red-200' : 'text-red-300'}`}
+                    animate={liveLikePulseLevel !== 'idle'
+                      ? {
+                          backgroundColor: liveLikePulseLevel === 'big' ? 'rgba(239,68,68,0.34)' : 'rgba(239,68,68,0.24)',
+                          scale: liveLikePulseLevel === 'big' ? [1, 1.1, 1] : [1, 1.06, 1],
+                        }
+                      : { backgroundColor: 'rgba(0,0,0,0.4)' }}
+                    transition={{ duration: liveLikePulseLevel === 'big' ? 0.64 : 0.44, ease: 'easeOut' }}
+                    className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded ${liveLikePulseLevel !== 'idle' ? 'text-red-200' : 'text-red-300'}`}
                   >
                     <motion.span
                       key={`live-like-pulse-${liveLikePulseKey}`}
-                      animate={liveLikesRising ? { scale: [1, 1.24, 1] } : { scale: 1 }}
-                      transition={{ duration: 0.38, ease: 'easeOut' }}
+                      animate={liveLikePulseLevel !== 'idle'
+                        ? { scale: liveLikePulseLevel === 'big' ? [1, 1.36, 1] : [1, 1.24, 1] }
+                        : { scale: 1 }}
+                      transition={{ duration: liveLikePulseLevel === 'big' ? 0.56 : 0.36, ease: 'easeOut' }}
                     >
                       <Heart className="w-3 h-3 fill-current" />
                     </motion.span>

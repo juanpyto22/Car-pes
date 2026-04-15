@@ -784,8 +784,8 @@ const StreamViewer = ({ stream, onBack }) => {
   const prevLikeCountRef = useRef(stats.like_count || 0);
   const viewerPulseTimeoutRef = useRef(null);
   const likePulseTimeoutRef = useRef(null);
-  const [viewerCountRising, setViewerCountRising] = useState(false);
-  const [likeCountRising, setLikeCountRising] = useState(false);
+  const [viewerPulseLevel, setViewerPulseLevel] = useState('idle');
+  const [likePulseLevel, setLikePulseLevel] = useState('idle');
   const [viewerPulseKey, setViewerPulseKey] = useState(0);
   const [likePulseKey, setLikePulseKey] = useState(0);
 
@@ -799,14 +799,16 @@ const StreamViewer = ({ stream, onBack }) => {
   useEffect(() => {
     const previous = prevViewerCountRef.current;
     const current = stats.viewer_count || 0;
+    const delta = current - previous;
 
-    if (current > previous) {
-      setViewerCountRising(true);
+    if (delta > 0) {
+      const level = delta >= 4 ? 'big' : 'small';
+      setViewerPulseLevel(level);
       setViewerPulseKey((prev) => prev + 1);
       if (viewerPulseTimeoutRef.current) clearTimeout(viewerPulseTimeoutRef.current);
       viewerPulseTimeoutRef.current = setTimeout(() => {
-        setViewerCountRising(false);
-      }, 520);
+        setViewerPulseLevel('idle');
+      }, level === 'big' ? 760 : 460);
     }
 
     prevViewerCountRef.current = current;
@@ -815,14 +817,16 @@ const StreamViewer = ({ stream, onBack }) => {
   useEffect(() => {
     const previous = prevLikeCountRef.current;
     const current = stats.like_count || 0;
+    const delta = current - previous;
 
-    if (current > previous) {
-      setLikeCountRising(true);
+    if (delta > 0) {
+      const level = delta >= 6 ? 'big' : 'small';
+      setLikePulseLevel(level);
       setLikePulseKey((prev) => prev + 1);
       if (likePulseTimeoutRef.current) clearTimeout(likePulseTimeoutRef.current);
       likePulseTimeoutRef.current = setTimeout(() => {
-        setLikeCountRising(false);
-      }, 520);
+        setLikePulseLevel('idle');
+      }, level === 'big' ? 780 : 480);
     }
 
     prevLikeCountRef.current = current;
@@ -1149,28 +1153,42 @@ const StreamViewer = ({ stream, onBack }) => {
             <span className="text-xs text-gray-400 font-medium px-2.5 py-1 bg-slate-800 rounded-lg">FINALIZADO</span>
           )}
           <motion.span
-            animate={viewerCountRising ? { backgroundColor: 'rgba(16,185,129,0.22)', scale: [1, 1.06, 1] } : { backgroundColor: 'rgba(0,0,0,0)' }}
-            transition={{ duration: 0.45, ease: 'easeOut' }}
-            className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${viewerCountRising ? 'text-emerald-300' : 'text-blue-300'}`}
+            animate={viewerPulseLevel !== 'idle'
+              ? {
+                  backgroundColor: viewerPulseLevel === 'big' ? 'rgba(16,185,129,0.34)' : 'rgba(16,185,129,0.22)',
+                  scale: viewerPulseLevel === 'big' ? [1, 1.1, 1] : [1, 1.06, 1],
+                }
+              : { backgroundColor: 'rgba(0,0,0,0)' }}
+            transition={{ duration: viewerPulseLevel === 'big' ? 0.62 : 0.42, ease: 'easeOut' }}
+            className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${viewerPulseLevel !== 'idle' ? 'text-emerald-200' : 'text-blue-300'}`}
           >
             <motion.span
               key={`viewer-pulse-${viewerPulseKey}`}
-              animate={viewerCountRising ? { scale: [1, 1.24, 1] } : { scale: 1 }}
-              transition={{ duration: 0.38, ease: 'easeOut' }}
+              animate={viewerPulseLevel !== 'idle'
+                ? { scale: viewerPulseLevel === 'big' ? [1, 1.34, 1] : [1, 1.22, 1] }
+                : { scale: 1 }}
+              transition={{ duration: viewerPulseLevel === 'big' ? 0.52 : 0.34, ease: 'easeOut' }}
             >
               <Eye className="w-3.5 h-3.5" />
             </motion.span>
             {smoothViewerCount}
           </motion.span>
           <motion.span
-            animate={likeCountRising ? { backgroundColor: 'rgba(239,68,68,0.22)', scale: [1, 1.06, 1] } : { backgroundColor: 'rgba(0,0,0,0)' }}
-            transition={{ duration: 0.45, ease: 'easeOut' }}
-            className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${likeCountRising ? 'text-red-300' : 'text-red-400'}`}
+            animate={likePulseLevel !== 'idle'
+              ? {
+                  backgroundColor: likePulseLevel === 'big' ? 'rgba(239,68,68,0.34)' : 'rgba(239,68,68,0.22)',
+                  scale: likePulseLevel === 'big' ? [1, 1.1, 1] : [1, 1.06, 1],
+                }
+              : { backgroundColor: 'rgba(0,0,0,0)' }}
+            transition={{ duration: likePulseLevel === 'big' ? 0.64 : 0.44, ease: 'easeOut' }}
+            className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${likePulseLevel !== 'idle' ? 'text-red-200' : 'text-red-400'}`}
           >
             <motion.span
               key={`like-pulse-${likePulseKey}`}
-              animate={likeCountRising ? { scale: [1, 1.24, 1] } : { scale: 1 }}
-              transition={{ duration: 0.38, ease: 'easeOut' }}
+              animate={likePulseLevel !== 'idle'
+                ? { scale: likePulseLevel === 'big' ? [1, 1.36, 1] : [1, 1.24, 1] }
+                : { scale: 1 }}
+              transition={{ duration: likePulseLevel === 'big' ? 0.56 : 0.36, ease: 'easeOut' }}
             >
               <Heart className="w-3.5 h-3.5 fill-current" />
             </motion.span>
