@@ -4,7 +4,7 @@ import {
   X, Camera, FlipHorizontal2 as FlipCamera, Zap, ZapOff, Image,
   Radio, Type, Send, Circle, Square, ChevronDown, ChevronUp,
   Sparkles, Video, StopCircle, Check, RotateCcw, Download,
-  Volume2, Mic, MicOff, Eye, Heart, MessageCircle, Clock, UserX, Shield,
+  Volume2, Mic, MicOff, Eye, Heart, MessageCircle, Clock, UserX, Shield, Fish,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -81,6 +81,79 @@ const buildTextStorySvgBlob = ({ text, background, color, size, bold }) => {
   return new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
 };
 
+const FishGiftAnimation = ({ id, label, value, onComplete }) => (
+  <motion.div
+    initial={{ opacity: 0, scale: 0.15, x: 0, y: 140 }}
+    animate={{
+      opacity: [0, 1, 1, 0],
+      scale: [0.15, 1.12, 1.2, 0.75],
+      x: [0, -120, 120, 0],
+      y: [140, -170, 10, 180],
+      rotate: [0, -22, 18, 0],
+    }}
+    transition={{ duration: 2.05, times: [0, 0.28, 0.62, 1], ease: 'easeInOut' }}
+    onAnimationComplete={() => onComplete(id)}
+    className="fixed inset-0 z-40 pointer-events-none flex items-center justify-center"
+  >
+    <div className="relative flex flex-col items-center">
+      {[
+        { x: -62, y: -34, delay: 0.03 },
+        { x: 68, y: -24, delay: 0.08 },
+        { x: -48, y: 42, delay: 0.12 },
+        { x: 56, y: 50, delay: 0.16 },
+      ].map((particle, index) => (
+        <motion.span
+          key={`${id}-spark-${index}`}
+          initial={{ opacity: 0, scale: 0.2, x: 0, y: 0 }}
+          animate={{
+            opacity: [0, 1, 0],
+            scale: [0.2, 1, 0.3],
+            x: [0, particle.x, particle.x * 1.15],
+            y: [0, particle.y, particle.y * 1.1],
+          }}
+          transition={{ duration: 1.1, delay: particle.delay, ease: 'easeOut' }}
+          className="absolute h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_14px_rgba(103,232,249,0.95)]"
+        />
+      ))}
+
+      <motion.div
+        initial={{ opacity: 0.12, scale: 0.4 }}
+        animate={{ opacity: [0.12, 0.95, 0], scale: [0.4, 1.45, 1.9] }}
+        transition={{ duration: 2.05, times: [0, 0.34, 1], ease: 'easeOut' }}
+        className="absolute inset-0 -z-10 rounded-full bg-cyan-400/20 blur-2xl"
+      />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.6, y: 16 }}
+        animate={{ opacity: [0, 1, 0], scale: [0.55, 1.05, 1.15], y: [16, 0, -16] }}
+        transition={{ duration: 2.05, times: [0, 0.25, 1], ease: 'easeOut' }}
+        className="absolute -bottom-8 left-1/2 h-6 w-24 -translate-x-1/2 rounded-full bg-cyan-300/20 blur-xl"
+      />
+
+      <motion.div
+        initial={{ scale: 0.75, rotate: -10 }}
+        animate={{ scale: [0.75, 1.12, 1, 1.06], rotate: [-10, 10, -6, 0] }}
+        transition={{ duration: 2.05, times: [0, 0.22, 0.55, 1], ease: 'easeOut' }}
+      >
+        <Fish className="w-18 h-18 md:w-24 md:h-24 text-amber-300 drop-shadow-[0_0_26px_rgba(251,191,36,0.9)] fill-current" />
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.75 }}
+        animate={{ opacity: [0, 1, 0], scale: [0.75, 1.1, 0.85], y: [0, -2, -12] }}
+        transition={{ duration: 2.05, times: [0, 0.3, 1], ease: 'easeOut' }}
+        className="mt-2 rounded-full bg-slate-950/70 px-3 py-1 text-[10px] font-bold text-cyan-100 backdrop-blur-md border border-cyan-300/30 shadow-lg shadow-cyan-500/10"
+      >
+        <span className="inline-flex items-center gap-1">
+          <Sparkles className="w-3 h-3 text-amber-300" />
+          {label}
+          <span className="text-cyan-300">{value} pts</span>
+        </span>
+      </motion.div>
+    </div>
+  </motion.div>
+);
+
 const CameraPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -139,6 +212,7 @@ const CameraPage = () => {
   const [startingLive, setStartingLive] = useState(false);
   const [liveChatMessages, setLiveChatMessages] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState('');
+  const [fishGiftAnimations, setFishGiftAnimations] = useState([]);
 
   // Refs
   const videoRef = useRef(null);
@@ -154,6 +228,19 @@ const CameraPage = () => {
   const liveChatChannelRef = useRef(null);
   const liveFrameIntervalRef = useRef(null);
   const liveFrameCanvasRef = useRef(null);
+  const liveChatMessageIdsRef = useRef(new Set());
+  const liveChatHydratedRef = useRef(false);
+
+  const removeFishAnimation = useCallback((id) => {
+    setFishGiftAnimations((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const spawnFishAnimation = useCallback((label, value, key) => {
+    setFishGiftAnimations((prev) => {
+      if (prev.some((item) => item.id === key)) return prev;
+      return [...prev, { id: key, label, value }].slice(-4);
+    });
+  }, []);
 
   const closeLiveStatsChannel = useCallback(() => {
     if (liveStatsChannelRef.current) {
@@ -503,86 +590,22 @@ const CameraPage = () => {
         .eq('user_id', user.id)
         .eq('is_live', true);
 
-      let createdStream = null;
-
-      // Try to find existing inactive stream to reuse
-      const { data: existingLive } = await supabase
+      const { data: createdStream, error: createError } = await supabase
         .from('live_streams')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .insert({
+          user_id: user.id,
+          title: liveTitle.trim(),
+          category: liveCategory,
+          is_live: true,
+          started_at: nowIso,
+          viewer_count: 0,
+          like_count: 0,
+        })
+        .select()
+        .single();
 
-      if (existingLive?.id) {
-        // Update existing stream to be live
-        const { data: updateData, error: updateError } = await supabase
-          .from('live_streams')
-          .update({
-            title: liveTitle.trim(),
-            category: liveCategory,
-            is_live: true,
-            started_at: existingLive.started_at || nowIso,
-          })
-          .eq('id', existingLive.id)
-          .select()
-          .single();
-
-        if (!updateError && updateData) {
-          createdStream = updateData;
-        }
-      }
-
-      // If no existing stream, create new one
-      if (!createdStream) {
-        const { data: newStream, error: insertError } = await supabase
-          .from('live_streams')
-          .insert({
-            user_id: user.id,
-            title: liveTitle.trim(),
-            category: liveCategory,
-            is_live: true,
-            started_at: nowIso,
-            viewer_count: 0,
-            like_count: 0,
-          })
-          .select()
-          .single();
-
-        if (!insertError && newStream) {
-          createdStream = newStream;
-        }
-      }
-
-      // Last resort: try one more insert attempt
-      if (!createdStream) {
-        await supabase
-          .from('live_streams')
-          .update({
-            is_live: false,
-            ended_at: nowIso,
-          })
-          .eq('user_id', user.id);
-
-        const { data: finalStream, error: finalError } = await supabase
-          .from('live_streams')
-          .insert({
-            user_id: user.id,
-            title: liveTitle.trim(),
-            category: liveCategory,
-            is_live: true,
-            started_at: nowIso,
-            viewer_count: 0,
-            like_count: 0,
-          })
-          .select()
-          .single();
-
-        if (finalError) {
-          throw new Error(`No se pudo crear el directo: ${finalError.message}`);
-        }
-
-        createdStream = finalStream;
+      if (createError || !createdStream) {
+        throw new Error(`No se pudo crear el directo: ${createError?.message || 'respuesta vacia'}`);
       }
 
       if (!createdStream) {
@@ -622,12 +645,18 @@ const CameraPage = () => {
       setIsLive(true);
       setShowLiveSetup(false);
       setShowViewersPanel(false);
+      setShowChatPanel(false);
       setLiveDuration(0);
       setLiveViewers(0);
       setLiveLikes(0);
       setLiveAudience([]);
       setLiveMutedUserIds(new Set());
       setLiveModeratorUserIds(new Set());
+      setLiveChatMessages([]);
+      setNewChatMessage('');
+      setFishGiftAnimations([]);
+      liveChatMessageIdsRef.current = new Set();
+      liveChatHydratedRef.current = false;
 
       // Duration counter
       liveIntervalRef.current = setInterval(() => {
@@ -817,6 +846,10 @@ const CameraPage = () => {
     setLiveAudience([]);
     setLiveMutedUserIds(new Set());
     setLiveModeratorUserIds(new Set());
+    setLiveChatMessages([]);
+    setFishGiftAnimations([]);
+    liveChatMessageIdsRef.current = new Set();
+    liveChatHydratedRef.current = false;
     navigate('/live');
   };
 
@@ -824,6 +857,10 @@ const CameraPage = () => {
   useEffect(() => {
     if (!streamData?.id) return;
     let active = true;
+
+    setLiveChatMessages([]);
+    liveChatMessageIdsRef.current = new Set();
+    liveChatHydratedRef.current = false;
 
     const fetchChat = async () => {
       try {
@@ -837,6 +874,11 @@ const CameraPage = () => {
         const chatRows = (data || []).filter((m) => !(m.message || '').startsWith(FRAME_MSG_PREFIX));
 
         if (active) {
+          if (!liveChatHydratedRef.current) {
+            liveChatMessageIdsRef.current = new Set(chatRows.map((m) => m.id));
+            liveChatHydratedRef.current = true;
+          }
+
           const userIds = [...new Set(chatRows.map(m => m.user_id))];
           if (userIds.length > 0) {
             const { data: profiles } = await supabase
@@ -879,6 +921,15 @@ const CameraPage = () => {
           .single();
 
         if (active) {
+          const messageText = msg.message || '';
+          if (liveChatHydratedRef.current && !liveChatMessageIdsRef.current.has(msg.id)) {
+            const fishMatch = messageText.match(/dono\s+(.+?)\s+\((\d+)\s*pts\)/i);
+            if (fishMatch && /(pez|fish)/i.test(fishMatch[1])) {
+              spawnFishAnimation(fishMatch[1], Number(fishMatch[2]) || 0, `chat-${msg.id}`);
+            }
+          }
+
+          liveChatMessageIdsRef.current = new Set([...liveChatMessageIdsRef.current, msg.id]);
           setLiveChatMessages(prev => [
             ...prev.slice(-200),
             { ...msg, user: profile || { id: msg.user_id, username: 'Usuario' } }
@@ -893,7 +944,7 @@ const CameraPage = () => {
       active = false;
       supabase.removeChannel(channel);
     };
-  }, [streamData?.id]);
+  }, [streamData?.id, spawnFishAnimation]);
 
   // Simple camera broadcast fallback: send periodic frame snapshots to this stream.
   useEffect(() => {
@@ -914,9 +965,9 @@ const CameraPage = () => {
 
       try {
         const canvas = liveFrameCanvasRef.current;
-        const targetWidth = 256;
+        const targetWidth = 640;
         const ratio = video.videoHeight / video.videoWidth;
-        const targetHeight = Math.max(144, Math.round(targetWidth * ratio));
+        const targetHeight = Math.max(360, Math.round(targetWidth * ratio));
 
         canvas.width = targetWidth;
         canvas.height = targetHeight;
@@ -934,7 +985,7 @@ const CameraPage = () => {
           ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
         }
 
-        const frame = canvas.toDataURL('image/jpeg', 0.28);
+        const frame = canvas.toDataURL('image/webp', 0.58);
         await supabase.from('live_chat_messages').insert({
           stream_id: streamData.id,
           user_id: user.id,
@@ -943,7 +994,7 @@ const CameraPage = () => {
       } catch (err) {
         console.error('Error sending frame fallback:', err);
       }
-    }, 1200);
+    }, 700);
 
     return () => {
       if (liveFrameIntervalRef.current) {
@@ -1387,6 +1438,18 @@ const CameraPage = () => {
                 </div>
               </div>
             )}
+
+            <AnimatePresence>
+              {fishGiftAnimations.map((anim) => (
+                <FishGiftAnimation
+                  key={anim.id}
+                  id={anim.id}
+                  label={anim.label}
+                  value={anim.value}
+                  onComplete={removeFishAnimation}
+                />
+              ))}
+            </AnimatePresence>
 
             {/* Discard capture button */}
             {hasCapture && mode === 'HISTORIA' && (
