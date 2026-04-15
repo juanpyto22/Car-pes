@@ -35,7 +35,6 @@ const TEXT_COLORS = [
 const LIVE_CATEGORIES = ['Pesca', 'Carpfishing', 'Spinning', 'Tutorials', 'Unboxing', 'Cocina', 'Naturaleza'];
 const FRAME_MSG_PREFIX = '__frame__:';
 const LIKE_MSG_PREFIX = '__like__:';
-const LIKE_MSG_PREFIX = '__like__:';
 
 const useSmoothCounter = (target, duration = 260) => {
   const [value, setValue] = useState(Math.max(0, Number(target) || 0));
@@ -328,6 +327,12 @@ const CameraPage = () => {
   }, [liveLikes]);
 
   useEffect(() => {
+    if (!isLive) return;
+    setShowViewersPanel(true);
+    setShowChatPanel(true);
+  }, [isLive, liveAudience.length, liveChatMessages.length]);
+
+  useEffect(() => {
     return () => {
       if (viewerPulseTimeoutRef.current) clearTimeout(viewerPulseTimeoutRef.current);
       if (likePulseTimeoutRef.current) clearTimeout(likePulseTimeoutRef.current);
@@ -407,6 +412,14 @@ const CameraPage = () => {
       profile: profileMap[uid] || { id: uid, username: 'usuario' },
     })));
   }, [fetchStreamCounters]);
+
+  const refreshLivePresence = useCallback(async (streamId) => {
+    if (!streamId) return;
+    await Promise.all([
+      fetchLiveAudience(streamId),
+      fetchLiveLikes(streamId),
+    ]);
+  }, [fetchLiveAudience, fetchLiveLikes]);
 
   const fetchLiveLikes = useCallback(async (streamId) => {
     if (!streamId) return;
@@ -810,11 +823,11 @@ const CameraPage = () => {
             fetchLiveLikes(finalStreamId);
           })
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_chat_messages', filter: `stream_id=eq.${finalStreamId}` }, () => {
-            fetchLiveLikes(finalStreamId);
+            // Chat insert should keep broadcaster view warm without requiring refresh.
+            refreshLivePresence(finalStreamId);
           })
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_streams', filter: `id=eq.${finalStreamId}` }, () => {
-            fetchLiveAudience(finalStreamId);
-            fetchLiveLikes(finalStreamId);
+            refreshLivePresence(finalStreamId);
           })
           .subscribe();
         liveStatsChannelRef.current = channel;
