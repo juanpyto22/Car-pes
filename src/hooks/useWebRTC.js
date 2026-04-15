@@ -25,7 +25,67 @@ export const useBroadcaster = (streamId, mediaStream) => {
   const peersRef = useRef({});
   const channelRef = useRef(null);
   const mediaStreamRef = useRef(mediaStream);
+  const statsIntervalRef = useRef(null);
   const [viewerCount, setViewerCount] = useState(0);
+  const [signalQuality, setSignalQuality] = useState({ level: 'checking', label: 'Comprobando...' });
+
+  const computeSignalQuality = async () => {
+    const peers = Object.values(peersRef.current);
+    const connectedPeers = peers.filter((pc) => pc.connectionState === 'connected');
+
+    const currentStream = mediaStreamRef.current;
+    const videoTrack = currentStream?.getVideoTracks?.()[0];
+
+    if (!videoTrack || videoTrack.readyState !== 'live') {
+      setSignalQuality({ level: 'offline', label: 'Sin senal' });
+      return;
+    }
+
+    if (connectedPeers.length === 0) {
+      setSignalQuality({ level: 'broadcasting', label: 'Emitiendo' });
+      return;
+    }
+
+    const peerLevels = await Promise.all(
+      connectedPeers.map(async (pc) => {
+        try {
+          const stats = await pc.getStats();
+          let rtt = null;
+          let fps = null;
+
+          stats.forEach((report) => {
+            if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.currentRoundTripTime != null) {
+              rtt = report.currentRoundTripTime;
+            }
+            if (report.type === 'outbound-rtp' && report.kind === 'video') {
+              if (typeof report.framesPerSecond === 'number') fps = report.framesPerSecond;
+            }
+          });
+
+          if (rtt != null && rtt > 0.45) return 'weak';
+          if (fps != null && fps < 12) return 'weak';
+          if ((rtt != null && rtt > 0.22) || (fps != null && fps < 20)) return 'good';
+          return 'excellent';
+        } catch (err) {
+          console.error('[Broadcaster] Error computing quality stats:', err);
+          return 'good';
+        }
+      })
+    );
+
+    const hasWeak = peerLevels.includes('weak');
+    const hasGood = peerLevels.includes('good');
+
+    if (hasWeak) {
+      setSignalQuality({ level: 'weak', label: 'Senal debil' });
+      return;
+    }
+    if (hasGood) {
+      setSignalQuality({ level: 'good', label: 'Senal media' });
+      return;
+    }
+    setSignalQuality({ level: 'excellent', label: 'Senal estable' });
+  };
 
   // Keep media stream ref up to date
   useEffect(() => {
@@ -84,6 +144,7 @@ export const useBroadcaster = (streamId, mediaStream) => {
           delete peersRef.current[viewerId];
           setViewerCount(Object.keys(peersRef.current).length);
         }
+        computeSignalQuality();
       };
 
       // Create and send offer
@@ -134,12 +195,23 @@ export const useBroadcaster = (streamId, mediaStream) => {
     channel.subscribe();
     channelRef.current = channel;
 
+    computeSignalQuality();
+    if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+    statsIntervalRef.current = setInterval(() => {
+      computeSignalQuality();
+    }, 2500);
+
     return () => {
       Object.values(peersRef.current).forEach((pc) => {
         try { pc.close(); } catch (_) {}
       });
       peersRef.current = {};
       setViewerCount(0);
+      if (statsIntervalRef.current) {
+        clearInterval(statsIntervalRef.current);
+        statsIntervalRef.current = null;
+      }
+      setSignalQuality({ level: 'checking', label: 'Comprobando...' });
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
@@ -163,9 +235,10 @@ export const useBroadcaster = (streamId, mediaStream) => {
         }
       });
     });
+    computeSignalQuality();
   }, [mediaStream]);
 
-  return { viewerCount };
+  return { viewerCount, signalQuality };
 };
 
 // ═══════════════════════════════════════════════════════════════
