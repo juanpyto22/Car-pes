@@ -146,7 +146,12 @@ const MessagesPage = () => {
   }, [messages]);
 
   useEffect(() => {
-    if (chatTarget) inputRef.current?.focus();
+    if (!chatTarget) return;
+
+    const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+    if (isDesktop) {
+      inputRef.current?.focus();
+    }
   }, [chatTarget]);
 
   useEffect(() => {
@@ -653,6 +658,11 @@ const MessagesPage = () => {
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Escribe un mensaje..."
                     disabled={sending}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    enterKeyHint="send"
                     className="flex-1 min-w-0 bg-slate-950/80 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 placeholder-blue-500 transition-all disabled:opacity-50 overflow-hidden text-ellipsis h-11 resize-none"
                   />
 
