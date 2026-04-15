@@ -598,7 +598,7 @@ const StreamViewer = ({ stream, onBack }) => {
   const remoteVideoRef = useRef(null);
 
   // WebRTC: connect to broadcaster and receive video
-  const { remoteStream, connectionState } = useViewer(stream.id);
+  const { remoteStream, fallbackFrame, connectionState } = useViewer(stream.id);
 
   // Attach remote stream to video element
   useEffect(() => {
@@ -846,12 +846,23 @@ const StreamViewer = ({ stream, onBack }) => {
               playsInline
               className="w-full h-full object-cover md:object-contain"
             />
+          ) : fallbackFrame ? (
+            <img
+              src={fallbackFrame}
+              alt="Retransmision en directo"
+              className="w-full h-full object-cover md:object-contain"
+            />
           ) : (
             <div className="text-center">
               {connectionState === 'connected' ? (
                 <>
                   <Loader2 className="w-10 h-10 text-cyan-400 animate-spin mx-auto" />
                   <p className="text-cyan-400/60 text-sm mt-3">Recibiendo vídeo...</p>
+                </>
+              ) : connectionState === 'fallback' ? (
+                <>
+                  <Wifi className="w-12 h-12 text-amber-400/70 mx-auto" />
+                  <p className="text-amber-300/80 text-sm mt-3">Modo compatible activo (senal por frames)</p>
                 </>
               ) : connectionState === 'waiting' || connectionState === 'connecting' ? (
                 <>

@@ -35,6 +35,9 @@ export const useBroadcaster = (streamId, mediaStream) => {
   const channelRef = useRef(null);
   const mediaStreamRef = useRef(mediaStream);
   const statsIntervalRef = useRef(null);
+  const fallbackFrameIntervalRef = useRef(null);
+  const fallbackVideoRef = useRef(null);
+  const fallbackCanvasRef = useRef(null);
 
   const [viewerCount, setViewerCount] = useState(0);
   const [signalQuality, setSignalQuality] = useState({ level: 'checking', label: 'Comprobando...' });
@@ -99,6 +102,72 @@ export const useBroadcaster = (streamId, mediaStream) => {
   useEffect(() => {
     mediaStreamRef.current = mediaStream;
   }, [mediaStream]);
+
+  useEffect(() => {
+    if (!mediaStream || !streamId) return;
+
+    if (!fallbackVideoRef.current) {
+      fallbackVideoRef.current = document.createElement('video');
+      fallbackVideoRef.current.muted = true;
+      fallbackVideoRef.current.playsInline = true;
+      fallbackVideoRef.current.autoplay = true;
+    }
+
+    if (!fallbackCanvasRef.current) {
+      fallbackCanvasRef.current = document.createElement('canvas');
+    }
+
+    const videoEl = fallbackVideoRef.current;
+    videoEl.srcObject = mediaStream;
+    videoEl.play().catch(() => {
+      // If autoplay is blocked, we'll retry in interval.
+    });
+
+    if (fallbackFrameIntervalRef.current) {
+      clearInterval(fallbackFrameIntervalRef.current);
+      fallbackFrameIntervalRef.current = null;
+    }
+
+    fallbackFrameIntervalRef.current = setInterval(() => {
+      const channel = channelRef.current;
+      if (!channel) return;
+      if (!videoEl.videoWidth || !videoEl.videoHeight) {
+        videoEl.play().catch(() => {});
+        return;
+      }
+
+      const canvas = fallbackCanvasRef.current;
+      const targetWidth = 320;
+      const ratio = videoEl.videoHeight / videoEl.videoWidth;
+      const targetHeight = Math.max(180, Math.round(targetWidth * ratio));
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.drawImage(videoEl, 0, 0, targetWidth, targetHeight);
+      const frame = canvas.toDataURL('image/jpeg', 0.35);
+
+      channel.send({
+        type: 'broadcast',
+        event: 'fallback-frame',
+        payload: {
+          frame,
+          ts: Date.now(),
+        },
+      });
+    }, 900);
+
+    return () => {
+      if (fallbackFrameIntervalRef.current) {
+        clearInterval(fallbackFrameIntervalRef.current);
+        fallbackFrameIntervalRef.current = null;
+      }
+      if (fallbackVideoRef.current) {
+        fallbackVideoRef.current.srcObject = null;
+      }
+    };
+  }, [mediaStream, streamId]);
 
   useEffect(() => {
     if (!streamId) return;
@@ -213,6 +282,13 @@ export const useBroadcaster = (streamId, mediaStream) => {
         clearInterval(statsIntervalRef.current);
         statsIntervalRef.current = null;
       }
+      if (fallbackFrameIntervalRef.current) {
+        clearInterval(fallbackFrameIntervalRef.current);
+        fallbackFrameIntervalRef.current = null;
+      }
+      if (fallbackVideoRef.current) {
+        fallbackVideoRef.current.srcObject = null;
+      }
       setSignalQuality({ level: 'checking', label: 'Comprobando...' });
 
       supabase.removeChannel(channel);
@@ -258,6 +334,7 @@ export const useBroadcaster = (streamId, mediaStream) => {
 export const useViewer = (streamId, active = true) => {
   const [remoteStream, setRemoteStream] = useState(null);
   const [connectionState, setConnectionState] = useState('new');
+  const [fallbackFrame, setFallbackFrame] = useState(null);
 
   const pcRef = useRef(null);
   const channelRef = useRef(null);
@@ -366,6 +443,15 @@ export const useViewer = (streamId, active = true) => {
       }
     });
 
+    channel.on('broadcast', { event: 'fallback-frame' }, ({ payload }) => {
+      const frame = payload?.frame;
+      if (!frame) return;
+      setFallbackFrame(frame);
+      if (!pcRef.current || pcRef.current.connectionState !== 'connected') {
+        setConnectionState((prev) => (prev === 'connected' ? prev : 'fallback'));
+      }
+    });
+
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         setConnectionState('waiting');
@@ -407,9 +493,10 @@ export const useViewer = (streamId, active = true) => {
       supabase.removeChannel(channel);
       channelRef.current = null;
       setRemoteStream(null);
+      setFallbackFrame(null);
       setConnectionState('new');
     };
   }, [streamId, active]);
 
-  return { remoteStream, connectionState };
+  return { remoteStream, fallbackFrame, connectionState };
 };
