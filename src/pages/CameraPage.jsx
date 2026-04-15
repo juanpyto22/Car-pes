@@ -297,12 +297,30 @@ const CameraPage = () => {
     .slice(-5)
     .reverse();
   const liveDonationCount = liveDonationMessages.length;
-  const unknownViewerCount = Math.max(0, (liveViewers || 0) - (liveAudience?.length || 0));
+  const chatIdentifiedAudience = Array.from(
+    new Map(
+      (liveChatMessages || [])
+        .filter((m) => m?.user_id || m?.user?.id)
+        .map((m) => {
+          const uid = m.user_id || m.user?.id;
+          return [
+            uid,
+            {
+              user_id: uid,
+              profile: m.user || { id: uid, username: 'usuario' },
+            },
+          ];
+        })
+    ).values()
+  ).filter((entry) => !(liveAudience || []).some((viewer) => viewer.user_id === entry.user_id));
+
+  const resolvedAudience = [...(liveAudience || []), ...chatIdentifiedAudience];
+  const unknownViewerCount = Math.max(0, (liveViewers || 0) - resolvedAudience.length);
   const displayAudience = [
-    ...liveAudience,
+    ...resolvedAudience,
     ...Array.from({ length: unknownViewerCount }, (_, idx) => ({
       user_id: `unknown-${idx + 1}`,
-      profile: { username: `Espectador ${idx + 1}` },
+      profile: { username: `Usuario conectado ${idx + 1}` },
       unknown: true,
     })),
   ];
@@ -1112,15 +1130,36 @@ const CameraPage = () => {
   const handleSendChatMessage = async () => {
     if (!newChatMessage.trim() || !user?.id || !streamData?.id) return;
 
+    const messageToSend = newChatMessage.trim();
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    setLiveChatMessages((prev) => [
+      ...prev.slice(-200),
+      {
+        id: tempId,
+        stream_id: streamData.id,
+        user_id: user.id,
+        message: messageToSend,
+        created_at: new Date().toISOString(),
+        user: {
+          id: user.id,
+          username: profile?.username || profile?.nombre || user?.email?.split('@')[0] || 'Usuario',
+          nombre: profile?.nombre || profile?.username || 'Usuario',
+          foto_perfil: profile?.foto_perfil || null,
+        },
+      },
+    ]);
+    setNewChatMessage('');
+
     try {
       await supabase.from('live_chat_messages').insert({
         stream_id: streamData.id,
         user_id: user.id,
-        message: newChatMessage.trim(),
+        message: messageToSend,
       });
-      setNewChatMessage('');
     } catch (err) {
       console.error('Error sending chat message:', err);
+      setLiveChatMessages((prev) => prev.filter((msg) => msg.id !== tempId));
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar el mensaje.' });
     }
   };
