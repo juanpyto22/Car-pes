@@ -292,9 +292,9 @@ const MessagesPage = () => {
   return (
     <>
       <Helmet><title>Mensajes - Car-Pes</title></Helmet>
-      <div className="h-[calc(100vh-65px)] md:h-[calc(100vh-80px)] bg-gradient-to-b from-slate-950 to-slate-900 flex overflow-hidden">
+      <div className="h-[100dvh] md:h-[calc(100vh-80px)] bg-gradient-to-b from-slate-950 to-slate-900 flex overflow-hidden pb-[calc(env(safe-area-inset-bottom)+88px)] md:pb-0">
         {/* ─── Sidebar ─────────────────────────────────────── */}
-        <div className={`w-full md:w-80 lg:w-96 border-r border-white/5 bg-slate-900/80 backdrop-blur-xl flex flex-col ${chatTarget ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`w-full md:w-80 lg:w-96 border-r border-white/5 bg-slate-900/80 backdrop-blur-xl flex flex-col min-h-0 ${chatTarget ? 'hidden md:flex' : 'flex'}`}>
           
           {/* Header */}
           <div className="p-4 border-b border-white/10 bg-slate-900/50">
@@ -351,7 +351,7 @@ const MessagesPage = () => {
           </div>
 
           {/* Conversation List */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1 overscroll-contain">
             {loading ? (
               <div className="flex justify-center py-12">
                 <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
@@ -407,11 +407,11 @@ const MessagesPage = () => {
         </div>
 
         {/* ─── Chat Area ───────────────────────────────────── */}
-        <div className={`flex-1 flex flex-col bg-gradient-to-b from-slate-950 to-slate-900 overflow-hidden relative ${!chatTarget ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`flex-1 min-h-0 flex flex-col bg-gradient-to-b from-slate-950 to-slate-900 overflow-hidden relative ${!chatTarget ? 'hidden md:flex' : 'flex'}`}>
           {chatTarget ? (
             <>
               {/* Chat Header */}
-              <div className="p-3 md:p-4 border-b border-white/10 flex items-center gap-3 bg-slate-900/80 backdrop-blur-xl">
+              <div className="p-3 md:p-4 border-b border-white/10 flex items-center gap-3 bg-slate-900/80 backdrop-blur-xl shrink-0">
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -530,7 +530,7 @@ const MessagesPage = () => {
                 )}
               </AnimatePresence>
 
-              <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/20 via-slate-950 to-slate-950 scrollbar-thin scrollbar-thumb-cyan-900 scrollbar-track-transparent">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 md:p-4 space-y-3 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-950/20 via-slate-950 to-slate-950 scrollbar-thin scrollbar-thumb-cyan-900 scrollbar-track-transparent overscroll-contain">
                 {messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <div className="w-20 h-20 bg-cyan-500/10 rounded-full flex items-center justify-center mb-4">
@@ -566,7 +566,7 @@ const MessagesPage = () => {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 280, opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="absolute bottom-20 left-0 right-0 z-40 border-t border-white/10 bg-slate-900/95 overflow-hidden"
+                    className="absolute bottom-20 left-0 right-0 z-40 border-t border-white/10 bg-slate-900/95 overflow-hidden max-h-[38vh] md:max-h-[280px]"
                   >
                     <div className="p-3 h-full overflow-y-auto">
                       <div className="flex items-center justify-between mb-2">
@@ -614,7 +614,7 @@ const MessagesPage = () => {
               )}
 
               {/* Input Area */}
-              <div className="p-3 md:p-4 border-t border-white/10 bg-slate-900/80 backdrop-blur-xl flex-shrink-0 h-auto">
+              <div className="p-3 md:p-4 border-t border-white/10 bg-slate-900/90 backdrop-blur-xl flex-shrink-0 sticky bottom-0 pb-[calc(env(safe-area-inset-bottom)+12px)]">
                 <form onSubmit={handleSend} className="flex gap-2 items-center min-w-0 h-fit">
                   {/* Image upload */}
                   <input
