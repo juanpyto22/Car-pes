@@ -417,7 +417,51 @@ const CameraPage = () => {
 
     const uniqueIds = [...new Set(rows.map(v => v.user_id).filter(Boolean))];
     if (uniqueIds.length === 0) {
-      setLiveAudience([]);
+      // If host cannot read live_stream_viewers rows due to RLS, keep known spectators
+      // and try to infer active users from recent chat activity.
+      if ((streamCounters.viewer_count || 0) === 0) {
+        setLiveAudience([]);
+        return;
+      }
+
+      const { data: recentChat } = await supabase
+        .from('live_chat_messages')
+        .select('user_id, message, created_at')
+        .eq('stream_id', streamId)
+        .order('created_at', { ascending: false })
+        .limit(120);
+
+      const recentUserIds = [...new Set((recentChat || [])
+        .filter((m) => {
+          const text = m.message || '';
+          return !text.startsWith(FRAME_MSG_PREFIX) && !text.startsWith(LIKE_MSG_PREFIX);
+        })
+        .map((m) => m.user_id)
+        .filter(Boolean))];
+
+      if (recentUserIds.length > 0) {
+        const { data: chatProfiles } = await supabase
+          .from('profiles')
+          .select('id, username, nombre, foto_perfil')
+          .in('id', recentUserIds);
+
+        const chatProfileMap = (chatProfiles || []).reduce((acc, item) => {
+          acc[item.id] = item;
+          return acc;
+        }, {});
+
+        setLiveAudience((prev) => {
+          const prevMap = (prev || []).reduce((acc, item) => {
+            acc[item.user_id] = item;
+            return acc;
+          }, {});
+
+          return recentUserIds.map((uid) => ({
+            user_id: uid,
+            profile: chatProfileMap[uid] || prevMap[uid]?.profile || { id: uid, username: 'usuario' },
+          }));
+        });
+      }
       return;
     }
 
@@ -849,8 +893,32 @@ const CameraPage = () => {
           .on('postgres_changes', { event: '*', schema: 'public', table: 'live_stream_viewers', filter: `stream_id=eq.${finalStreamId}` }, (payload) => {
             if (payload?.eventType === 'INSERT') {
               setLiveViewers((prev) => prev + 1);
+              const newUserId = payload?.new?.user_id;
+              if (newUserId) {
+                supabase
+                  .from('profiles')
+                  .select('id, username, nombre, foto_perfil')
+                  .eq('id', newUserId)
+                  .maybeSingle()
+                  .then(({ data: p }) => {
+                    setLiveAudience((prev) => {
+                      if ((prev || []).some((v) => v.user_id === newUserId)) return prev;
+                      return [
+                        ...prev,
+                        {
+                          user_id: newUserId,
+                          profile: p || { id: newUserId, username: 'usuario' },
+                        },
+                      ];
+                    });
+                  });
+              }
             } else if (payload?.eventType === 'DELETE') {
               setLiveViewers((prev) => Math.max(0, prev - 1));
+              const oldUserId = payload?.old?.user_id;
+              if (oldUserId) {
+                setLiveAudience((prev) => (prev || []).filter((v) => v.user_id !== oldUserId));
+              }
             }
             fetchLiveAudience(finalStreamId);
           })
@@ -1665,7 +1733,7 @@ const CameraPage = () => {
             )}
 
             {mode === 'EN VIVO' && isLive && showViewersPanel && (
-              <div className="hidden md:block absolute right-[372px] top-16 z-30 w-[380px] max-w-[42vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl">
+              <div className="hidden md:block absolute right-[368px] top-20 z-30 w-[360px] max-w-[40vw] bg-[#0d1320]/95 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl">
                 <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
                     <Eye className="w-4 h-4 text-cyan-300" /> Espectadores ({smoothLiveViewers})
