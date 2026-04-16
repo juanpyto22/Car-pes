@@ -244,6 +244,181 @@ export const useSearchUsers = (query) => {
 };
 
 /**
+ * Hook: Obtener solicitudes Pro para revision administrativa
+ */
+export const useAdminProRequests = (status = 'pending') => {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchRequests = async () => {
+    try {
+      setLoading(true);
+      let query = supabase
+        .from('pro_verification_requests')
+        .select(`
+          id,
+          user_id,
+          business_name,
+          business_type,
+          legal_name,
+          tax_id,
+          contact_phone,
+          website,
+          business_address,
+          docs_url,
+          validation_notes,
+          status,
+          reviewed_by,
+          reviewed_at,
+          created_at,
+          updated_at,
+          user:profiles!user_id(
+            id,
+            username,
+            nombre,
+            email,
+            foto_perfil
+          )
+        `)
+        .order('created_at', { ascending: true });
+
+      if (status && status !== 'all') {
+        query = query.eq('status', status);
+      }
+
+      const { data, error: err } = await query;
+
+      let normalizedData = data;
+      if (err) {
+        // Fallback without relation join in case FK naming differs in this DB.
+        let fallbackQuery = supabase
+          .from('pro_verification_requests')
+          .select('*')
+          .order('created_at', { ascending: true });
+
+        if (status && status !== 'all') {
+          fallbackQuery = fallbackQuery.eq('status', status);
+        }
+
+        const { data: fallbackData, error: fallbackErr } = await fallbackQuery;
+        if (fallbackErr) throw fallbackErr;
+
+        const userIds = [...new Set((fallbackData || []).map((item) => item.user_id).filter(Boolean))];
+        let profileMap = {};
+
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, username, nombre, email, foto_perfil')
+            .in('id', userIds);
+
+          profileMap = (profiles || []).reduce((acc, profile) => {
+            acc[profile.id] = profile;
+            return acc;
+          }, {});
+        }
+
+        normalizedData = (fallbackData || []).map((item) => ({
+          ...item,
+          user: profileMap[item.user_id] || null,
+        }));
+      }
+
+      setRequests(normalizedData || []);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching pro requests:', err);
+      setRequests([]);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+  }, [status]);
+
+  return { requests, loading, error, refetch: fetchRequests };
+};
+
+/**
+ * Hook: Revisar solicitud Pro (aprobar/rechazar) con motivo y notificacion
+ */
+export const useAdminReviewProRequest = () => {
+  const [loading, setLoading] = useState(false);
+
+  const sendReviewNotification = async ({ userId, adminId, status, reason }) => {
+    const type = status === 'approved' ? 'pro_verification_approved' : 'pro_verification_rejected';
+    const content = reason?.trim() || (status === 'approved'
+      ? 'Tu solicitud de perfil Pro ha sido aprobada.'
+      : 'Tu solicitud de perfil Pro ha sido rechazada.');
+
+    const payloadVariants = [
+      { user_id: userId, type, related_user_id: adminId, content, read: false },
+      { user_id: userId, type, from_user_id: adminId, content, read: false },
+      { user_id: userId, type, related_user_id: adminId, read: false },
+      { user_id: userId, type, from_user_id: adminId, read: false },
+      { user_id: userId, type, read: false },
+    ];
+
+    for (const payload of payloadVariants) {
+      const { error } = await supabase.from('notifications').insert(payload);
+      if (!error) return true;
+    }
+
+    return false;
+  };
+
+  const reviewRequest = async ({ requestId, status, reason }) => {
+    setLoading(true);
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const adminUser = authData?.user;
+
+      const payload = {
+        status,
+        validation_notes: reason?.trim() || null,
+        reviewed_by: adminUser?.id || null,
+        reviewed_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('pro_verification_requests')
+        .update(payload)
+        .eq('id', requestId)
+        .select('id, user_id, status')
+        .single();
+
+      if (error) throw error;
+
+      if (data?.user_id) {
+        const sent = await sendReviewNotification({
+          userId: data.user_id,
+          adminId: adminUser?.id || null,
+          status,
+          reason,
+        });
+
+        if (!sent) {
+          console.warn('Pro review notification could not be inserted');
+        }
+      }
+
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error reviewing pro request:', err);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { reviewRequest, loading };
+};
+
+/**
  * Hook: Verificar si usuario actual es admin
  * Usa la función RPC de Supabase para mayor seguridad
  */

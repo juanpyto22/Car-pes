@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, UserPlus, Trash2, Check, X, Radio } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus, Trash2, Check, X, Radio, BadgeCheck, AlertCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -16,6 +16,8 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
       case 'follow_request': return <UserPlus className="w-3.5 h-3.5 text-amber-400" />;
       case 'follow_accepted': return <Check className="w-3.5 h-3.5 text-green-400" />;
       case 'live_started': return <Radio className="w-3.5 h-3.5 text-red-400" />;
+      case 'pro_verification_approved': return <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" />;
+      case 'pro_verification_rejected': return <AlertCircle className="w-3.5 h-3.5 text-red-400" />;
       default: return <div className="w-3.5 h-3.5 bg-gray-400 rounded-full" />;
     }
   };
@@ -25,6 +27,9 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
       return `/profile/${notification.related_user_id}`;
     }
     if (notification.type === 'live_started') return '/live';
+    if (notification.type === 'pro_verification_approved' || notification.type === 'pro_verification_rejected') {
+      return '/edit-profile';
+    }
     if (notification.post_id) return `/post/${notification.post_id}`;
     return '#';
   };
@@ -37,9 +42,17 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
       case 'follow_request': return 'quiere seguirte';
       case 'follow_accepted': return 'aceptó tu solicitud de seguimiento';
       case 'live_started': return 'ha iniciado un directo';
+      case 'pro_verification_approved': return 'aprobó tu solicitud de perfil Pro';
+      case 'pro_verification_rejected': return 'rechazó tu solicitud de perfil Pro';
       default: return 'interactuó contigo';
     }
   };
+
+  const actorName = notification.related_user?.username || 'Administración';
+  const avatarLink = notification.related_user_id ? `/profile/${notification.related_user_id}` : '#';
+  const hasReason =
+    (notification.type === 'pro_verification_approved' || notification.type === 'pro_verification_rejected')
+    && !!notification.content;
 
   const isFollowRequest = notification.type === 'follow_request';
 
@@ -72,10 +85,10 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
       )}
 
       <div className="relative shrink-0">
-        <Link to={`/profile/${notification.related_user_id}`}>
+        <Link to={avatarLink}>
           <Avatar className="w-12 h-12 border border-blue-800">
             <AvatarImage src={notification.related_user?.foto_perfil} />
-            <AvatarFallback className="bg-blue-900 text-cyan-200 font-bold">{notification.related_user?.username?.[0]}</AvatarFallback>
+            <AvatarFallback className="bg-blue-900 text-cyan-200 font-bold">{actorName?.[0]}</AvatarFallback>
           </Avatar>
         </Link>
         <div className={`absolute -bottom-1 -right-1 bg-slate-900 rounded-full p-1.5 border flex items-center justify-center ${
@@ -89,10 +102,15 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
         <Link to={getLink()} className="block">
           <p className="text-sm text-blue-100">
             <span className="font-bold text-white mr-1 hover:underline">
-                {notification.related_user?.username}
+                {actorName}
             </span>
             {getContent()}
           </p>
+          {hasReason && (
+            <p className="text-xs text-blue-200/90 mt-1">
+              Motivo: {notification.content}
+            </p>
+          )}
           <span className="text-xs text-blue-400 mt-1 font-medium">
             {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true, locale: es })}
           </span>

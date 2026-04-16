@@ -1,353 +1,293 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Shield, Search, Ban, CheckCircle2, XCircle, Clock3, Building2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Users, AlertTriangle, Ban, BarChart3, Search, Plus } from 'lucide-react';
-import { useToast } from '../components/ui/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import {
-  useAdminInfractions,
-  useAdminActiveBans,
   useAdminBanUser,
-  useAdminStatistics,
+  useAdminProRequests,
+  useAdminReviewProRequest,
   useSearchUsers,
-} from '../hooks/useAdminPanel';
-import {
-  StatCard,
-  InfractionRow,
-  BanRow,
-  AdminTableFilters,
-  ManualBanModal,
-  EmptyState,
-} from '../components/AdminPanelComponents';
+} from '@/hooks/useAdminPanel';
+import { ManualBanModal, EmptyState } from '@/components/AdminPanelComponents';
 
 export default function AdminPanel() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('ban');
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedUserName, setSelectedUserName] = useState('');
   const [showManualBanModal, setShowManualBanModal] = useState(false);
 
-  // Parar hooks según lo que necesitemos
-  const { stats, loading: statsLoading, refetch: refetchStats } = useAdminStatistics();
-  const { infractions, loading: infraLoading, deleteInfraction } = useAdminInfractions();
-  const { bans, loading: bansLoading, liftBan } = useAdminActiveBans();
-  const { banUser, loading: banUserLoading } = useAdminBanUser();
+  const [statusFilter, setStatusFilter] = useState('pending');
+  const [reviewNotes, setReviewNotes] = useState({});
+
   const { users: searchResults, loading: searchLoading } = useSearchUsers(searchTerm);
+  const { banUser, loading: banUserLoading } = useAdminBanUser();
 
-  // Filtrar y buscar infractions
-  const filteredInfractions = useMemo(() => {
-    return infractions?.filter((infr) => {
-      const searchLower = searchTerm.toLowerCase();
-      const matches =
-        infr.username?.toLowerCase().includes(searchLower) ||
-        infr.email?.toLowerCase().includes(searchLower) ||
-        infr.violation_type?.toLowerCase().includes(searchLower);
-      return matches;
-    }) || [];
-  }, [infractions, searchTerm]);
+  const {
+    requests: proRequests,
+    loading: proLoading,
+    refetch: refetchProRequests,
+  } = useAdminProRequests(statusFilter);
 
-  // Filtrar y buscar bans
-  const filteredBans = useMemo(() => {
-    let filtered = bans || [];
+  const { reviewRequest, loading: reviewLoading } = useAdminReviewProRequest();
 
-    // Filtrar por tipo
-    if (filterType !== 'all') {
-      filtered = filtered.filter((ban) => ban.ban_type === filterType);
-    }
+  const filteredUsers = useMemo(() => searchResults || [], [searchResults]);
 
-    // Buscar
-    const searchLower = searchTerm.toLowerCase();
-    filtered = filtered.filter(
-      (ban) =>
-        ban.username?.toLowerCase().includes(searchLower) ||
-        ban.email?.toLowerCase().includes(searchLower)
-    );
-
-    return filtered;
-  }, [bans, searchTerm, filterType]);
-
-  // Handlers
-  const handleDeleteInfraction = async (infractionId) => {
-    if (window.confirm('¿Eliminar esta infracción?')) {
-      try {
-        await deleteInfraction(infractionId);
-        toast({
-          title: 'Infracción eliminada',
-          description: 'La infracción ha sido removida del registro.',
-        });
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: error.message,
-          variant: 'destructive',
-        });
-      }
-    }
-  };
-
-  const handleLiftBan = async (banId) => {
-    if (window.confirm('¿Estás seguro de que deseas levantar este ban?')) {
-      try {
-        await liftBan(banId);
-        toast({
-          title: 'Ban levantado',
-          description: 'El usuario ya puede publicar nuevamente.',
-        });
-        refetchStats();
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: error.message,
-          variant: 'destructive',
-        });
-      }
-    }
-  };
-
-  const handleManualBan = async (userId, banType, reason) => {
-    try {
-      await banUser(userId, banType, reason);
-      toast({
-        title: 'Usuario baneado',
-        description: `@${selectedUserName} ha sido baneado exitosamente.`,
-      });
-      setShowManualBanModal(false);
-      setSelectedUserId(null);
-      setSelectedUserName('');
-      refetchStats();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    }
-  };
-
-  // Navegar a formulario de ban manual
   const openBanModal = (userId, username) => {
     setSelectedUserId(userId);
     setSelectedUserName(username);
     setShowManualBanModal(true);
   };
 
+  const handleManualBan = async (userId, banType, reason) => {
+    const result = await banUser(userId, banType, reason);
+
+    if (result?.success) {
+      toast({
+        title: 'Usuario baneado',
+        description: `Se aplico un ban a @${selectedUserName}.`,
+      });
+      setShowManualBanModal(false);
+      setSelectedUserId(null);
+      setSelectedUserName('');
+      return;
+    }
+
+    toast({
+      title: 'Error al banear',
+      description: result?.error || 'No se pudo aplicar el ban.',
+      variant: 'destructive',
+    });
+  };
+
+  const handleReview = async (requestId, status) => {
+    const reason = reviewNotes[requestId] || '';
+
+    if (!reason.trim()) {
+      toast({
+        title: 'Motivo requerido',
+        description: 'Escribe el motivo para notificar al usuario.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const result = await reviewRequest({ requestId, status, reason });
+
+    if (result.success) {
+      toast({
+        title: status === 'approved' ? 'Solicitud aprobada' : 'Solicitud rechazada',
+        description: 'La decision y el motivo se guardaron y se notifico al usuario.',
+      });
+      refetchProRequests();
+      return;
+    }
+
+    toast({
+      title: 'Error al revisar solicitud',
+      description: result.error || 'No se pudo guardar la decision.',
+      variant: 'destructive',
+    });
+  };
+
+  const statusBadge = (status) => {
+    if (status === 'approved') {
+      return 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10';
+    }
+    if (status === 'rejected') {
+      return 'text-red-300 border-red-500/30 bg-red-500/10';
+    }
+    return 'text-amber-300 border-amber-500/30 bg-amber-500/10';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-blue-950 to-slate-950">
-      {/* Header */}
       <div className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent flex items-center gap-3">
-            <BarChart3 className="w-10 h-10 text-blue-400" />
-            Panel de Administración
+        <div className="max-w-6xl mx-auto px-4 py-6">
+          <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+            <Shield className="w-8 h-8 text-cyan-400" />
+            Panel Admin (Simple)
           </h1>
-          <p className="text-white/60 mt-2">Gestiona infracciones, bans y estadísticas de la plataforma</p>
+          <p className="text-white/60 mt-2">Ban manual y revision de solicitudes Pro.</p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Estadísticas */}
-        {activeTab === 'dashboard' && (
-          <motion.div
-            key="dashboard"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-12"
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="mb-8 border-b border-white/10 flex gap-2 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('ban')}
+            className={`px-4 py-3 border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'ban'
+                ? 'border-cyan-400 text-cyan-400'
+                : 'border-transparent text-white/60 hover:text-white'
+            }`}
           >
-            <h2 className="text-2xl font-bold text-white mb-6">Estadísticas Generales</h2>
+            <Ban className="w-4 h-4" /> Banear usuarios
+          </button>
+          <button
+            onClick={() => setActiveTab('pro')}
+            className={`px-4 py-3 border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'pro'
+                ? 'border-cyan-400 text-cyan-400'
+                : 'border-transparent text-white/60 hover:text-white'
+            }`}
+          >
+            <Building2 className="w-4 h-4" /> Solicitudes Pro
+          </button>
+        </div>
 
-            {statsLoading ? (
-              <div className="text-center py-8">
+        {activeTab === 'ban' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            <p className="text-white/70">Busca cualquier usuario y aplica el tipo de ban con su motivo.</p>
+
+            <div className="flex items-center gap-3 p-4 bg-slate-800/30 rounded-lg border border-white/10">
+              <Search className="w-5 h-5 text-white/40" />
+              <input
+                type="text"
+                placeholder="Buscar por username o email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 bg-transparent text-white placeholder-white/40 focus:outline-none"
+              />
+            </div>
+
+            {searchLoading ? (
+              <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
-                  icon={Users}
-                  label="Total de Usuarios"
-                  value={stats?.total_users || 0}
-                  color="cyan"
-                />
-                <StatCard
-                  icon={AlertTriangle}
-                  label="Total Infracciones"
-                  value={stats?.total_infractions || 0}
-                  color="orange"
-                />
-                <StatCard
-                  icon={Ban}
-                  label="Bans Activos"
-                  value={stats?.active_bans || 0}
-                  color="red"
-                />
-                <StatCard
-                  icon={Ban}
-                  label="Bans Permanentes"
-                  value={stats?.permanent_bans || 0}
-                  color="red"
-                />
+            ) : filteredUsers.length > 0 ? (
+              <div className="space-y-2">
+                {filteredUsers.map((user) => (
+                  <button
+                    key={user.id}
+                    onClick={() => openBanModal(user.id, user.username)}
+                    className="w-full text-left p-4 bg-slate-800/30 border border-white/10 hover:border-cyan-500/50 rounded-lg transition"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-semibold text-white">@{user.username}</p>
+                        <p className="text-sm text-white/60">{user.email || 'sin email visible'}</p>
+                      </div>
+                      <span className="text-red-300 text-sm">Banear</span>
+                    </div>
+                  </button>
+                ))}
               </div>
+            ) : searchTerm ? (
+              <EmptyState
+                icon={Search}
+                title="Usuario no encontrado"
+                description="No hay usuarios que coincidan con la busqueda."
+              />
+            ) : (
+              <EmptyState
+                icon={Ban}
+                title="Busqueda vacia"
+                description="Escribe un usuario para aplicar ban manual."
+              />
             )}
           </motion.div>
         )}
 
-        {/* Pestañas */}
-        <div className="mb-8 border-b border-white/10 flex gap-2 overflow-x-auto">
-          {[
-            { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-            { id: 'bans', label: 'Bans Activos', icon: Ban },
-            { id: 'infractions', label: 'Infracciones', icon: AlertTriangle },
-            { id: 'manual-ban', label: 'Banear Manual', icon: Plus },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={`px-4 py-3 border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
-                activeTab === id
-                  ? 'border-cyan-400 text-cyan-400'
-                  : 'border-transparent text-white/60 hover:text-white'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
-          ))}
-        </div>
+        {activeTab === 'pro' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: 'pending', label: 'Pendientes', icon: Clock3 },
+                { id: 'approved', label: 'Aprobadas', icon: CheckCircle2 },
+                { id: 'rejected', label: 'Rechazadas', icon: XCircle },
+                { id: 'all', label: 'Todas', icon: Building2 },
+              ].map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setStatusFilter(id)}
+                  className={`px-3 py-2 rounded-lg text-sm border transition inline-flex items-center gap-1.5 ${
+                    statusFilter === id
+                      ? 'bg-cyan-600/20 border-cyan-500/50 text-cyan-200'
+                      : 'bg-slate-800/40 border-white/10 text-white/70 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" /> {label}
+                </button>
+              ))}
+            </div>
 
-        {/* Contenido de Pestañas */}
-        <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          {/* Tab: Bans Activos */}
-          {activeTab === 'bans' && (
-            <div>
-              <AdminTableFilters
-                search={searchTerm}
-                setSearch={setSearchTerm}
-                filterType={filterType}
-                setFilterType={setFilterType}
+            {proLoading ? (
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+              </div>
+            ) : proRequests.length === 0 ? (
+              <EmptyState
+                icon={Building2}
+                title="Sin solicitudes"
+                description="No hay solicitudes Pro para este filtro."
               />
-
-              {bansLoading ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
-                </div>
-              ) : filteredBans.length > 0 ? (
-                <div className="space-y-4">
-                  {filteredBans.map((ban) => (
-                    <BanRow
-                      key={ban.id}
-                      ban={ban}
-                      onLift={handleLiftBan}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={Ban}
-                  title="Sin bans activos"
-                  description="No hay usuarios baneados en este momento"
-                />
-              )}
-            </div>
-          )}
-
-          {/* Tab: Infracciones */}
-          {activeTab === 'infractions' && (
-            <div>
-              <div className="flex items-center gap-4 p-4 bg-slate-800/30 rounded-lg border border-white/10 mb-4">
-                <Search className="w-5 h-5 text-white/40" />
-                <input
-                  type="text"
-                  placeholder="Buscar usuario, email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="flex-1 bg-transparent text-white placeholder-white/40 focus:outline-none"
-                />
-              </div>
-
-              {infraLoading ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
-                </div>
-              ) : filteredInfractions.length > 0 ? (
-                <div className="space-y-4">
-                  {filteredInfractions.map((infraction) => (
-                    <InfractionRow
-                      key={infraction.id}
-                      infraction={infraction}
-                      onDelete={handleDeleteInfraction}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={AlertTriangle}
-                  title="Sin infracciones"
-                  description="No hay infracciones registradas"
-                />
-              )}
-            </div>
-          )}
-
-          {/* Tab: Banear Manual */}
-          {activeTab === 'manual-ban' && (
-            <div className="space-y-6">
-              <p className="text-white/60">
-                Busca un usuario y selecciona su cuenta para aplicarle un ban manual.
-              </p>
-
-              <div className="flex items-center gap-4 p-4 bg-slate-800/30 rounded-lg border border-white/10 mb-6">
-                <Search className="w-5 h-5 text-white/40" />
-                <input
-                  type="text"
-                  placeholder="Buscar usuario por nombre o email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="flex-1 bg-transparent text-white placeholder-white/40 focus:outline-none"
-                />
-              </div>
-
-              {searchLoading ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
-                </div>
-              ) : searchResults.length > 0 ? (
-                <div className="space-y-2">
-                  {searchResults.map((user) => (
-                    <motion.button
-                      key={user.id}
-                      onClick={() => openBanModal(user.id, user.username)}
-                      className="w-full text-left p-4 bg-slate-800/30 border border-white/10 hover:border-cyan-500/50 rounded-lg transition group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <p className="font-semibold text-white group-hover:text-cyan-400 transition">
-                            @{user.username}
-                          </p>
-                          <p className="text-sm text-white/60">{user.email}</p>
-                        </div>
-                        <Plus className="w-5 h-5 text-white/40 group-hover:text-cyan-400 transition" />
+            ) : (
+              <div className="space-y-4">
+                {proRequests.map((req) => (
+                  <div key={req.id} className="rounded-xl border border-white/10 bg-slate-900/40 p-4 space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-white font-semibold">@{req.user?.username || 'usuario'}</p>
+                        <p className="text-white/60 text-sm">{req.user?.email || 'email no disponible'}</p>
                       </div>
-                    </motion.button>
-                  ))}
-                </div>
-              ) : searchTerm ? (
-                <EmptyState
-                  icon={Search}
-                  title="Usuario no encontrado"
-                  description="No hay usuarios que coincidan con la búsqueda"
-                />
-              ) : (
-                <EmptyState
-                  icon={Users}
-                  title="Ingresa un nombre"
-                  description="Escribe en la barra de búsqueda para encontrar usuarios"
-                />
-              )}
-            </div>
-          )}
-        </motion.div>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs border ${statusBadge(req.status)}`}>
+                        {req.status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                      <p className="text-white/80"><span className="text-white/50">Negocio:</span> {req.business_name}</p>
+                      <p className="text-white/80"><span className="text-white/50">Tipo:</span> {req.business_type}</p>
+                      <p className="text-white/80"><span className="text-white/50">Razon social:</span> {req.legal_name}</p>
+                      <p className="text-white/80"><span className="text-white/50">CIF/NIF:</span> {req.tax_id}</p>
+                      <p className="text-white/80"><span className="text-white/50">Telefono:</span> {req.contact_phone}</p>
+                      <p className="text-white/80"><span className="text-white/50">Web:</span> {req.website}</p>
+                      <p className="text-white/80 md:col-span-2"><span className="text-white/50">Direccion:</span> {req.business_address}</p>
+                      {req.docs_url && (
+                        <p className="text-cyan-300 md:col-span-2">
+                          <a href={req.docs_url} target="_blank" rel="noreferrer" className="hover:underline">Ver documento</a>
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs text-white/60">Motivo para el usuario (aprobacion o rechazo)</label>
+                      <textarea
+                        rows={3}
+                        value={reviewNotes[req.id] ?? req.validation_notes ?? ''}
+                        onChange={(e) => setReviewNotes((prev) => ({ ...prev, [req.id]: e.target.value }))}
+                        placeholder="Ej: Documentacion validada correctamente / Falta documentacion fiscal"
+                        className="w-full bg-slate-950 border border-white/10 rounded-lg p-3 text-sm text-white placeholder-white/30"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleReview(req.id, 'approved')}
+                        disabled={reviewLoading}
+                        className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-sm font-medium"
+                      >
+                        Aprobar
+                      </button>
+                      <button
+                        onClick={() => handleReview(req.id, 'rejected')}
+                        disabled={reviewLoading}
+                        className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-sm font-medium"
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
       </div>
 
-      {/* Modal de Ban Manual */}
       <ManualBanModal
         isOpen={showManualBanModal}
         onClose={() => setShowManualBanModal(false)}

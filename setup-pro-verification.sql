@@ -62,5 +62,43 @@ for select
 to public
 using (auth.uid() = user_id or status = 'approved');
 
+-- Admins can read all requests (including pending/rejected) using profiles.role.
+drop policy if exists "pro_verification_admin_select_all" on public.pro_verification_requests;
+create policy "pro_verification_admin_select_all"
+on public.pro_verification_requests
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and coalesce(to_jsonb(p)->>'role', 'user') = 'admin'
+  )
+);
+
+-- Admins can review requests and set status/notes.
+drop policy if exists "pro_verification_admin_update" on public.pro_verification_requests;
+create policy "pro_verification_admin_update"
+on public.pro_verification_requests
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and coalesce(to_jsonb(p)->>'role', 'user') = 'admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and coalesce(to_jsonb(p)->>'role', 'user') = 'admin'
+  )
+);
+
 -- Service role / admins can update review status externally.
 -- (No direct authenticated update policy on purpose)
