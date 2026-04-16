@@ -192,3 +192,48 @@ end;
 $$;
 
 grant execute on function public.submit_ban_appeal(text, text, text) to authenticated;
+
+-- =====================================================
+-- 4) Single admin lock (ONLY this account can access /admin)
+-- =====================================================
+-- Required admin account:
+-- f0e53339-180c-4491-926c-ecdbe1480849
+
+alter table public.profiles
+add column if not exists role text;
+
+do $$
+begin
+	if not exists (
+		select 1
+		from pg_constraint
+		where conname = 'profiles_role_check'
+	) then
+		alter table public.profiles
+		add constraint profiles_role_check
+		check (role in ('user', 'admin'));
+	end if;
+end $$;
+
+alter table public.profiles
+alter column role set default 'user';
+
+-- Make exactly one admin and force everyone else to user.
+update public.profiles
+set role = case
+	when id = 'f0e53339-180c-4491-926c-ecdbe1480849'::uuid then 'admin'
+	else 'user'
+end;
+
+-- Force app admin check to this single UUID.
+create or replace function public.is_current_user_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+	select auth.uid() = 'f0e53339-180c-4491-926c-ecdbe1480849'::uuid;
+$$;
+
+grant execute on function public.is_current_user_admin() to authenticated;
