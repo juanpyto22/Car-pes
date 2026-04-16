@@ -25,6 +25,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { fishingLocations, getLocationIcon } from '@/data/fishingLocations';
 import '@/styles/leaflet-custom.css';
+import logoImg from '/img/Car-Pes.png';
 
 const SPAIN_CENTER = [40.4168, -3.7038];
 const DEFAULT_ZOOM = 6;
@@ -69,14 +70,16 @@ const toTypeClass = (type) => {
   return TYPE_ALIASES[normalized] || 'default';
 };
 
-const createSpotIcon = (type, isSelected = false) => {
+const createSpotIcon = (type, isSelected = false, compact = false) => {
   const typeClass = toTypeClass(type);
+  const size = compact ? 18 : 24;
+  const selectedSize = compact ? 22 : 28;
 
   return L.divIcon({
     className: 'fishing-pin-wrapper',
     html: `<span class="fishing-pin fishing-pin--${typeClass} ${isSelected ? 'is-selected' : ''}"></span>`,
-    iconSize: isSelected ? [28, 28] : [24, 24],
-    iconAnchor: isSelected ? [14, 14] : [12, 12],
+    iconSize: isSelected ? [selectedSize, selectedSize] : [size, size],
+    iconAnchor: isSelected ? [selectedSize / 2, selectedSize / 2] : [size / 2, size / 2],
     popupAnchor: [0, -14],
   });
 };
@@ -496,6 +499,8 @@ const FishingMapsPage = () => {
     [favorites],
   );
 
+  const useCompactMarkers = filteredLocations.length > 75;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#031d2f] to-[#102742] flex items-center justify-center">
@@ -507,7 +512,7 @@ const FishingMapsPage = () => {
   return (
     <>
       <Helmet>
-        <title>Mapa de Spots - Car-Pes</title>
+        <title>Car-Pes | Mapa de Spots</title>
       </Helmet>
 
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#04192b] to-[#102742] text-white">
@@ -515,12 +520,19 @@ const FishingMapsPage = () => {
         <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/82 backdrop-blur-xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-3 md:py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold tracking-tight">
-                  <MapIcon className="h-5 w-5 md:h-6 md:w-6 text-cyan-300" />
-                  Mapa Inteligente de Pesca
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-cyan-500/10 px-3 py-2">
+                  <img src={logoImg} alt="Car-Pes" className="h-9 w-9 rounded-full object-cover ring-1 ring-cyan-300/35" />
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-100/70">Comunidad de pesca</p>
+                    <p className="text-xl font-bold text-cyan-100 leading-tight">Car-Pes</p>
+                  </div>
+                </div>
+                <h1 className="flex items-center gap-2 text-lg md:text-xl font-semibold tracking-tight text-white">
+                  <MapIcon className="h-5 w-5 text-cyan-300" />
+                  Mapa Inteligente de Spots
                 </h1>
-                <p className="mt-1 text-xs text-cyan-100/75 max-w-xl">
+                <p className="text-xs text-cyan-100/75 max-w-xl">
                   Navegacion fluida, filtros precisos y spots listos para explorar.
                 </p>
               </div>
@@ -773,7 +785,7 @@ const FishingMapsPage = () => {
                 <Marker
                   key={`${location.name}-${location.latitude}-${location.longitude}`}
                   position={[location.latitude, location.longitude]}
-                  icon={createSpotIcon(location.type, selectedLocation?.name === location.name)}
+                  icon={createSpotIcon(location.type, selectedLocation?.name === location.name, useCompactMarkers)}
                   eventHandlers={{ click: () => selectLocation(location) }}
                 >
                   <Popup>
@@ -989,7 +1001,7 @@ const FishingMapsPage = () => {
               initial={{ y: 30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 30, opacity: 0 }}
-              className="fixed bottom-3 left-1/2 z-40 w-[96%] max-w-2xl -translate-x-1/2 rounded-2xl border border-white/15 bg-slate-950/92 p-3 shadow-2xl backdrop-blur md:bottom-4 md:p-4"
+              className="fixed bottom-3 left-1/2 z-40 w-[96%] max-w-2xl -translate-x-1/2 rounded-2xl border border-white/15 bg-slate-950/92 p-3 shadow-2xl backdrop-blur md:bottom-4 md:p-4 xl:hidden"
             >
               <div className="flex items-start gap-3">
                 <span className="text-3xl leading-none">{getLocationIcon(selectedLocation.type)}</span>
