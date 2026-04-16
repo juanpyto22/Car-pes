@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -45,10 +45,25 @@ import MobileBottomNav from '@/components/MobileBottomNav';
 const AppRoutes = () => {
   const { user } = useAuth();
   const { isBanned, banType, reason, remainingHours } = useCheckUserBan();
+  const location = useLocation();
+
+  const adminPathRegex = /^\/(admin|admin-panel|panel-admin|feed\/admin)\/?$/i;
+  const isAdminPath = adminPathRegex.test(location.pathname || '');
 
   // Si el usuario está autenticado y baneado, mostrar página de baneado
   if (user && isBanned) {
     return <BannedUserPage banType={banType} reason={reason} remainingHours={remainingHours} />;
+  }
+
+  // Hard guard: evita que rutas admin caigan al wildcard y redirijan a /feed.
+  if (isAdminPath) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-cyan-500/30">
+        <Header />
+        <AdminRoute><AdminPanel /></AdminRoute>
+        <MobileBottomNav />
+      </div>
+    );
   }
 
   return (
