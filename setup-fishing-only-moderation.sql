@@ -233,7 +233,7 @@ stable
 security definer
 set search_path = public
 as $$
-	select auth.uid() = 'f0e53339-180c-4491-926c-ecdbe1480849'::uuid;
+	select coalesce(auth.uid() = 'f0e53339-180c-4491-926c-ecdbe1480849'::uuid, false);
 $$;
 
 grant execute on function public.is_current_user_admin() to authenticated;
