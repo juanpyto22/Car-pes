@@ -14,14 +14,26 @@ body {
 /* Global scrollbar theme (applies to most scrollable areas) */
 :root {
     --scrollbar-size: 10px;
+    --scroll-track: rgba(9, 16, 38, 0.9);
+    --scroll-thumb: linear-gradient(180deg, rgba(59, 130, 246, 0.78), rgba(37, 99, 235, 0.78));
+    --scroll-thumb-hover: linear-gradient(180deg, rgba(96, 165, 250, 0.95), rgba(59, 130, 246, 0.95));
+    --scroll-border: rgba(15, 23, 42, 0.95);
+}
+
+body.admin-theme {
     --scroll-track: rgba(6, 18, 14, 0.9);
     --scroll-thumb: linear-gradient(180deg, rgba(52, 211, 153, 0.75), rgba(16, 185, 129, 0.75));
     --scroll-thumb-hover: linear-gradient(180deg, rgba(110, 231, 183, 0.95), rgba(52, 211, 153, 0.95));
+    --scroll-border: rgba(3, 11, 7, 0.95);
 }
 
 /* Firefox */
 * {
     scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.75) rgba(9, 16, 38, 0.9);
+}
+
+body.admin-theme * {
     scrollbar-color: rgba(52, 211, 153, 0.7) rgba(6, 18, 14, 0.9);
 }
 
@@ -39,7 +51,7 @@ body {
 *::-webkit-scrollbar-thumb {
     background: var(--scroll-thumb);
     border-radius: 999px;
-    border: 2px solid rgba(3, 11, 7, 0.95);
+    border: 2px solid var(--scroll-border);
 }
 
 *::-webkit-scrollbar-thumb:hover {
@@ -56,18 +68,18 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(6, 18, 14, 0.7);
+    background: var(--scroll-track);
     border-radius: 999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, rgba(16, 185, 129, 0.75), rgba(5, 150, 105, 0.75));
+    background: var(--scroll-thumb);
     border-radius: 999px;
-    border: 1px solid rgba(6, 95, 70, 0.7);
+    border: 1px solid var(--scroll-border);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, rgba(52, 211, 153, 0.95), rgba(16, 185, 129, 0.95));
+    background: var(--scroll-thumb-hover);
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */

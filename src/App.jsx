@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Toaster } from '@/components/ui/toaster';
@@ -49,6 +49,15 @@ const AppRoutes = () => {
 
   const adminPathRegex = /^\/(admin|admin-panel|panel-admin|feed\/admin)\/?$/i;
   const isAdminPath = adminPathRegex.test(location.pathname || '');
+
+  useEffect(() => {
+    document.body.classList.remove('admin-theme', 'user-theme');
+    document.body.classList.add(isAdminPath ? 'admin-theme' : 'user-theme');
+
+    return () => {
+      document.body.classList.remove('admin-theme', 'user-theme');
+    };
+  }, [isAdminPath]);
 
   // Si el usuario está autenticado y baneado, mostrar página de baneado
   if (user && isBanned) {
