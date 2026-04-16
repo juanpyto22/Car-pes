@@ -16,6 +16,7 @@ import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import {
   useAdminBanUser,
+  useAdminActiveBans,
   useAdminBanAppeals,
   useAdminProRequests,
   useAdminReviewBanAppeal,
@@ -40,6 +41,7 @@ export default function AdminPanel() {
 
   const { users: searchResults, loading: searchLoading } = useSearchUsers(searchTerm);
   const { banUser, loading: banUserLoading } = useAdminBanUser();
+  const { bans: activeBans, loading: activeBansLoading, liftBan, fetchBans } = useAdminActiveBans();
 
   const {
     requests: proRequests,
@@ -209,6 +211,16 @@ export default function AdminPanel() {
             }`}
           >
             <MessageSquareWarning className="w-4 h-4" /> Apelaciones de ban
+          </button>
+          <button
+            onClick={() => setActiveTab('banned-users')}
+            className={`px-4 py-2.5 rounded-lg transition flex items-center gap-2 whitespace-nowrap text-sm ${
+              activeTab === 'banned-users'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                : 'text-emerald-100/60 hover:text-emerald-100 border border-transparent'
+            }`}
+          >
+            <Ban className="w-4 h-4" /> Usuarios baneados
           </button>
         </div>
 
@@ -441,6 +453,61 @@ export default function AdminPanel() {
                         className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-sm font-medium"
                       >
                         Rechazar apelacion
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {activeTab === 'banned-users' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            {activeBansLoading ? (
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400"></div>
+              </div>
+            ) : (activeBans || []).length === 0 ? (
+              <EmptyState
+                icon={Ban}
+                title="Sin baneos activos"
+                description="No hay usuarios baneados en este momento."
+              />
+            ) : (
+              <div className="space-y-3">
+                {(activeBans || []).map((ban) => (
+                  <div key={ban.id} className="rounded-xl border border-emerald-500/20 bg-[#07160e] p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-emerald-200 font-semibold">@{ban.username || 'usuario'}</p>
+                        <p className="text-emerald-100/60 text-sm">{ban.email || 'email no disponible'}</p>
+                      </div>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs border ${statusBadge(ban.ban_type === 'permanent' ? 'rejected' : 'pending')}`}>
+                        {ban.ban_type || 'ban'}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-1 text-sm text-emerald-100/80">
+                      <p><span className="text-emerald-300/60">Motivo:</span> {ban.reason || 'sin motivo'}</p>
+                      <p><span className="text-emerald-300/60">Infracciones:</span> {ban.infraction_count ?? '-'}</p>
+                      <p><span className="text-emerald-300/60">Restante:</span> {ban.time_remaining_text || 'permanente'}</p>
+                    </div>
+
+                    <div className="mt-4">
+                      <button
+                        onClick={async () => {
+                          const result = await liftBan(ban.id);
+                          if (result?.success) {
+                            toast({ title: 'Ban levantado', description: 'El usuario ya puede volver a iniciar sesión.' });
+                            fetchBans();
+                          } else {
+                            toast({ title: 'Error', description: result?.error || 'No se pudo levantar el ban.', variant: 'destructive' });
+                          }
+                        }}
+                        className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium"
+                      >
+                        Levantar ban
                       </button>
                     </div>
                   </div>

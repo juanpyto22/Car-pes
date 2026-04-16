@@ -559,6 +559,27 @@ export const useAdminReviewBanAppeal = () => {
 
       if (error) throw error;
 
+      // If appeal is approved, lift active bans for this user.
+      if (status === 'approved' && data?.user_id) {
+        const { error: unbanErr } = await supabase
+          .from('user_bans')
+          .update({
+            is_active: false,
+            ban_expires_at: new Date().toISOString(),
+          })
+          .eq('user_id', data.user_id)
+          .eq('is_active', true);
+
+        if (unbanErr) {
+          // Fallback in case user_bans columns differ in some environments.
+          await supabase
+            .from('user_bans')
+            .update({ ban_expires_at: new Date().toISOString() })
+            .eq('user_id', data.user_id)
+            .is('ban_expires_at', null);
+        }
+      }
+
       if (data?.user_id) {
         const sent = await sendAppealResultNotification({
           userId: data.user_id,

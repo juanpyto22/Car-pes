@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
@@ -11,11 +11,19 @@ import { useToast } from '@/components/ui/use-toast';
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signIn } = useAuth();
   const { toast } = useToast();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const approvalMessage = useMemo(() => {
+    const appeal = searchParams.get('appeal');
+    const msg = searchParams.get('msg');
+    if (appeal !== 'approved') return null;
+    return msg || 'Tu apelacion fue aprobada. Ya puedes iniciar sesión.';
+  }, [searchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -75,6 +83,13 @@ const LoginPage = () => {
                     <AlertCircle className="w-5 h-5 shrink-0" />
                     {errorMsg}
                 </div>
+            )}
+
+            {approvalMessage && (
+              <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-3 text-emerald-200 text-sm">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                {approvalMessage}
+              </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">

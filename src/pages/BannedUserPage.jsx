@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, LogOut, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { supabase } from '@/lib/customSupabaseClient';
 
 export default function BannedUserPage({ banType, reason, expiresAt, remainingHours }) {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [showAppealForm, setShowAppealForm] = useState(false);
   const [appealText, setAppealText] = useState('');
   const [appealSubmitting, setAppealSubmitting] = useState(false);
   const [appealSent, setAppealSent] = useState(false);
   const [appealError, setAppealError] = useState('');
+  const [redirectingAfterApproval, setRedirectingAfterApproval] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -85,6 +88,42 @@ export default function BannedUserPage({ banType, reason, expiresAt, remainingHo
     }
   };
 
+  useEffect(() => {
+    if (!user?.id || redirectingAfterApproval) return;
+
+    const checkAppealResolution = async () => {
+      try {
+        const { data: banData, error: banErr } = await supabase
+          .rpc('get_current_user_ban_status');
+
+        if (banErr) return;
+
+        const isStillBanned = Array.isArray(banData) ? !!banData[0]?.is_banned : false;
+        if (isStillBanned) return;
+
+        const { data: approvedAppeal } = await supabase
+          .from('ban_appeals')
+          .select('admin_response, updated_at')
+          .eq('user_id', user.id)
+          .eq('status', 'approved')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const adminMsg = approvedAppeal?.admin_response?.trim() || 'Tu apelacion fue aprobada. Ya puedes volver a iniciar sesión.';
+        setRedirectingAfterApproval(true);
+        await signOut();
+        navigate(`/login?appeal=approved&msg=${encodeURIComponent(adminMsg)}`, { replace: true });
+      } catch (err) {
+        console.error('Error checking approved appeal resolution:', err);
+      }
+    };
+
+    checkAppealResolution();
+    const interval = setInterval(checkAppealResolution, 15000);
+    return () => clearInterval(interval);
+  }, [user?.id, redirectingAfterApproval, signOut, navigate]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-red-950 to-slate-950 flex items-center justify-center p-4">
       <motion.div
@@ -153,6 +192,12 @@ export default function BannedUserPage({ banType, reason, expiresAt, remainingHo
 
           {/* Buttons */}
           <div className="space-y-3">
+            {redirectingAfterApproval && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
+                <p className="text-emerald-300 text-sm font-medium">Apelacion aprobada. Redirigiendo a inicio de sesión...</p>
+              </div>
+            )}
+
             {!appealSent && (
               <Button
                 onClick={() => {
