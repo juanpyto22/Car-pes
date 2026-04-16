@@ -226,7 +226,7 @@ export default function AdminPanel() {
 
         {activeTab === 'ban' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-            <p className="text-emerald-100/80">Busca cualquier usuario y aplica el tipo de ban con su motivo.</p>
+            <p className="text-emerald-100/80">Busca cualquier usuario y aplica el tipo de ban con su motivo. Si no escribes nada, veras todos los usuarios registrados.</p>
 
             <div className="flex items-center gap-3 p-4 bg-[#07160e] rounded-lg border border-emerald-500/20">
               <Search className="w-5 h-5 text-emerald-300/60" />
@@ -244,7 +244,7 @@ export default function AdminPanel() {
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400"></div>
               </div>
             ) : filteredUsers.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                 {filteredUsers.map((user) => (
                   <button
                     key={user.id}
@@ -272,8 +272,8 @@ export default function AdminPanel() {
             ) : (
               <EmptyState
                 icon={Ban}
-                title="Busqueda vacia"
-                description="Escribe un usuario para aplicar ban manual."
+                title="Sin usuarios"
+                description="No se encontraron usuarios registrados para mostrar."
               />
             )}
           </motion.div>

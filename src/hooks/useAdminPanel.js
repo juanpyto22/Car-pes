@@ -211,20 +211,23 @@ export const useSearchUsers = (query) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!query || query.length < 1) {
-      setUsers([]);
-      return;
-    }
-
     const searchUsers = async () => {
       try {
         setLoading(true);
-        const searchPattern = `%${query.toLowerCase()}%`;
-        
-        const { data, error: err } = await supabase
+        const normalizedQuery = `${query || ''}`.trim().toLowerCase();
+
+        let request = supabase
           .from('profiles')
           .select('id, username, email')
-          .or(`username.ilike.${searchPattern},email.ilike.${searchPattern}`);
+          .order('username', { ascending: true })
+          .limit(2000);
+
+        if (normalizedQuery.length > 0) {
+          const searchPattern = `%${normalizedQuery}%`;
+          request = request.or(`username.ilike.${searchPattern},email.ilike.${searchPattern}`);
+        }
+
+        const { data, error: err } = await request;
 
         console.log('useSearchUsers - query:', query, 'results:', data, 'error:', err);
 
