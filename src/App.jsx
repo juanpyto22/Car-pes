@@ -89,6 +89,9 @@ const AppRoutes = () => {
         <Route path="/live" element={<ProtectedRoute><LiveStreamPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+        <Route path="/admin-panel" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+        <Route path="/panel-admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+        <Route path="/feed/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       
