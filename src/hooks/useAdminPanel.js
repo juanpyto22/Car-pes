@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
 
+const SINGLE_ADMIN_ID = 'f0e53339-180c-4491-926c-ecdbe1480849';
+
 /**
  * Hook: Obtener todas las infracciones
  */
@@ -593,6 +595,15 @@ export const useIsAdmin = (userId) => {
   useEffect(() => {
     const checkAdmin = async () => {
       try {
+        const { data: authData } = await supabase.auth.getUser();
+        const currentUser = authData?.user;
+
+        // Hard lock: this account is always admin in frontend too.
+        if (currentUser?.id === SINGLE_ADMIN_ID) {
+          setIsAdmin(true);
+          return;
+        }
+
         // Usar la función RPC is_current_user_admin() que verifica el usuario autenticado
         const { data, error } = await supabase
           .rpc('is_current_user_admin');
@@ -601,9 +612,6 @@ export const useIsAdmin = (userId) => {
 
         if (error) {
           console.error('Error checking admin status by RPC, trying role fallback:', error);
-
-          const { data: authData } = await supabase.auth.getUser();
-          const currentUser = authData?.user;
 
           if (!currentUser?.id) {
             setIsAdmin(false);
