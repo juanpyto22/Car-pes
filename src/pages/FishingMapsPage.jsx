@@ -201,6 +201,8 @@ const FishingMapsPage = () => {
 
   const searchInputRef = useRef(null);
 
+  const resolveLocationByName = (locationName) => fishingLocations.find((item) => item.name === locationName);
+
   useEffect(() => {
     const fetchCommunitySpots = async () => {
       try {
@@ -475,6 +477,25 @@ const FishingMapsPage = () => {
     [filteredLocations.length, communitySpots.length],
   );
 
+  const selectedSpotMeta = selectedLocation
+    ? {
+        type: selectedLocation.type,
+        region: selectedLocation.region,
+        country: selectedLocation.country,
+        description: selectedLocation.description || 'Spot de pesca recomendado por la comunidad.',
+      }
+    : null;
+
+  const recentSearchLocations = useMemo(
+    () => searchHistory.map(resolveLocationByName).filter(Boolean).slice(0, 5),
+    [searchHistory],
+  );
+
+  const favoriteLocations = useMemo(
+    () => favorites.map(resolveLocationByName).filter(Boolean).slice(0, 6),
+    [favorites],
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#031d2f] to-[#102742] flex items-center justify-center">
@@ -715,7 +736,7 @@ const FishingMapsPage = () => {
           </div>
         </header>
 
-        <main className="mx-auto grid w-full max-w-[96rem] flex-1 grid-cols-1 gap-3 p-4 md:gap-4">
+        <main className="mx-auto grid w-full max-w-[96rem] flex-1 grid-cols-1 gap-3 p-4 md:gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
           <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60">
             <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between p-3">
               <div className="rounded-full border border-cyan-300/30 bg-slate-900/80 px-3 py-1 text-xs text-cyan-100/90 shadow-lg backdrop-blur">
@@ -827,6 +848,138 @@ const FishingMapsPage = () => {
               </Button>
             </div>
           </section>
+
+          <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start">
+            <section className="surface-card rounded-2xl p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-sky-300/70">Contexto del spot</p>
+                  <h2 className="mt-1 text-xl font-semibold text-white">{selectedLocation ? selectedLocation.name : 'Selecciona un spot'}</h2>
+                </div>
+                {selectedLocation && (
+                  <span className="rounded-full border border-sky-300/20 bg-sky-500/10 px-2.5 py-1 text-[11px] text-sky-100">
+                    {selectedLocation.country}
+                  </span>
+                )}
+              </div>
+
+              {selectedSpotMeta ? (
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                    <p className="text-xs text-sky-100/60">Region</p>
+                    <p className="mt-1 text-sm text-white">{selectedSpotMeta.region}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                    <p className="text-xs text-sky-100/60">Tipo</p>
+                    <p className="mt-1 text-sm text-white">{selectedSpotMeta.type}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                    <p className="text-xs text-sky-100/60">Resumen</p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-200">{selectedSpotMeta.description}</p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Button
+                      onClick={() => handleNavigate(selectedLocation)}
+                      className={`transition ${
+                        showRoute
+                          ? 'bg-cyan-500 hover:bg-cyan-400'
+                          : 'bg-cyan-600 hover:bg-cyan-500'
+                      }`}
+                    >
+                      <Navigation className="mr-1 h-4 w-4" />
+                      {showRoute ? '✓ Ruta activa' : 'Como llegar'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleForecast(selectedLocation)}
+                      className="border-emerald-300/40 text-emerald-100 hover:bg-emerald-900/25"
+                    >
+                      <CloudSun className="mr-1 h-4 w-4" />
+                      Pronostico
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => toggleFavorite(selectedLocation)}
+                      className="border-white/20 text-cyan-100 hover:bg-rose-900/25"
+                    >
+                      <Heart className={`mr-1 h-4 w-4 ${isFavorite(selectedLocation) ? 'fill-current text-rose-400' : ''}`} />
+                      {isFavorite(selectedLocation) ? 'Guardado' : 'Guardar'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl border border-dashed border-white/15 bg-white/[0.02] p-4 text-sm text-slate-300">
+                  Haz clic en un marcador para ver contexto, ruta y acciones rápidas.
+                </div>
+              )}
+            </section>
+
+            <section className="surface-card rounded-2xl p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-sky-300/70">Búsquedas recientes</p>
+                  <h3 className="mt-1 text-base font-semibold text-white">Reanudar spots</h3>
+                </div>
+                <Sparkles className="h-4 w-4 text-sky-300" />
+              </div>
+
+              <div className="mt-3 space-y-2">
+                {recentSearchLocations.length > 0 ? (
+                  recentSearchLocations.map((location) => (
+                    <button
+                      key={`${location.name}-recent`}
+                      onClick={() => selectLocation(location)}
+                      className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left text-sm text-slate-200 transition hover:border-sky-300/30 hover:bg-sky-500/10"
+                    >
+                      <span className="truncate">{location.name}</span>
+                      <span className="ml-3 text-xs text-sky-200/70">{location.country}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-3 py-3 text-sm text-slate-400">
+                    Tus últimas búsquedas aparecerán aquí.
+                  </p>
+                )}
+              </div>
+            </section>
+
+            <section className="surface-card rounded-2xl p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-sky-300/70">Favoritos</p>
+                  <h3 className="mt-1 text-base font-semibold text-white">Tus spots guardados</h3>
+                </div>
+                <Heart className="h-4 w-4 text-rose-300" />
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-2">
+                {favoriteLocations.length > 0 ? (
+                  favoriteLocations.map((location) => (
+                    <button
+                      key={`${location.name}-fav`}
+                      onClick={() => selectLocation(location)}
+                      className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left text-sm text-slate-200 transition hover:border-rose-300/30 hover:bg-rose-500/10"
+                    >
+                      <p className="truncate font-medium text-white">{location.name}</p>
+                      <p className="truncate text-xs text-slate-400">{location.region} · {location.type}</p>
+                    </button>
+                  ))
+                ) : (
+                  <p className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-3 py-3 text-sm text-slate-400">
+                    Guarda spots para tener acceso rápido desde aquí.
+                  </p>
+                )}
+              </div>
+            </section>
+
+            <section className="surface-card rounded-2xl p-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-sky-300/70">Consejo visual</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-300">
+                Usa el tema nocturno para contraste fuerte y el botón de ajustar para encuadrar resultados antes de navegar.
+              </p>
+            </section>
+          </aside>
         </main>
         </div>
 
