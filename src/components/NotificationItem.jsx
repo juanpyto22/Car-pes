@@ -18,6 +18,8 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
       case 'live_started': return <Radio className="w-3.5 h-3.5 text-red-400" />;
       case 'pro_verification_approved': return <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" />;
       case 'pro_verification_rejected': return <AlertCircle className="w-3.5 h-3.5 text-red-400" />;
+      case 'ban_appeal_approved': return <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" />;
+      case 'ban_appeal_rejected': return <AlertCircle className="w-3.5 h-3.5 text-red-400" />;
       default: return <div className="w-3.5 h-3.5 bg-gray-400 rounded-full" />;
     }
   };
@@ -29,6 +31,9 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
     if (notification.type === 'live_started') return '/live';
     if (notification.type === 'pro_verification_approved' || notification.type === 'pro_verification_rejected') {
       return '/edit-profile';
+    }
+    if (notification.type === 'ban_appeal_approved' || notification.type === 'ban_appeal_rejected') {
+      return '/settings';
     }
     if (notification.post_id) return `/post/${notification.post_id}`;
     return '#';
@@ -44,6 +49,8 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
       case 'live_started': return 'ha iniciado un directo';
       case 'pro_verification_approved': return 'aprobó tu solicitud de perfil Pro';
       case 'pro_verification_rejected': return 'rechazó tu solicitud de perfil Pro';
+      case 'ban_appeal_approved': return 'aprobó tu apelación de baneo';
+      case 'ban_appeal_rejected': return 'rechazó tu apelación de baneo';
       default: return 'interactuó contigo';
     }
   };
@@ -51,7 +58,12 @@ const NotificationItem = ({ notification, onDelete, onRead, onAcceptFollow, onRe
   const actorName = notification.related_user?.username || 'Administración';
   const avatarLink = notification.related_user_id ? `/profile/${notification.related_user_id}` : '#';
   const hasReason =
-    (notification.type === 'pro_verification_approved' || notification.type === 'pro_verification_rejected')
+    (
+      notification.type === 'pro_verification_approved'
+      || notification.type === 'pro_verification_rejected'
+      || notification.type === 'ban_appeal_approved'
+      || notification.type === 'ban_appeal_rejected'
+    )
     && !!notification.content;
 
   const isFollowRequest = notification.type === 'follow_request';

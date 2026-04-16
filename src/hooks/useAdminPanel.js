@@ -419,6 +419,170 @@ export const useAdminReviewProRequest = () => {
 };
 
 /**
+ * Hook: Obtener apelaciones de baneo para revision administrativa
+ */
+export const useAdminBanAppeals = (status = 'pending') => {
+  const [appeals, setAppeals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchAppeals = async () => {
+    try {
+      setLoading(true);
+      let query = supabase
+        .from('ban_appeals')
+        .select(`
+          id,
+          user_id,
+          ban_type,
+          ban_reason,
+          appeal_text,
+          status,
+          admin_response,
+          created_at,
+          updated_at,
+          user:profiles!user_id(
+            id,
+            username,
+            nombre,
+            email,
+            foto_perfil
+          )
+        `)
+        .order('created_at', { ascending: true });
+
+      if (status && status !== 'all') {
+        query = query.eq('status', status);
+      }
+
+      const { data, error: err } = await query;
+
+      let normalizedData = data;
+      if (err) {
+        let fallbackQuery = supabase
+          .from('ban_appeals')
+          .select('*')
+          .order('created_at', { ascending: true });
+
+        if (status && status !== 'all') {
+          fallbackQuery = fallbackQuery.eq('status', status);
+        }
+
+        const { data: fallbackData, error: fallbackErr } = await fallbackQuery;
+        if (fallbackErr) throw fallbackErr;
+
+        const userIds = [...new Set((fallbackData || []).map((item) => item.user_id).filter(Boolean))];
+        let profileMap = {};
+
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, username, nombre, email, foto_perfil')
+            .in('id', userIds);
+
+          profileMap = (profiles || []).reduce((acc, profile) => {
+            acc[profile.id] = profile;
+            return acc;
+          }, {});
+        }
+
+        normalizedData = (fallbackData || []).map((item) => ({
+          ...item,
+          user: profileMap[item.user_id] || null,
+        }));
+      }
+
+      setAppeals(normalizedData || []);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching ban appeals:', err);
+      setAppeals([]);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAppeals();
+  }, [status]);
+
+  return { appeals, loading, error, refetch: fetchAppeals };
+};
+
+/**
+ * Hook: Revisar apelacion de baneo (aprobar/rechazar) y notificar
+ */
+export const useAdminReviewBanAppeal = () => {
+  const [loading, setLoading] = useState(false);
+
+  const sendAppealResultNotification = async ({ userId, adminId, status, reason }) => {
+    const type = status === 'approved' ? 'ban_appeal_approved' : 'ban_appeal_rejected';
+    const content = reason?.trim() || (status === 'approved'
+      ? 'Tu apelacion ha sido aprobada.'
+      : 'Tu apelacion ha sido rechazada.');
+
+    const payloadVariants = [
+      { user_id: userId, type, related_user_id: adminId, content, read: false },
+      { user_id: userId, type, from_user_id: adminId, content, read: false },
+      { user_id: userId, type, related_user_id: adminId, read: false },
+      { user_id: userId, type, from_user_id: adminId, read: false },
+      { user_id: userId, type, read: false },
+    ];
+
+    for (const payload of payloadVariants) {
+      const { error } = await supabase.from('notifications').insert(payload);
+      if (!error) return true;
+    }
+
+    return false;
+  };
+
+  const reviewAppeal = async ({ appealId, status, adminResponse }) => {
+    setLoading(true);
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const adminUser = authData?.user;
+
+      const { data, error } = await supabase
+        .from('ban_appeals')
+        .update({
+          status,
+          admin_response: adminResponse?.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', appealId)
+        .select('id, user_id, status')
+        .single();
+
+      if (error) throw error;
+
+      if (data?.user_id) {
+        const sent = await sendAppealResultNotification({
+          userId: data.user_id,
+          adminId: adminUser?.id || null,
+          status,
+          reason: adminResponse,
+        });
+
+        if (!sent) {
+          console.warn('Appeal review notification could not be inserted');
+        }
+      }
+
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error reviewing ban appeal:', err);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { reviewAppeal, loading };
+};
+
+/**
  * Hook: Verificar si usuario actual es admin
  * Usa la función RPC de Supabase para mayor seguridad
  */
@@ -436,8 +600,28 @@ export const useIsAdmin = (userId) => {
         console.log('is_current_user_admin result:', { data, error });
 
         if (error) {
-          console.error('Error checking admin status:', error);
-          setIsAdmin(false);
+          console.error('Error checking admin status by RPC, trying role fallback:', error);
+
+          const { data: authData } = await supabase.auth.getUser();
+          const currentUser = authData?.user;
+
+          if (!currentUser?.id) {
+            setIsAdmin(false);
+            return;
+          }
+
+          const { data: profileRow, error: profileErr } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', currentUser.id)
+            .maybeSingle();
+
+          if (profileErr) {
+            console.error('Fallback role admin check failed:', profileErr);
+            setIsAdmin(false);
+          } else {
+            setIsAdmin(profileRow?.role === 'admin');
+          }
         } else {
           console.log('is_current_user_admin returned:', data);
           setIsAdmin(data === true);
