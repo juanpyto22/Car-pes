@@ -97,7 +97,7 @@ const FeedPage = () => {
   return (
     <>
       <Helmet>
-        <title>Feed - Car-Pes</title>
+        <title>Car-Pes | Feed</title>
       </Helmet>
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-blue-950/10 to-slate-950 pb-20">
         <div className="max-w-xl mx-auto pt-2 md:pt-6 px-0 md:px-4">

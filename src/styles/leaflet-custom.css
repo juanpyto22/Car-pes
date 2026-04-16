@@ -74,14 +74,31 @@
   height: 24px;
   border-radius: 999px;
   border: 2px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.5), 0 0 0 6px rgba(15, 23, 42, 0.15);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.38), 0 0 0 4px rgba(15, 23, 42, 0.12);
   transform-origin: center;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .fishing-pin.is-selected {
   transform: scale(1.12);
-  box-shadow: 0 10px 24px rgba(8, 145, 178, 0.65), 0 0 0 8px rgba(6, 182, 212, 0.2);
+  box-shadow: 0 8px 18px rgba(8, 145, 178, 0.52), 0 0 0 6px rgba(6, 182, 212, 0.16);
+}
+
+.fishing-cluster-icon {
+  align-items: center;
+  background: radial-gradient(circle at 35% 30%, #67e8f9, #0284c7 70%);
+  border: 2px solid rgba(224, 242, 254, 0.9);
+  border-radius: 999px;
+  box-shadow: 0 10px 20px rgba(2, 132, 199, 0.4), 0 0 0 4px rgba(14, 116, 144, 0.2);
+  color: #f8fafc;
+  display: flex;
+  font-size: 12px;
+  font-weight: 800;
+  justify-content: center;
+}
+
+.fishing-cluster-icon span {
+  line-height: 1;
 }
 
 .fishing-pin--rivers {

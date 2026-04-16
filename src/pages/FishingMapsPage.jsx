@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { supabase } from '@/lib/customSupabaseClient';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { fishingLocations, getLocationIcon } from '@/data/fishingLocations';
@@ -81,6 +82,17 @@ const createSpotIcon = (type, isSelected = false, compact = false) => {
     iconSize: isSelected ? [selectedSize, selectedSize] : [size, size],
     iconAnchor: isSelected ? [selectedSize / 2, selectedSize / 2] : [size / 2, size / 2],
     popupAnchor: [0, -14],
+  });
+};
+
+const createClusterIcon = (cluster) => {
+  const count = cluster.getChildCount();
+  const size = count < 25 ? 34 : count < 60 ? 38 : 42;
+
+  return L.divIcon({
+    html: `<span>${count}</span>`,
+    className: 'fishing-cluster-icon',
+    iconSize: [size, size],
   });
 };
 
@@ -500,6 +512,53 @@ const FishingMapsPage = () => {
   );
 
   const useCompactMarkers = filteredLocations.length > 75;
+  const useClustering = filteredLocations.length > 40;
+
+  const renderLocationMarker = (location) => (
+    <Marker
+      key={`${location.name}-${location.latitude}-${location.longitude}`}
+      position={[location.latitude, location.longitude]}
+      icon={createSpotIcon(location.type, selectedLocation?.name === location.name, useCompactMarkers)}
+      eventHandlers={{ click: () => selectLocation(location) }}
+    >
+      <Popup>
+        <div className="space-y-2 p-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">{getLocationIcon(location.type)}</span>
+            <div>
+              <p className="text-sm font-semibold text-white">{location.name}</p>
+              <p className="text-xs text-cyan-200">{location.region}, {location.country}</p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-200">{location.description || 'Spot de pesca recomendado.'}</p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              onClick={() => selectLocation(location)}
+              className="rounded-md bg-cyan-600 px-2 py-1 text-xs font-medium text-white hover:bg-cyan-500"
+            >
+              Ver detalle
+            </button>
+            <button
+              onClick={() => handleNavigate(location)}
+              className={`rounded-md px-2 py-1 text-xs font-medium transition ${
+                showRoute && selectedLocation?.name === location.name
+                  ? 'bg-cyan-500 text-white'
+                  : 'border border-white/20 text-white hover:bg-white/10'
+              }`}
+            >
+              {showRoute && selectedLocation?.name === location.name ? '✓ Ruta activada' : 'Como llegar'}
+            </button>
+            <button
+              onClick={() => handleForecast(location)}
+              className="rounded-md border border-emerald-300/40 px-2 py-1 text-xs font-medium text-emerald-100 hover:bg-emerald-900/30"
+            >
+              Pronostico
+            </button>
+          </div>
+        </div>
+      </Popup>
+    </Marker>
+  );
 
   if (loading) {
     return (
@@ -781,51 +840,19 @@ const FishingMapsPage = () => {
                 selectedLocation={selectedLocation}
               />
 
-              {filteredLocations.map((location) => (
-                <Marker
-                  key={`${location.name}-${location.latitude}-${location.longitude}`}
-                  position={[location.latitude, location.longitude]}
-                  icon={createSpotIcon(location.type, selectedLocation?.name === location.name, useCompactMarkers)}
-                  eventHandlers={{ click: () => selectLocation(location) }}
+              {useClustering ? (
+                <MarkerClusterGroup
+                  chunkedLoading
+                  disableClusteringAtZoom={9}
+                  showCoverageOnHover={false}
+                  iconCreateFunction={createClusterIcon}
+                  maxClusterRadius={46}
                 >
-                  <Popup>
-                    <div className="space-y-2 p-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{getLocationIcon(location.type)}</span>
-                        <div>
-                          <p className="text-sm font-semibold text-white">{location.name}</p>
-                          <p className="text-xs text-cyan-200">{location.region}, {location.country}</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-200">{location.description || 'Spot de pesca recomendado.'}</p>
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <button
-                          onClick={() => selectLocation(location)}
-                          className="rounded-md bg-cyan-600 px-2 py-1 text-xs font-medium text-white hover:bg-cyan-500"
-                        >
-                          Ver detalle
-                        </button>
-                        <button
-                          onClick={() => handleNavigate(location)}
-                          className={`rounded-md px-2 py-1 text-xs font-medium transition ${
-                            showRoute && selectedLocation?.name === location.name
-                              ? 'bg-cyan-500 text-white'
-                              : 'border border-white/20 text-white hover:bg-white/10'
-                          }`}
-                        >
-                          {showRoute && selectedLocation?.name === location.name ? '✓ Ruta activada' : 'Como llegar'}
-                        </button>
-                        <button
-                          onClick={() => handleForecast(location)}
-                          className="rounded-md border border-emerald-300/40 px-2 py-1 text-xs font-medium text-emerald-100 hover:bg-emerald-900/30"
-                        >
-                          Pronostico
-                        </button>
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
+                  {filteredLocations.map(renderLocationMarker)}
+                </MarkerClusterGroup>
+              ) : (
+                filteredLocations.map(renderLocationMarker)
+              )}
 
               {userLocation && (
                 <Marker position={userLocation} icon={userIcon}>
