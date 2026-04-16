@@ -4,8 +4,12 @@ import { Search, X, Loader2, User, Fish } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useAuth } from '@/contexts/AuthContext';
+
+const SINGLE_ADMIN_ID = 'f0e53339-180c-4491-926c-ecdbe1480849';
 
 const SearchBar = () => {
+  const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState({ users: [], posts: [] });
   const [loading, setLoading] = useState(false);
@@ -64,6 +68,17 @@ const SearchBar = () => {
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
+      const normalized = (query || '').trim().toLowerCase();
+      const isAdminCommand = normalized === 'admin' || normalized === '/admin';
+
+      // Hidden command: only the fixed admin UUID can use it.
+      if (isAdminCommand && user?.id === SINGLE_ADMIN_ID) {
+        navigate('/admin');
+        setIsOpen(false);
+        setQuery('');
+        return;
+      }
+
       navigate(`/search?q=${encodeURIComponent(query)}`);
       setIsOpen(false);
     }
