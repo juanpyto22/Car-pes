@@ -576,7 +576,7 @@ const FishingMapsPage = () => {
 
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#04192b] to-[#102742] text-white">
         <div className={`transition-[filter,transform] duration-200 ${showHelp ? 'blur-md scale-[0.995]' : ''}`}>
-        <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/82 backdrop-blur-xl">
+        <header className="sticky top-0 z-[1200] border-b border-white/10 bg-slate-950/82 backdrop-blur-xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-3 md:py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-2">
@@ -661,7 +661,7 @@ const FishingMapsPage = () => {
                       initial={{ opacity: 0, y: -8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
-                      className="absolute left-0 right-0 top-full z-[45] mt-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/95 shadow-2xl"
+                      className="absolute left-0 right-0 top-full z-[1300] mt-2 overflow-hidden rounded-xl border border-white/10 bg-slate-950/95 shadow-2xl"
                     >
                       <div className="max-h-80 overflow-y-auto">
                         {searchQuery.trim() && searchSuggestions.length > 0 && (
@@ -807,8 +807,8 @@ const FishingMapsPage = () => {
           </div>
         </header>
 
-        <main className="mx-auto grid w-full max-w-[96rem] flex-1 grid-cols-1 gap-3 p-4 md:gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(330px,0.85fr)] xl:items-start">
-          <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60 shadow-[0_20px_50px_rgba(2,6,23,0.35)]">
+        <main className="relative z-0 mx-auto grid w-full max-w-[96rem] flex-1 grid-cols-1 gap-3 p-4 md:gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(330px,0.85fr)] xl:items-start">
+          <section className="relative z-0 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60 shadow-[0_20px_50px_rgba(2,6,23,0.35)]">
             <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between p-3">
               <div className="rounded-full border border-cyan-300/30 bg-slate-900/80 px-3 py-1 text-xs text-cyan-100/90 shadow-lg backdrop-blur">
                 <span className="inline-flex items-center gap-1">
