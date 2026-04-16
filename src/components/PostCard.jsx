@@ -174,13 +174,13 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="bg-slate-900/60 backdrop-blur-md border-y md:border border-white/10 md:rounded-2xl overflow-hidden hover:border-cyan-500/30 transition-all shadow-xl"
+      className="mx-0 md:mx-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.75),rgba(2,6,23,0.86))] backdrop-blur-md border-y md:border border-sky-300/15 md:rounded-2xl overflow-hidden hover:border-sky-300/35 transition-all shadow-[0_14px_38px_rgba(2,6,23,0.45)]"
     >
       {/* Header */}
-      <div className="p-4 flex items-center justify-between bg-white/5">
+      <div className="p-4 flex items-center justify-between bg-white/[0.04]">
         <div className="flex items-center gap-3">
           <Link to={`/profile/${post.user_id}`}>
-            <Avatar className="w-10 h-10 border-2 border-cyan-500/50 hover:border-cyan-400 transition-colors">
+            <Avatar className="w-10 h-10 border-2 border-sky-400/50 hover:border-sky-300 transition-colors">
               <AvatarImage src={post.user?.foto_perfil} className="object-cover" />
               <AvatarFallback className="bg-blue-900 text-cyan-200">
                 {post.user?.nombre?.[0]}
@@ -188,10 +188,10 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
             </Avatar>
           </Link>
           <div>
-            <Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:text-cyan-400 transition-colors text-sm">
+            <Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:text-sky-300 transition-colors text-sm">
               {post.user?.username}
             </Link>
-            <p className="text-xs text-blue-300">
+            <p className="text-xs text-slate-300">
                {post.ubicacion && <span className="mr-1">📍 {post.ubicacion} • </span>}
                {formatDistanceToNow(new Date(post.created_at), { addSuffix: true, locale: es })}
             </p>
@@ -225,8 +225,9 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
         {post.video_url ? (
            <video src={post.video_url} controls className="w-full h-full object-contain" poster={post.foto_url} />
         ) : (
-          <img src={post.foto_url} alt={post.descripcion} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+          <img src={post.foto_url} alt={post.descripcion} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.045]" />
         )}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
         
         {/* Animación de corazón al hacer doble tap */}
         {showHeart && (
@@ -242,7 +243,7 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
       </div>
 
       {/* Content */}
-      <div className="p-4">
+      <div className="p-4 md:p-5">
         {/* Instagram-style action row */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-4">
@@ -252,19 +253,19 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
               className="transition-colors"
             >
               <Heart
-                className={`w-7 h-7 ${liked ? 'text-red-500 fill-red-500' : 'text-white hover:text-gray-300'}`}
+                className={`w-7 h-7 ${liked ? 'text-red-500 fill-red-500' : 'text-white hover:text-slate-300'}`}
               />
             </motion.button>
             <Link to={`/post/${post.id}`}>
-              <MessageCircle className="w-7 h-7 text-white hover:text-gray-300 transition-colors" />
+              <MessageCircle className="w-7 h-7 text-white hover:text-slate-300 transition-colors" />
             </Link>
             <button onClick={handleShare}>
-              <Share2 className="w-6 h-6 text-white hover:text-gray-300 transition-colors" />
+              <Share2 className="w-6 h-6 text-white hover:text-slate-300 transition-colors" />
             </button>
           </div>
           <button 
             onClick={handleSave} 
-            className={`transition-colors ${saved ? 'text-white' : 'text-white hover:text-gray-300'}`}
+            className={`transition-colors ${saved ? 'text-white' : 'text-white hover:text-slate-300'}`}
           >
             {saved ? <BookmarkCheck className="w-7 h-7 fill-current" /> : <Bookmark className="w-7 h-7" />}
           </button>
@@ -272,7 +273,7 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
 
         {/* Like count */}
         {likesCount > 0 && (
-          <p className="text-white font-bold text-sm mb-2">
+          <p className="text-white font-semibold text-sm mb-2">
             {likesCount} {likesCount === 1 ? 'Me gusta' : 'Me gusta'}
           </p>
         )}
@@ -280,29 +281,29 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
         {/* Catch Details Badge Grid */}
         <div className="flex flex-wrap gap-2 mb-4">
           {post.tipo_pez && (
-            <div className="flex items-center gap-1.5 bg-blue-500/10 px-3 py-1.5 rounded-full border border-blue-500/20">
-              <Fish className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-xs font-medium text-blue-100">{post.tipo_pez}</span>
+            <div className="flex items-center gap-1.5 bg-sky-500/10 px-3 py-1.5 rounded-full border border-sky-500/25">
+              <Fish className="w-3.5 h-3.5 text-sky-300" />
+              <span className="text-xs font-medium text-sky-100">{post.tipo_pez}</span>
             </div>
           )}
           {post.peso && (
-            <div className="flex items-center gap-1.5 bg-blue-500/10 px-3 py-1.5 rounded-full border border-blue-500/20">
-              <Weight className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-xs font-medium text-blue-100">{post.peso} kg</span>
+            <div className="flex items-center gap-1.5 bg-sky-500/10 px-3 py-1.5 rounded-full border border-sky-500/25">
+              <Weight className="w-3.5 h-3.5 text-sky-300" />
+              <span className="text-xs font-medium text-sky-100">{post.peso} kg</span>
             </div>
           )}
           {post.tamano && (
-            <div className="flex items-center gap-1.5 bg-blue-500/10 px-3 py-1.5 rounded-full border border-blue-500/20">
-              <Ruler className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-xs font-medium text-blue-100">{post.tamano} cm</span>
+            <div className="flex items-center gap-1.5 bg-sky-500/10 px-3 py-1.5 rounded-full border border-sky-500/25">
+              <Ruler className="w-3.5 h-3.5 text-sky-300" />
+              <span className="text-xs font-medium text-sky-100">{post.tamano} cm</span>
             </div>
           )}
         </div>
 
         {/* Caption with enhanced text rendering */}
         {post.descripcion && (
-          <div className="text-sm text-blue-100 leading-relaxed mb-2">
-            <Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:text-cyan-400 transition-colors mr-2">
+          <div className="text-sm text-slate-200 leading-relaxed mb-2">
+            <Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:text-sky-300 transition-colors mr-2">
               {post.user?.username}
             </Link>
             <span 
@@ -314,7 +315,7 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
         )}
         
         {commentsCount > 0 && (
-            <Link to={`/post/${post.id}`} className="text-xs text-blue-400 hover:text-cyan-300 transition-colors block mb-4 font-medium">
+            <Link to={`/post/${post.id}`} className="text-xs text-sky-300 hover:text-sky-200 transition-colors block mb-4 font-medium">
                 Ver los {commentsCount} comentarios
             </Link>
         )}

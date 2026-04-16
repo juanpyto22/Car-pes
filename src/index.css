@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
 /*
   TEMPLATE STYLES: These styles are used as a base template.
   AI is allowed to modify these styles as needed.
@@ -8,7 +10,15 @@
 
 body {
     @apply bg-slate-950 text-white;
-    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    letter-spacing: 0.01em;
+    min-height: 100vh;
+    text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', 'Manrope', sans-serif;
+    letter-spacing: -0.02em;
 }
 
 /* Global scrollbar theme (applies to most scrollable areas) */
@@ -132,4 +142,29 @@ body.admin-theme * {
     body {
         padding-bottom: env(safe-area-inset-bottom, 0px);
     }
+}
+
+body.user-theme {
+    background:
+        radial-gradient(circle at 12% 8%, rgba(37, 99, 235, 0.18), transparent 30%),
+        radial-gradient(circle at 86% 3%, rgba(14, 165, 233, 0.12), transparent 28%),
+        linear-gradient(180deg, #030712 0%, #020617 45%, #020714 100%);
+}
+
+body.admin-theme {
+    background:
+        radial-gradient(circle at 12% 8%, rgba(16, 185, 129, 0.14), transparent 28%),
+        radial-gradient(circle at 90% 6%, rgba(52, 211, 153, 0.1), transparent 26%),
+        linear-gradient(180deg, #020905 0%, #020b07 45%, #010b06 100%);
+}
+
+.surface-card {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.58), rgba(2, 6, 23, 0.62));
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    box-shadow: 0 10px 28px rgba(2, 6, 23, 0.35);
+    backdrop-filter: blur(14px);
+}
+
+.surface-card:hover {
+    border-color: rgba(56, 189, 248, 0.32);
 }

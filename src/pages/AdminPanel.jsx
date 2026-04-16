@@ -11,6 +11,9 @@ import {
   Siren,
   MessageSquareWarning,
   User,
+  Gauge,
+  Timer,
+  Activity,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
@@ -120,6 +123,20 @@ export default function AdminPanel() {
     bannedReasonFilter,
     bannedMinInfractions,
   ]);
+
+  const dashboardStats = useMemo(() => {
+    const active = Array.isArray(activeBans) ? activeBans.length : 0;
+    const proPending = (proRequests || []).filter((r) => r.status === 'pending').length;
+    const appealsPending = (banAppeals || []).filter((a) => a.status === 'pending').length;
+    const processedAppeals = (banAppeals || []).filter((a) => a.status !== 'pending').length;
+
+    return {
+      active,
+      proPending,
+      appealsPending,
+      processedAppeals,
+    };
+  }, [activeBans, proRequests, banAppeals]);
 
   const openBanModal = (userId, username) => {
     setSelectedUserId(userId);
@@ -304,6 +321,29 @@ export default function AdminPanel() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+          <div className="rounded-xl border border-emerald-500/25 bg-[#07160e] p-4">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-emerald-200/70">Baneos activos</p>
+            <p className="mt-2 text-3xl font-bold text-emerald-200">{dashboardStats.active}</p>
+            <p className="mt-2 text-xs text-emerald-100/60 inline-flex items-center gap-1"><Ban className="w-3.5 h-3.5" /> Usuarios con acceso bloqueado</p>
+          </div>
+          <div className="rounded-xl border border-emerald-500/25 bg-[#07160e] p-4">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-emerald-200/70">Pro pendientes</p>
+            <p className="mt-2 text-3xl font-bold text-emerald-200">{dashboardStats.proPending}</p>
+            <p className="mt-2 text-xs text-emerald-100/60 inline-flex items-center gap-1"><Gauge className="w-3.5 h-3.5" /> Esperando validación</p>
+          </div>
+          <div className="rounded-xl border border-emerald-500/25 bg-[#07160e] p-4">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-emerald-200/70">Apelaciones pendientes</p>
+            <p className="mt-2 text-3xl font-bold text-emerald-200">{dashboardStats.appealsPending}</p>
+            <p className="mt-2 text-xs text-emerald-100/60 inline-flex items-center gap-1"><Timer className="w-3.5 h-3.5" /> Requieren respuesta</p>
+          </div>
+          <div className="rounded-xl border border-emerald-500/25 bg-[#07160e] p-4">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-emerald-200/70">Apelaciones resueltas</p>
+            <p className="mt-2 text-3xl font-bold text-emerald-200">{dashboardStats.processedAppeals}</p>
+            <p className="mt-2 text-xs text-emerald-100/60 inline-flex items-center gap-1"><Activity className="w-3.5 h-3.5" /> Historial moderado</p>
+          </div>
+        </div>
+
         <div className="mb-8 flex gap-2 overflow-x-auto rounded-xl border border-emerald-500/20 bg-[#07160e] p-2">
           <button
             onClick={() => setActiveTab('ban')}

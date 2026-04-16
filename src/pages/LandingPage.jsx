@@ -13,6 +13,12 @@ const LandingPage = () => {
     { icon: Map, title: 'Descubre Lugares', description: 'Encuentra nuevos spots de pesca compartidos por la comunidad.' },
   ];
 
+  const onboardingSteps = [
+    { step: '01', title: 'Crea tu bitacora', description: 'Configura tu perfil de pesca, estilo y zonas favoritas en menos de 2 minutos.' },
+    { step: '02', title: 'Publica capturas reales', description: 'Sube foto, especie, peso y tecnica para que tu contenido destaque en el feed.' },
+    { step: '03', title: 'Descubre spots y eventos', description: 'Explora mapas, grupos y retos semanales para mejorar cada salida de pesca.' },
+  ];
+
   return (
     <>
       <Helmet>
@@ -94,6 +100,31 @@ const LandingPage = () => {
                     <div className="absolute -top-10 -right-10 w-72 h-72 bg-cyan-500/30 rounded-full blur-3xl -z-10"></div>
                     <div className="absolute -bottom-10 -left-10 w-72 h-72 bg-blue-600/30 rounded-full blur-3xl -z-10"></div>
                 </motion.div>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16 bg-slate-950 border-y border-sky-300/10">
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="mb-10 text-center">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-sky-300/80 font-semibold">Como empezar</p>
+              <h2 className="mt-3 text-3xl md:text-4xl font-bold text-white">Todo en 3 pasos claros</h2>
+            </div>
+            <div className="grid md:grid-cols-3 gap-4">
+              {onboardingSteps.map((item, index) => (
+                <motion.div
+                  key={item.step}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.45, delay: index * 0.08 }}
+                  className="rounded-2xl border border-sky-300/15 bg-[linear-gradient(180deg,rgba(15,23,42,0.7),rgba(2,6,23,0.85))] p-6"
+                >
+                  <p className="text-xs text-sky-300/80 font-bold tracking-[0.14em]">PASO {item.step}</p>
+                  <h3 className="mt-2 text-xl font-bold text-white">{item.title}</h3>
+                  <p className="mt-2 text-slate-300 text-sm leading-relaxed">{item.description}</p>
+                </motion.div>
+              ))}
             </div>
           </div>
         </section>

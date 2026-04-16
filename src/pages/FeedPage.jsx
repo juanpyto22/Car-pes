@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/customSupabaseClient';
 import { usePosts } from '@/hooks/usePosts';
 import PostCard from '@/components/PostCard';
-import { Loader2, RefreshCw, Plus } from 'lucide-react';
+import { Loader2, RefreshCw, Plus, Compass, Sparkles, Trophy } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Helmet } from 'react-helmet';
@@ -76,13 +76,45 @@ const FeedPage = () => {
     }
   };
 
+  const spotlightBlocks = [
+    {
+      icon: Compass,
+      title: 'Spotlight de Zona',
+      description: 'Comparte coordenadas aproximadas, clima y señuelo para ayudar a la comunidad.',
+    },
+    {
+      icon: Trophy,
+      title: 'Reto Semanal',
+      description: 'Publica tu mejor captura de la semana y etiqueta el tamaño para entrar al ranking.',
+    },
+    {
+      icon: Sparkles,
+      title: 'Tip de Maestro',
+      description: 'Incluye técnica, profundidad y hora para que tu post gane más guardados.',
+    },
+  ];
+
   return (
     <>
       <Helmet>
         <title>Feed - Car-Pes</title>
       </Helmet>
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-blue-950/5 to-slate-950 pb-20">
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-blue-950/10 to-slate-950 pb-20">
         <div className="max-w-xl mx-auto pt-2 md:pt-6 px-0 md:px-4">
+
+          <div className="mx-3 md:mx-0 mb-4 rounded-2xl border border-sky-400/20 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.15),transparent_50%),linear-gradient(180deg,rgba(15,23,42,0.85),rgba(2,6,23,0.88))] p-4 md:p-5 shadow-[0_10px_30px_rgba(2,6,23,0.35)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-sky-300/80 font-semibold">Diario de Capturas</p>
+                <h2 className="mt-2 text-2xl md:text-3xl font-bold text-white">Tu marea social de pesca</h2>
+                <p className="mt-2 text-sm text-slate-300 max-w-md">Publica, aprende y compite. Cada captura que compartes ayuda a mejorar el mapa colectivo.</p>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-sky-200 text-xs">
+                <Sparkles className="w-4 h-4" />
+                Comunidad activa
+              </div>
+            </div>
+          </div>
 
           {/* Stories Bar - full width on mobile */}
           <StoriesBar />
@@ -112,26 +144,26 @@ const FeedPage = () => {
           </div>
 
           {loading && posts.length === 0 ? (
-            <div className="space-y-6">
+            <div className="space-y-6 px-3 md:px-0">
               {[1, 2, 3].map(i => (
-                <div key={i} className="bg-slate-900/50 rounded-2xl overflow-hidden border border-white/5">
+                <div key={i} className="surface-card rounded-2xl overflow-hidden">
                   <div className="p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-800 animate-pulse" />
+                    <div className="w-10 h-10 rounded-full bg-slate-700/70 animate-pulse" />
                     <div className="space-y-2">
-                      <div className="w-24 h-3 bg-slate-800 rounded animate-pulse" />
-                      <div className="w-16 h-2 bg-slate-800 rounded animate-pulse" />
+                      <div className="w-24 h-3 bg-slate-700/70 rounded animate-pulse" />
+                      <div className="w-16 h-2 bg-slate-700/70 rounded animate-pulse" />
                     </div>
                   </div>
-                  <div className="aspect-square bg-slate-800 animate-pulse" />
+                  <div className="aspect-square bg-slate-800/90 animate-pulse" />
                   <div className="p-4 space-y-3">
-                    <div className="w-32 h-4 bg-slate-800 rounded animate-pulse" />
-                    <div className="w-full h-3 bg-slate-800 rounded animate-pulse" />
+                    <div className="w-32 h-4 bg-slate-700/70 rounded animate-pulse" />
+                    <div className="w-full h-3 bg-slate-700/70 rounded animate-pulse" />
                   </div>
                 </div>
               ))}
             </div>
           ) : posts.length === 0 ? (
-            <div className="text-center py-20 bg-slate-900/50 backdrop-blur-sm rounded-3xl border border-white/10 px-6">
+            <div className="text-center py-20 bg-slate-900/55 backdrop-blur-sm rounded-3xl border border-sky-300/20 px-6 mx-3 md:mx-0">
               <div className="w-24 h-24 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-cyan-500/20">
                 <span className="text-5xl">🐟</span>
               </div>
@@ -163,10 +195,28 @@ const FeedPage = () => {
                   // El hook usePosts se encargará de actualizar el estado
                   refetch();
                 };
+
+                const showSpotlight = index > 0 && index % 5 === 0;
+                const spotlight = spotlightBlocks[(index / 5) % spotlightBlocks.length];
+                const SpotlightIcon = spotlight?.icon;
                 
                 if (posts.length === index + 1) {
                   return (
-                    <div ref={lastPostElementRef} key={post.id}>
+                    <div ref={lastPostElementRef} key={post.id} className="space-y-6">
+                      {showSpotlight && (
+                        <div className="mx-3 md:mx-0 rounded-2xl border border-sky-400/20 bg-[linear-gradient(180deg,rgba(14,165,233,0.14),rgba(15,23,42,0.45))] p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-xl bg-sky-500/20 border border-sky-300/25">
+                              {SpotlightIcon ? <SpotlightIcon className="w-4 h-4 text-sky-200" /> : null}
+                            </div>
+                            <div>
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-sky-200/80">Bloque Editorial</p>
+                              <h3 className="text-white font-semibold mt-1">{spotlight.title}</h3>
+                              <p className="text-sm text-slate-300 mt-1">{spotlight.description}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       <PostCard 
                         post={post} 
                         onDelete={handleDeletePost}
@@ -176,12 +226,27 @@ const FeedPage = () => {
                   );
                 } else {
                   return (
-                    <PostCard 
-                      key={post.id} 
-                      post={post} 
-                      onDelete={handleDeletePost}
-                      onToggleLike={toggleLike}
-                    />
+                    <div key={post.id} className="space-y-6">
+                      {showSpotlight && (
+                        <div className="mx-3 md:mx-0 rounded-2xl border border-sky-400/20 bg-[linear-gradient(180deg,rgba(14,165,233,0.14),rgba(15,23,42,0.45))] p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-xl bg-sky-500/20 border border-sky-300/25">
+                              {SpotlightIcon ? <SpotlightIcon className="w-4 h-4 text-sky-200" /> : null}
+                            </div>
+                            <div>
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-sky-200/80">Bloque Editorial</p>
+                              <h3 className="text-white font-semibold mt-1">{spotlight.title}</h3>
+                              <p className="text-sm text-slate-300 mt-1">{spotlight.description}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <PostCard 
+                        post={post} 
+                        onDelete={handleDeletePost}
+                        onToggleLike={toggleLike}
+                      />
+                    </div>
                   );
                 }
               })}

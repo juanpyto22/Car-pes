@@ -38,7 +38,8 @@ const MobileBottomNav = () => {
       className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
     >
       {/* Glass background */}
-      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-2xl border-t border-white/[0.08]" />
+      <div className="absolute inset-0 bg-slate-950/82 backdrop-blur-2xl border-t border-sky-300/15" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/50 to-transparent" />
       
       <div className="relative flex items-center justify-around h-16 px-1 safe-area-bottom">
         {navItems.map((item) => {
@@ -55,7 +56,7 @@ const MobileBottomNav = () => {
               {isActive && !item.isCreate && (
                 <motion.div
                   layoutId="activeTab"
-                  className="absolute -top-[1px] w-6 h-[3px] bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"
+                  className="absolute -top-[1px] w-8 h-[3px] bg-gradient-to-r from-sky-300 to-blue-500 rounded-full"
                   transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
               )}
@@ -76,7 +77,7 @@ const MobileBottomNav = () => {
                 <motion.div 
                   whileTap={{ scale: 0.8, rotate: 90 }}
                   transition={{ type: 'spring', stiffness: 400 }}
-                  className="p-1.5 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/25"
+                  className="p-1.5 bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl shadow-lg shadow-blue-500/35 ring-1 ring-sky-300/30"
                 >
                   <item.icon className="w-5 h-5 text-white" strokeWidth={2} />
                 </motion.div>
@@ -88,7 +89,7 @@ const MobileBottomNav = () => {
                 >
                   <item.icon
                     className={`w-6 h-6 transition-all duration-200 ${
-                      isActive ? 'text-white scale-110' : 'text-gray-500'
+                      isActive ? 'text-sky-200 scale-110' : 'text-slate-400'
                     }`}
                     strokeWidth={isActive ? 2.5 : 1.5}
                     fill={isActive && (item.to === '/feed' || item.to === '/notifications') ? 'currentColor' : 'none'}
@@ -109,7 +110,7 @@ const MobileBottomNav = () => {
                   
                   {/* Label */}
                   <span className={`text-[10px] mt-0.5 transition-colors duration-200 ${
-                    isActive ? 'text-white font-semibold' : 'text-gray-600'
+                    isActive ? 'text-sky-100 font-semibold' : 'text-slate-500'
                   }`}>
                     {item.label}
                   </span>

@@ -32,7 +32,7 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-xl border-b border-white/5">
+    <header className="sticky top-0 z-50 border-b border-sky-300/10 bg-slate-950/78 backdrop-blur-2xl">
       <div className="max-w-7xl mx-auto px-3 md:px-4">
         <div className="flex items-center justify-between gap-3 h-14 md:h-16">
           {/* Logo */}
@@ -45,7 +45,7 @@ const Header = () => {
                 className="h-16 md:h-18 w-auto object-contain relative z-10"
               />
             </div>
-            <span className="hidden sm:block text-lg md:text-xl font-black bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent tracking-tight">
+            <span className="hidden sm:block text-lg md:text-xl font-black bg-gradient-to-r from-sky-200 via-cyan-200 to-blue-400 bg-clip-text text-transparent tracking-tight">
               Car-Pes
             </span>
           </Link>
@@ -71,7 +71,7 @@ const Header = () => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="p-2 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full hover:shadow-lg shadow-cyan-900/30 transition-all ml-1"
+                    className="p-2 bg-gradient-to-r from-sky-500 to-blue-600 rounded-full hover:shadow-lg shadow-blue-900/40 transition-all ml-1 ring-1 ring-sky-300/20"
                     title="Crear Publicación"
                   >
                     <Plus className="w-4 h-4 text-white" />
@@ -89,7 +89,7 @@ const Header = () => {
                 <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
                   <DropdownMenuTrigger asChild>
                     <button className="focus:outline-none ml-1.5">
-                      <Avatar className="w-8 h-8 md:w-9 md:h-9 border-2 border-cyan-500/30 cursor-pointer hover:border-cyan-400 transition-colors">
+                      <Avatar className="w-8 h-8 md:w-9 md:h-9 border-2 border-sky-400/35 cursor-pointer hover:border-sky-300 transition-colors shadow-[0_0_0_4px_rgba(2,6,23,0.5)]">
                         <AvatarImage src={profile?.foto_perfil} alt={profile?.nombre} className="object-cover" />
                         <AvatarFallback className="bg-blue-900 text-cyan-200 font-bold text-sm">
                           {profile?.nombre?.[0] || user.email?.[0]?.toUpperCase()}
@@ -97,7 +97,7 @@ const Header = () => {
                       </Avatar>
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="z-[60] w-[min(14rem,calc(100vw-1rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto border border-white/10 bg-slate-950/90 text-white backdrop-blur-2xl shadow-2xl shadow-black/40">
+                  <DropdownMenuContent align="end" className="z-[60] w-[min(14rem,calc(100vw-1rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto border border-sky-300/20 bg-slate-950/93 text-white backdrop-blur-2xl shadow-2xl shadow-black/40 rounded-2xl">
                     <DropdownMenuItem onClick={() => navigate(`/profile`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
                       <User className="mr-2 h-4 w-4 text-cyan-400" /> Mi Perfil
                     </DropdownMenuItem>
@@ -152,7 +152,7 @@ const Header = () => {
                   </Button>
                 </Link>
                 <Link to="/signup">
-                  <Button className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white ml-1 rounded-xl text-sm h-9 shadow-lg shadow-blue-900/20">
+                  <Button className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white ml-1 rounded-xl text-sm h-9 shadow-lg shadow-blue-900/30 ring-1 ring-sky-300/20">
                     Registrarse
                   </Button>
                 </Link>
@@ -167,14 +167,18 @@ const Header = () => {
 
 const NavLink = ({ to, icon: Icon, badge, active }) => (
   <Link to={to}>
-    <div className={`relative p-2.5 rounded-xl transition-all ${active ? 'text-cyan-400 bg-cyan-500/10' : 'text-blue-300 hover:text-cyan-400 hover:bg-white/5'}`}>
+    <motion.div
+      whileHover={{ y: -1 }}
+      whileTap={{ scale: 0.96 }}
+      className={`relative p-2.5 rounded-xl transition-all ${active ? 'text-sky-300 bg-sky-500/12 ring-1 ring-sky-400/25' : 'text-blue-300 hover:text-sky-300 hover:bg-white/5'}`}
+    >
       <Icon className="w-5 h-5" />
       {badge > 0 && (
         <span className="absolute top-1 right-0.5 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold border border-slate-950">
           {badge > 9 ? '9+' : badge}
         </span>
       )}
-    </div>
+    </motion.div>
   </Link>
 );
 
