@@ -512,15 +512,15 @@ const FishingMapsPage = () => {
 
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#04192b] to-[#102742] text-white">
         <div className={`transition-[filter,transform] duration-200 ${showHelp ? 'blur-md scale-[0.995]' : ''}`}>
-        <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/75 backdrop-blur-xl">
-          <div className="mx-auto w-full max-w-7xl px-4 py-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+        <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/82 backdrop-blur-xl">
+          <div className="mx-auto w-full max-w-7xl px-4 py-3 md:py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-                  <MapIcon className="h-6 w-6 text-cyan-300" />
+                <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold tracking-tight">
+                  <MapIcon className="h-5 w-5 md:h-6 md:w-6 text-cyan-300" />
                   Mapa Inteligente de Pesca
                 </h1>
-                <p className="mt-1 text-xs text-cyan-100/80">
+                <p className="mt-1 text-xs text-cyan-100/75 max-w-xl">
                   Navegacion fluida, filtros precisos y spots listos para explorar.
                 </p>
               </div>
@@ -547,18 +547,18 @@ const FishingMapsPage = () => {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2">
+            <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:max-w-4xl">
+              <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2.5">
                 <p className="text-xs text-cyan-100/80">Mostrando</p>
-                <p className="text-lg font-semibold text-cyan-100">{stats.shown} spots</p>
+                <p className="text-base font-semibold text-cyan-100">{stats.shown} spots</p>
               </div>
-              <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2">
+              <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5">
                 <p className="text-xs text-emerald-100/80">Base total</p>
-                <p className="text-lg font-semibold text-emerald-100">{stats.total} ubicaciones</p>
+                <p className="text-base font-semibold text-emerald-100">{stats.total} ubicaciones</p>
               </div>
-              <div className="rounded-xl border border-violet-400/20 bg-violet-500/10 px-3 py-2">
+              <div className="rounded-xl border border-violet-400/20 bg-violet-500/10 px-3 py-2.5">
                 <p className="text-xs text-violet-100/80">Spots comunidad</p>
-                <p className="text-lg font-semibold text-violet-100">{stats.community}</p>
+                <p className="text-base font-semibold text-violet-100">{stats.community}</p>
               </div>
             </div>
 
@@ -736,8 +736,8 @@ const FishingMapsPage = () => {
           </div>
         </header>
 
-        <main className="mx-auto grid w-full max-w-[96rem] flex-1 grid-cols-1 gap-3 p-4 md:gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
-          <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60">
+        <main className="mx-auto grid w-full max-w-[96rem] flex-1 grid-cols-1 gap-3 p-4 md:gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(330px,0.85fr)] xl:items-start">
+          <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60 shadow-[0_20px_50px_rgba(2,6,23,0.35)]">
             <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between p-3">
               <div className="rounded-full border border-cyan-300/30 bg-slate-900/80 px-3 py-1 text-xs text-cyan-100/90 shadow-lg backdrop-blur">
                 <span className="inline-flex items-center gap-1">
@@ -757,7 +757,7 @@ const FishingMapsPage = () => {
               center={mapCenter}
               zoom={mapZoom}
               zoomControl
-              className="fishing-map h-[62vh] min-h-[520px] w-full md:h-[68vh] lg:h-[calc(100vh-170px)]"
+              className="fishing-map h-[58vh] min-h-[470px] w-full md:h-[64vh] lg:h-[calc(100vh-220px)]"
             >
               <TileLayer url={currentTheme.url} attribution={currentTheme.attribution} />
 
@@ -849,7 +849,7 @@ const FishingMapsPage = () => {
             </div>
           </section>
 
-          <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start">
+          <aside className="space-y-3 xl:sticky xl:top-[5.5rem] xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:pr-1">
             <section className="surface-card rounded-2xl p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -989,7 +989,7 @@ const FishingMapsPage = () => {
               initial={{ y: 30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 30, opacity: 0 }}
-              className="fixed bottom-3 left-1/2 z-40 w-[96%] max-w-2xl -translate-x-1/2 rounded-2xl border border-white/15 bg-slate-950/95 p-3 shadow-2xl backdrop-blur md:bottom-4 md:p-4"
+              className="fixed bottom-3 left-1/2 z-40 w-[96%] max-w-2xl -translate-x-1/2 rounded-2xl border border-white/15 bg-slate-950/92 p-3 shadow-2xl backdrop-blur md:bottom-4 md:p-4"
             >
               <div className="flex items-start gap-3">
                 <span className="text-3xl leading-none">{getLocationIcon(selectedLocation.type)}</span>
