@@ -548,13 +548,14 @@ export const useAdminReviewBanAppeal = () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
       const adminUser = authData?.user;
+      const nowIso = new Date().toISOString();
 
       const { data, error } = await supabase
         .from('ban_appeals')
         .update({
           status,
           admin_response: adminResponse?.trim() || null,
-          updated_at: new Date().toISOString(),
+          updated_at: nowIso,
         })
         .eq('id', appealId)
         .select('id, user_id, status')
@@ -564,22 +565,66 @@ export const useAdminReviewBanAppeal = () => {
 
       // If appeal is approved, lift active bans for this user.
       if (status === 'approved' && data?.user_id) {
-        const { error: unbanErr } = await supabase
+        const marker = `[appeal_approved:${nowIso}]`;
+
+        // First try: keep a technical trace marker in user_bans.reason and deactivate ban.
+        const { data: activeBanRows, error: activeBanFetchErr } = await supabase
           .from('user_bans')
-          .update({
-            is_active: false,
-            ban_expires_at: new Date().toISOString(),
-          })
+          .select('id, reason')
           .eq('user_id', data.user_id)
           .eq('is_active', true);
 
+        let unbanErr = null;
+
+        if (!activeBanFetchErr && Array.isArray(activeBanRows) && activeBanRows.length > 0) {
+          for (const banRow of activeBanRows) {
+            const reasonWithMarker = `${(banRow.reason || '').trim()} ${marker}`.trim();
+            const { error: rowErr } = await supabase
+              .from('user_bans')
+              .update({
+                reason: reasonWithMarker,
+                is_active: false,
+                ban_expires_at: nowIso,
+              })
+              .eq('id', banRow.id);
+
+            if (rowErr) {
+              unbanErr = rowErr;
+              break;
+            }
+          }
+        } else {
+          const { error: fallbackUnbanErr } = await supabase
+            .from('user_bans')
+            .update({
+              is_active: false,
+              ban_expires_at: nowIso,
+            })
+            .eq('user_id', data.user_id)
+            .eq('is_active', true);
+
+          unbanErr = fallbackUnbanErr;
+        }
+
         if (unbanErr) {
-          // Fallback in case user_bans columns differ in some environments.
+          // Final fallback in case user_bans columns differ in some environments.
           await supabase
             .from('user_bans')
-            .update({ ban_expires_at: new Date().toISOString() })
+            .update({ ban_expires_at: nowIso })
             .eq('user_id', data.user_id)
             .is('ban_expires_at', null);
+        }
+
+        // Legacy path kept as safety for environments where is_active does not exist.
+        const { error: legacyUnbanErr } = await supabase
+          .from('user_bans')
+          .update({
+            ban_expires_at: nowIso,
+          })
+          .eq('user_id', data.user_id);
+
+        if (legacyUnbanErr) {
+          console.warn('Legacy unban update failed:', legacyUnbanErr);
         }
       }
 

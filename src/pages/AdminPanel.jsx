@@ -38,6 +38,18 @@ export default function AdminPanel() {
   const [appealStatusFilter, setAppealStatusFilter] = useState('pending');
   const [reviewNotes, setReviewNotes] = useState({});
   const [appealNotes, setAppealNotes] = useState({});
+  const [selectedProIds, setSelectedProIds] = useState([]);
+  const [selectedAppealIds, setSelectedAppealIds] = useState([]);
+  const [bulkProReason, setBulkProReason] = useState('');
+  const [bulkAppealReason, setBulkAppealReason] = useState('');
+  const [bulkRunning, setBulkRunning] = useState(false);
+
+  const [bannedSearch, setBannedSearch] = useState('');
+  const [bannedTypeFilter, setBannedTypeFilter] = useState('all');
+  const [bannedDateFrom, setBannedDateFrom] = useState('');
+  const [bannedDateTo, setBannedDateTo] = useState('');
+  const [bannedReasonFilter, setBannedReasonFilter] = useState('');
+  const [bannedMinInfractions, setBannedMinInfractions] = useState('');
 
   const { users: searchResults, loading: searchLoading } = useSearchUsers(searchTerm);
   const { banUser, loading: banUserLoading } = useAdminBanUser();
@@ -59,6 +71,55 @@ export default function AdminPanel() {
   const { reviewAppeal, loading: reviewAppealLoading } = useAdminReviewBanAppeal();
 
   const filteredUsers = useMemo(() => searchResults || [], [searchResults]);
+
+  const filteredActiveBans = useMemo(() => {
+    const rows = Array.isArray(activeBans) ? activeBans : [];
+    return rows.filter((ban) => {
+      const search = bannedSearch.trim().toLowerCase();
+      if (search) {
+        const haystack = `${ban.username || ''} ${ban.email || ''}`.toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+
+      if (bannedTypeFilter !== 'all' && (ban.ban_type || '') !== bannedTypeFilter) {
+        return false;
+      }
+
+      const reasonSearch = bannedReasonFilter.trim().toLowerCase();
+      if (reasonSearch && !(ban.reason || '').toLowerCase().includes(reasonSearch)) {
+        return false;
+      }
+
+      const minInf = Number.parseInt(bannedMinInfractions, 10);
+      if (!Number.isNaN(minInf)) {
+        const infCount = Number.parseInt(`${ban.infraction_count ?? 0}`, 10) || 0;
+        if (infCount < minInf) return false;
+      }
+
+      const dateValue = ban.ban_started_at || ban.created_at || null;
+      if ((bannedDateFrom || bannedDateTo) && dateValue) {
+        const ts = new Date(dateValue).getTime();
+        if (bannedDateFrom) {
+          const fromTs = new Date(`${bannedDateFrom}T00:00:00`).getTime();
+          if (ts < fromTs) return false;
+        }
+        if (bannedDateTo) {
+          const toTs = new Date(`${bannedDateTo}T23:59:59`).getTime();
+          if (ts > toTs) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [
+    activeBans,
+    bannedSearch,
+    bannedTypeFilter,
+    bannedDateFrom,
+    bannedDateTo,
+    bannedReasonFilter,
+    bannedMinInfractions,
+  ]);
 
   const openBanModal = (userId, username) => {
     setSelectedUserId(userId);
@@ -117,6 +178,36 @@ export default function AdminPanel() {
     });
   };
 
+  const runBulkProAction = async (status) => {
+    const ids = selectedProIds;
+    const reason = bulkProReason.trim();
+    if (ids.length === 0) {
+      toast({ title: 'Selecciona solicitudes', description: 'Marca al menos una solicitud Pro.', variant: 'destructive' });
+      return;
+    }
+    if (!reason) {
+      toast({ title: 'Motivo requerido', description: 'Escribe el motivo para notificar a los usuarios.', variant: 'destructive' });
+      return;
+    }
+
+    setBulkRunning(true);
+    try {
+      const results = await Promise.all(ids.map((requestId) => reviewRequest({ requestId, status, reason })));
+      const okCount = results.filter((r) => r?.success).length;
+      const failCount = results.length - okCount;
+
+      toast({
+        title: status === 'approved' ? 'Aprobación masiva completada' : 'Rechazo masivo completado',
+        description: `${okCount} procesadas correctamente${failCount ? `, ${failCount} con error` : ''}.`,
+      });
+
+      setSelectedProIds([]);
+      refetchProRequests();
+    } finally {
+      setBulkRunning(false);
+    }
+  };
+
   const handleAppealReview = async (appealId, status) => {
     const response = appealNotes[appealId] || '';
 
@@ -149,6 +240,38 @@ export default function AdminPanel() {
       description: result.error || 'No se pudo guardar la decision.',
       variant: 'destructive',
     });
+  };
+
+  const runBulkAppealAction = async (status) => {
+    const ids = selectedAppealIds;
+    const response = bulkAppealReason.trim();
+    if (ids.length === 0) {
+      toast({ title: 'Selecciona apelaciones', description: 'Marca al menos una apelación.', variant: 'destructive' });
+      return;
+    }
+    if (!response) {
+      toast({ title: 'Respuesta requerida', description: 'Escribe la respuesta para los usuarios.', variant: 'destructive' });
+      return;
+    }
+
+    setBulkRunning(true);
+    try {
+      const results = await Promise.all(
+        ids.map((appealId) => reviewAppeal({ appealId, status, adminResponse: response }))
+      );
+      const okCount = results.filter((r) => r?.success).length;
+      const failCount = results.length - okCount;
+
+      toast({
+        title: status === 'approved' ? 'Apelaciones aprobadas' : 'Apelaciones rechazadas',
+        description: `${okCount} procesadas correctamente${failCount ? `, ${failCount} con error` : ''}.`,
+      });
+
+      setSelectedAppealIds([]);
+      refetchBanAppeals();
+    } finally {
+      setBulkRunning(false);
+    }
   };
 
   const statusBadge = (status) => {
@@ -281,6 +404,47 @@ export default function AdminPanel() {
 
         {activeTab === 'pro' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            <div className="rounded-xl border border-emerald-500/20 bg-[#07160e] p-3 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setSelectedProIds(proRequests.map((req) => req.id))}
+                  className="px-3 py-2 rounded-lg text-xs border border-emerald-500/30 text-emerald-200"
+                >
+                  Seleccionar todo
+                </button>
+                <button
+                  onClick={() => setSelectedProIds([])}
+                  className="px-3 py-2 rounded-lg text-xs border border-white/10 text-emerald-100/70"
+                >
+                  Limpiar selección
+                </button>
+                <span className="text-xs text-emerald-100/60">Seleccionadas: {selectedProIds.length}</span>
+              </div>
+              <textarea
+                rows={2}
+                value={bulkProReason}
+                onChange={(e) => setBulkProReason(e.target.value)}
+                placeholder="Motivo común para acción masiva"
+                className="w-full bg-[#030b07] border border-emerald-500/20 rounded-lg p-3 text-sm text-emerald-100 placeholder-emerald-100/30"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => runBulkProAction('approved')}
+                  disabled={bulkRunning}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-sm font-medium"
+                >
+                  Aprobar selección
+                </button>
+                <button
+                  onClick={() => runBulkProAction('rejected')}
+                  disabled={bulkRunning}
+                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-sm font-medium"
+                >
+                  Rechazar selección
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
               {[
                 { id: 'pending', label: 'Pendientes', icon: Clock3 },
@@ -317,9 +481,21 @@ export default function AdminPanel() {
                 {proRequests.map((req) => (
                   <div key={req.id} className="rounded-xl border border-emerald-500/20 bg-[#07160e] p-4 space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-emerald-200 font-semibold">@{req.user?.username || 'usuario'}</p>
-                        <p className="text-emerald-100/60 text-sm">{req.user?.email || 'email no disponible'}</p>
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedProIds.includes(req.id)}
+                          onChange={(e) => {
+                            setSelectedProIds((prev) =>
+                              e.target.checked ? [...prev, req.id] : prev.filter((id) => id !== req.id)
+                            );
+                          }}
+                          className="mt-1 h-4 w-4 rounded border-emerald-500/30 bg-[#030b07]"
+                        />
+                        <div>
+                          <p className="text-emerald-200 font-semibold">@{req.user?.username || 'usuario'}</p>
+                          <p className="text-emerald-100/60 text-sm">{req.user?.email || 'email no disponible'}</p>
+                        </div>
                       </div>
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs border ${statusBadge(req.status)}`}>
                         {req.status}
@@ -377,6 +553,47 @@ export default function AdminPanel() {
 
         {activeTab === 'appeals' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            <div className="rounded-xl border border-emerald-500/20 bg-[#07160e] p-3 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setSelectedAppealIds(banAppeals.map((appeal) => appeal.id))}
+                  className="px-3 py-2 rounded-lg text-xs border border-emerald-500/30 text-emerald-200"
+                >
+                  Seleccionar todo
+                </button>
+                <button
+                  onClick={() => setSelectedAppealIds([])}
+                  className="px-3 py-2 rounded-lg text-xs border border-white/10 text-emerald-100/70"
+                >
+                  Limpiar selección
+                </button>
+                <span className="text-xs text-emerald-100/60">Seleccionadas: {selectedAppealIds.length}</span>
+              </div>
+              <textarea
+                rows={2}
+                value={bulkAppealReason}
+                onChange={(e) => setBulkAppealReason(e.target.value)}
+                placeholder="Respuesta común para acción masiva"
+                className="w-full bg-[#030b07] border border-emerald-500/20 rounded-lg p-3 text-sm text-emerald-100 placeholder-emerald-100/30"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => runBulkAppealAction('approved')}
+                  disabled={bulkRunning}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-sm font-medium"
+                >
+                  Aprobar selección
+                </button>
+                <button
+                  onClick={() => runBulkAppealAction('rejected')}
+                  disabled={bulkRunning}
+                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-sm font-medium"
+                >
+                  Rechazar selección
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
               {[
                 { id: 'pending', label: 'Pendientes', icon: Clock3 },
@@ -413,9 +630,21 @@ export default function AdminPanel() {
                 {banAppeals.map((appeal) => (
                   <div key={appeal.id} className="rounded-xl border border-emerald-500/20 bg-[#07160e] p-4 space-y-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-emerald-200 font-semibold">@{appeal.user?.username || 'usuario'}</p>
-                        <p className="text-emerald-100/60 text-sm">{appeal.user?.email || 'email no disponible'}</p>
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedAppealIds.includes(appeal.id)}
+                          onChange={(e) => {
+                            setSelectedAppealIds((prev) =>
+                              e.target.checked ? [...prev, appeal.id] : prev.filter((id) => id !== appeal.id)
+                            );
+                          }}
+                          className="mt-1 h-4 w-4 rounded border-emerald-500/30 bg-[#030b07]"
+                        />
+                        <div>
+                          <p className="text-emerald-200 font-semibold">@{appeal.user?.username || 'usuario'}</p>
+                          <p className="text-emerald-100/60 text-sm">{appeal.user?.email || 'email no disponible'}</p>
+                        </div>
                       </div>
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs border ${statusBadge(appeal.status)}`}>
                         {appeal.status}
@@ -464,19 +693,71 @@ export default function AdminPanel() {
 
         {activeTab === 'banned-users' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            <div className="rounded-xl border border-emerald-500/20 bg-[#07160e] p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <input
+                type="text"
+                value={bannedSearch}
+                onChange={(e) => setBannedSearch(e.target.value)}
+                placeholder="Buscar por username/email"
+                className="bg-[#030b07] border border-emerald-500/20 rounded-lg p-2.5 text-sm text-emerald-100 placeholder-emerald-100/30"
+              />
+
+              <select
+                value={bannedTypeFilter}
+                onChange={(e) => setBannedTypeFilter(e.target.value)}
+                className="bg-[#030b07] border border-emerald-500/20 rounded-lg p-2.5 text-sm text-emerald-100"
+              >
+                <option value="all">Todos los tipos</option>
+                <option value="temporary_24h">24h</option>
+                <option value="temporary_7d">7d</option>
+                <option value="permanent">Permanente</option>
+              </select>
+
+              <input
+                type="text"
+                value={bannedReasonFilter}
+                onChange={(e) => setBannedReasonFilter(e.target.value)}
+                placeholder="Filtrar por motivo"
+                className="bg-[#030b07] border border-emerald-500/20 rounded-lg p-2.5 text-sm text-emerald-100 placeholder-emerald-100/30"
+              />
+
+              <input
+                type="date"
+                value={bannedDateFrom}
+                onChange={(e) => setBannedDateFrom(e.target.value)}
+                className="bg-[#030b07] border border-emerald-500/20 rounded-lg p-2.5 text-sm text-emerald-100"
+              />
+
+              <input
+                type="date"
+                value={bannedDateTo}
+                onChange={(e) => setBannedDateTo(e.target.value)}
+                className="bg-[#030b07] border border-emerald-500/20 rounded-lg p-2.5 text-sm text-emerald-100"
+              />
+
+              <input
+                type="number"
+                min="0"
+                value={bannedMinInfractions}
+                onChange={(e) => setBannedMinInfractions(e.target.value)}
+                placeholder="Infracciones mínimas"
+                className="bg-[#030b07] border border-emerald-500/20 rounded-lg p-2.5 text-sm text-emerald-100 placeholder-emerald-100/30"
+              />
+            </div>
+
             {activeBansLoading ? (
               <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400"></div>
               </div>
-            ) : (activeBans || []).length === 0 ? (
+            ) : filteredActiveBans.length === 0 ? (
               <EmptyState
                 icon={Ban}
                 title="Sin baneos activos"
-                description="No hay usuarios baneados en este momento."
+                description="No hay baneos que coincidan con los filtros actuales."
               />
             ) : (
               <div className="space-y-3">
-                {(activeBans || []).map((ban) => (
+                {filteredActiveBans.map((ban) => (
                   <div key={ban.id} className="rounded-xl border border-emerald-500/20 bg-[#07160e] p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
