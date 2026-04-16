@@ -576,64 +576,25 @@ const FishingMapsPage = () => {
 
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#04192b] to-[#102742] text-white">
         <div className={`transition-[filter,transform] duration-200 ${showHelp ? 'blur-md scale-[0.995]' : ''}`}>
-        <header className="sticky top-0 z-[1200] border-b border-white/10 bg-slate-950/82 backdrop-blur-xl">
-          <div className="mx-auto w-full max-w-7xl px-4 py-3 md:py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-cyan-500/10 px-3 py-2">
-                  <img src={logoImg} alt="Car-Pes" className="h-9 w-9 rounded-full object-cover ring-1 ring-cyan-300/35" />
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-100/70">Comunidad de pesca</p>
-                    <p className="text-xl font-bold text-cyan-100 leading-tight">Car-Pes</p>
-                  </div>
+        <header className="sticky top-0 z-[1200] border-b border-white/10 bg-slate-950/86 backdrop-blur-xl">
+          <div className="mx-auto w-full max-w-7xl px-4 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-500/10 px-2.5 py-1.5">
+                <img src={logoImg} alt="Car-Pes" className="h-7 w-7 rounded-full object-cover ring-1 ring-cyan-300/35" />
+                <div className="leading-tight">
+                  <p className="text-xs uppercase tracking-[0.12em] text-cyan-100/60">Car-Pes</p>
+                  <p className="text-sm font-semibold text-cyan-100">Mapa de Spots</p>
                 </div>
-                <h1 className="flex items-center gap-2 text-lg md:text-xl font-semibold tracking-tight text-white">
-                  <MapIcon className="h-5 w-5 text-cyan-300" />
-                  Mapa Inteligente de Spots
-                </h1>
-                <p className="text-xs text-cyan-100/75 max-w-xl">
-                  Navegacion fluida, filtros precisos y spots listos para explorar.
-                </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowHelp(true)}
-                  className="text-cyan-200 hover:bg-cyan-900/30 hover:text-white"
-                >
-                  <HelpCircle className="mr-1 h-4 w-4" />
-                  Ayuda
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleUseMyLocation}
-                  className="border-cyan-400/40 text-cyan-200 hover:bg-cyan-900/20"
-                >
-                  <LocateFixed className="mr-1 h-4 w-4" />
-                  Mi ubicacion
-                </Button>
+              <div className="hidden lg:flex items-center gap-2 text-xs text-cyan-100/70">
+                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1">{stats.shown} visibles</span>
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-1">{stats.total} total</span>
+                <span className="rounded-full border border-violet-400/20 bg-violet-500/10 px-2 py-1">{stats.community} comunidad</span>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:max-w-4xl">
-              <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2.5">
-                <p className="text-xs text-cyan-100/80">Mostrando</p>
-                <p className="text-base font-semibold text-cyan-100">{stats.shown} spots</p>
-              </div>
-              <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5">
-                <p className="text-xs text-emerald-100/80">Base total</p>
-                <p className="text-base font-semibold text-emerald-100">{stats.total} ubicaciones</p>
-              </div>
-              <div className="rounded-xl border border-violet-400/20 bg-violet-500/10 px-3 py-2.5">
-                <p className="text-xs text-violet-100/80">Spots comunidad</p>
-                <p className="text-base font-semibold text-violet-100">{stats.community}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <div className="relative min-w-[260px] flex-1">
                 <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-cyan-300" />
                 <input
@@ -692,6 +653,24 @@ const FishingMapsPage = () => {
                 </AnimatePresence>
               </div>
 
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowHelp(true)}
+                className="text-cyan-200 hover:bg-cyan-900/30 hover:text-white"
+              >
+                <HelpCircle className="mr-1 h-4 w-4" />
+                Ayuda
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleUseMyLocation}
+                className="border-cyan-400/40 text-cyan-200 hover:bg-cyan-900/20"
+              >
+                <LocateFixed className="mr-1 h-4 w-4" />
+                Mi ubicacion
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -807,7 +786,7 @@ const FishingMapsPage = () => {
           </div>
         </header>
 
-        <main className="relative z-0 mx-auto grid w-full max-w-[96rem] flex-1 grid-cols-1 gap-3 p-4 md:gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(330px,0.85fr)] xl:items-start">
+        <main className="relative z-0 mx-auto grid w-full max-w-[96rem] flex-1 grid-cols-1 gap-3 p-3 md:gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(330px,0.85fr)] xl:items-start">
           <section className="relative z-0 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60 shadow-[0_20px_50px_rgba(2,6,23,0.35)]">
             <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between p-3">
               <div className="rounded-full border border-cyan-300/30 bg-slate-900/80 px-3 py-1 text-xs text-cyan-100/90 shadow-lg backdrop-blur">
@@ -828,7 +807,7 @@ const FishingMapsPage = () => {
               center={mapCenter}
               zoom={mapZoom}
               zoomControl
-              className="fishing-map h-[58vh] min-h-[470px] w-full md:h-[64vh] lg:h-[calc(100vh-220px)]"
+              className="fishing-map h-[68vh] min-h-[520px] w-full md:h-[74vh] lg:h-[calc(100vh-155px)]"
             >
               <TileLayer url={currentTheme.url} attribution={currentTheme.attribution} />
 
