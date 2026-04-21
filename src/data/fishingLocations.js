@@ -33,10 +33,10 @@ export const fishingLocations = [
   // === ESPAÑA - EMBALSES Y PANTANOS ===
   { name: "Embalse de Mequinenza", type: "embalse", region: "Aragón", country: "España", latitude: 41.2850, longitude: 0.3667, description: "Uno de los más grandes de España, pesca de lucio y carpa" },
   { name: "Embalse de Riaño", type: "embalse", region: "León", country: "España", latitude: 42.8294, longitude: -4.9278, description: "Salmón y trucha en León" },
-  { name: "Embalse de Alcántara", type: "embalse", region: "Extremadura", country: "España", latitude: 39.7614270, longitude: -6.7403134, description: "Black bass y carpa" },
-  { name: "Embalse de La Serena", type: "embalse", region: "Extremadura", country: "España", latitude: 38.8742164, longitude: -5.1546427, description: "Uno de los mayores de España" },
-  { name: "Embalse de Valdecañas", type: "embalse", region: "Extremadura", country: "España", latitude: 39.8216250, longitude: -5.4017083, description: "Pesca deportiva" },
-  { name: "Embalse de Orellana", type: "embalse", region: "Extremadura", country: "España", latitude: 39.0606250, longitude: -5.3448125, description: "Pesca de black bass" },
+  { name: "Embalse de Alcántara", type: "embalse", region: "Extremadura", country: "España", latitude: 39.7591, longitude: -6.1089, description: "Black bass y carpa" },
+  { name: "Embalse de La Serena", type: "embalse", region: "Extremadura", country: "España", latitude: 38.8167, longitude: -5.5500, description: "Uno de los mayores de España" },
+  { name: "Embalse de Valdecañas", type: "embalse", region: "Extremadura", country: "País", latitude: 39.4156, longitude: -5.1244, description: "Pesca deportiva" },
+  { name: "Embalse de Orellana", type: "embalse", region: "Extremadura", country: "España", latitude: 38.6000, longitude: -5.3728, description: "Pesca de black bass" },
   { name: "Embalse de Sobradillo", type: "embalse", region: "Castilla y León", country: "España", latitude: 41.5167, longitude: -3.1333, description: "Duero - Trucha y barbo" },
   { name: "Embalse de Santillana", type: "embalse", region: "Madrid", country: "España", latitude: 40.6417, longitude: -3.6500, description: "Lugo repoblado en Madrid" },
   { name: "Embalse de El Atazar", type: "embalse", region: "Madrid", country: "España", latitude: 40.8597, longitude: -3.6581, description: "Pesca cerca de Madrid" },
@@ -45,7 +45,7 @@ export const fishingLocations = [
   { name: "Embalse de Alarcón", type: "embalse", region: "Cuenca", country: "España", latitude: 40.1667, longitude: -2.3000, description: "Pesca de trucha y carpa" },
   { name: "Embalse de Contreras", type: "embalse", region: "Valencia", country: "España", latitude: 40.1167, longitude: -1.8167, description: "Agua dulce en Valencia" },
   { name: "Embalse de Iznajar", type: "embalse", region: "Córdoba", country: "España", latitude: 37.5750, longitude: -4.3167, description: "Mayor embalse de Andalucía" },
-  { name: "Embalse de Béznar", type: "embalse", region: "Granada", country: "España", latitude: 36.9221940, longitude: -3.5528004, description: "Pesca en Sierra Nevada" },
+  { name: "Embalse de Béznar", type: "embalse", region: "Granada", country: "España", latitude: 36.9667, longitude: -3.5000, description: "Pesca en Sierra Nevada" },
   { name: "Pantano de Sau", type: "embalse", region: "Cataluña", country: "España", latitude: 42.1269, longitude: 2.1739, description: "Pintoresco en Cataluña" },
   { name: "Pantano de Susqueda", type: "embalse", region: "Cataluña", country: "España", latitude: 42.1833, longitude: 2.2500, description: "Pesca de trucha" },
   

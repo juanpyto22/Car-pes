@@ -8,7 +8,6 @@ import { AdminRoute } from '@/components/AdminRoute';
 import { useCheckUserBan } from '@/hooks/useCheckUserBan';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import logoImg from '/img/Car-Pes.png';
-import { initializeColorTheme } from '@/lib/colorTheme';
 
 // Pages
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
@@ -140,10 +139,6 @@ const AppRoutes = () => {
 };
 
 function App() {
-    useEffect(() => {
-      initializeColorTheme();
-    }, []);
-
     return (
         <Router>
           <AuthProvider>
