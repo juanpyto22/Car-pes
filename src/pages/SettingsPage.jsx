@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Settings, Shield, Bell, Eye, Lock, User, 
+  Settings, Shield, Bell, Eye, Lock, User, Palette,
   Globe, Phone, Mail, MapPin, CreditCard, 
   Trash2, Download, Upload, Moon, Sun,
   Monitor, Smartphone, Volume2, VolumeX,
@@ -14,6 +14,7 @@ import { Helmet } from 'react-helmet';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import ColorThemePicker from '@/components/ColorThemePicker';
 
 const SettingsPage = () => {
   const { user, profile, refreshProfile } = useAuth();
@@ -523,6 +524,20 @@ const SettingsPage = () => {
                     description="Ayudar a mejorar la app compartiendo datos de uso"
                     icon={Database}
                   />
+
+                  <div className="md:hidden rounded-2xl border border-white/10 bg-slate-800/30 p-4">
+                    <div className="mb-4 flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-blue-500/20">
+                        <Palette className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-white">Color de la interfaz</h4>
+                        <p className="text-sm text-blue-400">Elige una paleta para toda la app</p>
+                      </div>
+                    </div>
+
+                    <ColorThemePicker mode="grid" />
+                  </div>
 
                   <SettingToggle
                     category="account"

@@ -8,6 +8,69 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+    --background: 222 47% 5%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 7%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 6%;
+    --popover-foreground: 210 40% 98%;
+    --border: 215 27.9% 18%;
+    --input: 215 27.9% 18%;
+    --ring: 199 89% 48%;
+    --accent-rgb: 14 165 233;
+    --accent-strong-rgb: 2 132 199;
+    --accent-soft-rgb: 14 165 233;
+}
+
+body[data-theme-accent="ocean"] {
+    --accent-rgb: 14 165 233;
+    --accent-strong-rgb: 2 132 199;
+    --accent-soft-rgb: 14 165 233;
+}
+
+body[data-theme-accent="cyan"] {
+    --accent-rgb: 6 182 212;
+    --accent-strong-rgb: 8 145 178;
+    --accent-soft-rgb: 6 182 212;
+}
+
+body[data-theme-accent="emerald"] {
+    --accent-rgb: 16 185 129;
+    --accent-strong-rgb: 5 150 105;
+    --accent-soft-rgb: 16 185 129;
+}
+
+body[data-theme-accent="amber"] {
+    --accent-rgb: 245 158 11;
+    --accent-strong-rgb: 217 119 6;
+    --accent-soft-rgb: 245 158 11;
+}
+
+body[data-theme-accent="rose"] {
+    --accent-rgb: 244 63 94;
+    --accent-strong-rgb: 225 29 72;
+    --accent-soft-rgb: 244 63 94;
+}
+
+body[data-theme-accent="violet"] {
+    --accent-rgb: 139 92 246;
+    --accent-strong-rgb: 124 58 237;
+    --accent-soft-rgb: 139 92 246;
+}
+
+body[data-theme-accent="orange"] {
+    --accent-rgb: 249 115 22;
+    --accent-strong-rgb: 234 88 12;
+    --accent-soft-rgb: 249 115 22;
+}
+
+body[data-theme-accent="lime"] {
+    --accent-rgb: 132 204 22;
+    --accent-strong-rgb: 101 163 13;
+    --accent-soft-rgb: 132 204 22;
+}
+
 body {
     @apply bg-slate-950 text-white;
     font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -25,8 +88,8 @@ h1, h2, h3, h4, h5, h6 {
 :root {
     --scrollbar-size: 10px;
     --scroll-track: rgba(9, 16, 38, 0.9);
-    --scroll-thumb: linear-gradient(180deg, rgba(59, 130, 246, 0.78), rgba(37, 99, 235, 0.78));
-    --scroll-thumb-hover: linear-gradient(180deg, rgba(96, 165, 250, 0.95), rgba(59, 130, 246, 0.95));
+    --scroll-thumb: linear-gradient(180deg, rgb(var(--accent-rgb) / 0.78), rgb(var(--accent-strong-rgb) / 0.78));
+    --scroll-thumb-hover: linear-gradient(180deg, rgb(var(--accent-rgb) / 0.95), rgb(var(--accent-strong-rgb) / 0.95));
     --scroll-border: rgba(15, 23, 42, 0.95);
 }
 
@@ -40,7 +103,7 @@ body.admin-theme {
 /* Firefox */
 * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(59, 130, 246, 0.75) rgba(9, 16, 38, 0.9);
+    scrollbar-color: rgb(var(--accent-rgb) / 0.75) rgba(9, 16, 38, 0.9);
 }
 
 body.admin-theme * {
@@ -110,13 +173,13 @@ body.admin-theme * {
 
 /* Focus styles */
 *:focus-visible {
-    outline: 2px solid rgba(6, 182, 212, 0.5);
+    outline: 2px solid rgb(var(--accent-rgb) / 0.55);
     outline-offset: 2px;
 }
 
 /* Selection color */
 ::selection {
-    background: rgba(6, 182, 212, 0.3);
+    background: rgb(var(--accent-rgb) / 0.3);
     color: white;
 }
 
@@ -146,8 +209,8 @@ body.admin-theme * {
 
 body.user-theme {
     background:
-        radial-gradient(circle at 12% 8%, rgba(37, 99, 235, 0.18), transparent 30%),
-        radial-gradient(circle at 86% 3%, rgba(14, 165, 233, 0.12), transparent 28%),
+    radial-gradient(circle at 12% 8%, rgb(var(--accent-rgb) / 0.18), transparent 30%),
+    radial-gradient(circle at 86% 3%, rgb(var(--accent-rgb) / 0.12), transparent 28%),
         linear-gradient(180deg, #030712 0%, #020617 45%, #020714 100%);
 }
 
@@ -166,5 +229,5 @@ body.admin-theme {
 }
 
 .surface-card:hover {
-    border-color: rgba(56, 189, 248, 0.32);
+    border-color: rgb(var(--accent-rgb) / 0.32);
 }

@@ -23,7 +23,7 @@ module.exports = {
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				primary: {
-					DEFAULT: '#06b6d4', // Cyan/Turquoise
+					DEFAULT: 'rgb(var(--accent-rgb) / <alpha-value>)',
 					foreground: '#ffffff',
 				},
 				secondary: {
@@ -39,7 +39,7 @@ module.exports = {
 					foreground: 'hsl(var(--muted-foreground))',
 				},
 				accent: {
-					DEFAULT: '#0891b2',
+					DEFAULT: 'rgb(var(--accent-rgb) / <alpha-value>)',
 					foreground: '#ffffff',
 				},
 				popover: {

@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import SearchBar from '@/components/SearchBar';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useMessages } from '@/hooks/useMessages';
+import ColorThemePicker from '@/components/ColorThemePicker';
 import logoImg from '/img/Car-Pes.png';
 import {
   DropdownMenu,
@@ -65,6 +66,7 @@ const Header = () => {
                   <NavLink to="/messages" icon={MessageCircle} badge={msgCount} active={location.pathname === '/messages'} />
                   <NavLink to="/notifications" icon={Bell} badge={notifCount} active={location.pathname === '/notifications'} />
                   <NavLink to="/live" icon={Radio} active={location.pathname === '/live'} />
+                  <ColorThemePicker />
                 </div>
                 
                 <Link to="/create-post" className="hidden md:block">
