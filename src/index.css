@@ -209,8 +209,8 @@ body.admin-theme * {
 
 body.user-theme {
     background:
-    radial-gradient(circle at 12% 8%, rgb(var(--accent-rgb) / 0.18), transparent 30%),
-    radial-gradient(circle at 86% 3%, rgb(var(--accent-rgb) / 0.12), transparent 28%),
+    radial-gradient(circle at 12% 8%, rgb(var(--accent-rgb) / 0.11), transparent 30%),
+    radial-gradient(circle at 86% 3%, rgb(var(--accent-rgb) / 0.07), transparent 28%),
         linear-gradient(180deg, #030712 0%, #020617 45%, #020714 100%);
 }
 
