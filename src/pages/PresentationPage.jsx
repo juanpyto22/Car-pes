@@ -352,221 +352,221 @@ const PresentationPage = () => {
                 ref={slideRef}
                 style={{ transform: `translate(-50%, -50%) scale(${slideScale})` }}
               >
-            {currentSlideData.type === 'cover' && (
-              <section className="slide-card slide-cover">
-                <div className="cover-hero">
-                  <div className="cover-logo">
-                    <span>🎣</span>
-                  </div>
-                  <div className="cover-copy">
-                    <span className="cover-kicker">TFG · Proyecto web</span>
-                    <h1>{currentSlideData.title}</h1>
-                    <h2>{currentSlideData.subtitle}</h2>
-                    <p>{currentSlideData.description}</p>
-                  </div>
-                </div>
-                <div className="cover-pills">
-                  <span>Red social</span>
-                  <span>Pesca</span>
-                  <span>Mapa</span>
-                  <span>Comunidad</span>
-                </div>
-              </section>
-            )}
-
-            {currentSlideData.type === 'index' && (
-              <section className="slide-card slide-index">
-                <div className="slide-heading-block">
-                  <span className="slide-kicker">Ruta de la presentación</span>
-                  <h2>{currentSlideData.title}</h2>
-                  <p>Todo el recorrido de la exposición, organizado para avanzar con claridad.</p>
-                </div>
-                <div className="index-grid">
-                  {currentSlideData.items.map((item, idx) => (
-                    <button key={item} className="index-item" onClick={() => goToSlide(Math.min(idx + 2, slides.length - 1))} type="button">
-                      <span className="index-number">{String(idx + 1).padStart(2, '0')}</span>
-                      <span className="index-text">{item}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {currentSlideData.type === 'problem' && (
-              <section className="slide-card">
-                <div className="slide-heading-block">
-                  <span className="slide-kicker">Contexto</span>
-                  <h2>{currentSlideData.title}</h2>
-                </div>
-                <div className="bullet-panel problem-panel">
-                  {currentSlideData.points.map((point) => (
-                    <div key={point} className="bullet-item">
-                      <span className="bullet-mark">•</span>
-                      <p>{point}</p>
+                {currentSlideData.type === 'cover' && (
+                  <section className="slide-card slide-cover">
+                    <div className="cover-hero">
+                      <div className="cover-logo">
+                        <span>🎣</span>
+                      </div>
+                      <div className="cover-copy">
+                        <span className="cover-kicker">TFG · Proyecto web</span>
+                        <h1>{currentSlideData.title}</h1>
+                        <h2>{currentSlideData.subtitle}</h2>
+                        <p>{currentSlideData.description}</p>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {currentSlideData.type === 'vision' && (
-              <section className="slide-card">
-                <div className="slide-heading-block">
-                  <span className="slide-kicker">Dirección</span>
-                  <h2>{currentSlideData.title}</h2>
-                </div>
-                <div className="vision-grid">
-                  <article className="info-panel mission-panel">
-                    <h3>🎯 Misión</h3>
-                    <p>{currentSlideData.mission}</p>
-                  </article>
-                  <article className="info-panel vision-panel">
-                    <h3>🌟 Visión</h3>
-                    <p>{currentSlideData.vision}</p>
-                  </article>
-                </div>
-              </section>
-            )}
-
-            {currentSlideData.type === 'solution' && (
-              <section className="slide-card">
-                <div className="slide-heading-block">
-                  <span className="slide-kicker">Propuesta</span>
-                  <h2>{currentSlideData.title}</h2>
-                </div>
-                <div className="feature-list">
-                  {currentSlideData.features.map((feature) => (
-                    <div key={feature} className="feature-row">
-                      <span className="feature-icon">✓</span>
-                      <p>{feature}</p>
+                    <div className="cover-pills">
+                      <span>Red social</span>
+                      <span>Pesca</span>
+                      <span>Mapa</span>
+                      <span>Comunidad</span>
                     </div>
-                  ))}
-                </div>
-              </section>
-            )}
+                  </section>
+                )}
 
-            {currentSlideData.type === 'features' && (
-              <section className="slide-card">
-                <div className="slide-heading-block">
-                  <span className="slide-kicker">Uso diario</span>
-                  <h2>{currentSlideData.title}</h2>
-                </div>
-                <div className="feature-grid">
-                  {currentSlideData.categories.map((category) => (
-                    <article key={category.title} className="feature-card">
-                      <div className="feature-card-icon">{category.icon}</div>
-                      <h3>{category.title}</h3>
-                      <p>{category.desc}</p>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {currentSlideData.type === 'maps' && (
-              <section className="slide-card">
-                <div className="slide-heading-block">
-                  <span className="slide-kicker">Ubicación</span>
-                  <h2>{currentSlideData.title}</h2>
-                  <p>{currentSlideData.description}</p>
-                </div>
-                <div className="map-panel">
-                  {currentSlideData.features.map((feature, idx) => (
-                    <div key={feature} className="map-row">
-                      <span className="map-number">{idx + 1}</span>
-                      <p>{feature}</p>
+                {currentSlideData.type === 'index' && (
+                  <section className="slide-card slide-index">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Ruta de la presentación</span>
+                      <h2>{currentSlideData.title}</h2>
+                      <p>Todo el recorrido de la exposición, organizado para avanzar con claridad.</p>
                     </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {currentSlideData.type === 'gamification' && (
-              <section className="slide-card">
-                <div className="slide-heading-block">
-                  <span className="slide-kicker">Progreso</span>
-                  <h2>{currentSlideData.title}</h2>
-                </div>
-                <div className="gamification-grid">
-                  {currentSlideData.elements.map((element) => (
-                    <article key={element.title} className="gamification-card">
-                      <h3>{element.title}</h3>
-                      <p>{element.desc}</p>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {currentSlideData.type === 'safety' && (
-              <section className="slide-card">
-                <div className="slide-heading-block">
-                  <span className="slide-kicker">Control</span>
-                  <h2>{currentSlideData.title}</h2>
-                </div>
-                <div className="bullet-panel safety-panel">
-                  {currentSlideData.points.map((point) => (
-                    <div key={point} className="bullet-item">
-                      <span className="bullet-mark bullet-shield">🛡</span>
-                      <p>{point}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {currentSlideData.type === 'tech' && (
-              <section className="slide-card">
-                <div className="slide-heading-block">
-                  <span className="slide-kicker">Stack</span>
-                  <h2>{currentSlideData.title}</h2>
-                </div>
-                <div className="tech-grid">
-                  <article className="tech-panel">
-                    <h3>Frontend</h3>
-                    <div className="tech-list">
-                      {currentSlideData.frontend.map((tech) => (
-                        <span key={tech} className="tech-chip">{tech}</span>
+                    <div className="index-grid">
+                      {currentSlideData.items.map((item, idx) => (
+                        <button key={item} className="index-item" onClick={() => goToSlide(Math.min(idx + 2, slides.length - 1))} type="button">
+                          <span className="index-number">{String(idx + 1).padStart(2, '0')}</span>
+                          <span className="index-text">{item}</span>
+                        </button>
                       ))}
                     </div>
-                  </article>
-                  <article className="tech-panel">
-                    <h3>Backend</h3>
-                    <div className="tech-list">
-                      {currentSlideData.backend.map((tech) => (
-                        <span key={tech} className="tech-chip">{tech}</span>
-                      ))}
-                    </div>
-                  </article>
-                  <article className="tech-panel">
-                    <h3>Hosting</h3>
-                    <div className="tech-list">
-                      {currentSlideData.hosting.map((tech) => (
-                        <span key={tech} className="tech-chip">{tech}</span>
-                      ))}
-                    </div>
-                  </article>
-                </div>
-              </section>
-            )}
+                  </section>
+                )}
 
-            {currentSlideData.type === 'impact' && (
-              <section className="slide-card">
-                <div className="slide-heading-block">
-                  <span className="slide-kicker">Resultado</span>
-                  <h2>{currentSlideData.title}</h2>
-                </div>
-                <div className="impact-grid">
-                  {currentSlideData.metrics.map((metric) => (
-                    <article key={metric.label} className="metric-card">
-                      <strong>{metric.value}</strong>
-                      <h3>{metric.label}</h3>
-                      <p>{metric.desc}</p>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )}
+                {currentSlideData.type === 'problem' && (
+                  <section className="slide-card">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Contexto</span>
+                      <h2>{currentSlideData.title}</h2>
+                    </div>
+                    <div className="bullet-panel problem-panel compact-panel">
+                      {currentSlideData.points.map((point) => (
+                        <div key={point} className="bullet-item compact-bullet">
+                          <span className="bullet-mark">•</span>
+                          <p>{point}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {currentSlideData.type === 'vision' && (
+                  <section className="slide-card">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Dirección</span>
+                      <h2>{currentSlideData.title}</h2>
+                    </div>
+                    <div className="vision-grid compact-grid">
+                      <article className="info-panel mission-panel compact-panel">
+                        <h3>🎯 Misión</h3>
+                        <p>{currentSlideData.mission}</p>
+                      </article>
+                      <article className="info-panel vision-panel compact-panel">
+                        <h3>🌟 Visión</h3>
+                        <p>{currentSlideData.vision}</p>
+                      </article>
+                    </div>
+                  </section>
+                )}
+
+                {currentSlideData.type === 'solution' && (
+                  <section className="slide-card">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Propuesta</span>
+                      <h2>{currentSlideData.title}</h2>
+                    </div>
+                    <div className="feature-list compact-list">
+                      {currentSlideData.features.map((feature) => (
+                        <div key={feature} className="feature-row compact-row">
+                          <span className="feature-icon">✓</span>
+                          <p>{feature}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {currentSlideData.type === 'features' && (
+                  <section className="slide-card">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Uso diario</span>
+                      <h2>{currentSlideData.title}</h2>
+                    </div>
+                    <div className="feature-grid compact-feature-grid">
+                      {currentSlideData.categories.map((category) => (
+                        <article key={category.title} className="feature-card compact-card">
+                          <div className="feature-card-icon">{category.icon}</div>
+                          <h3>{category.title}</h3>
+                          <p>{category.desc}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {currentSlideData.type === 'maps' && (
+                  <section className="slide-card">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Ubicación</span>
+                      <h2>{currentSlideData.title}</h2>
+                      <p>{currentSlideData.description}</p>
+                    </div>
+                    <div className="map-panel compact-panel-grid">
+                      {currentSlideData.features.map((feature, idx) => (
+                        <div key={feature} className="map-row compact-row">
+                          <span className="map-number">{idx + 1}</span>
+                          <p>{feature}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {currentSlideData.type === 'gamification' && (
+                  <section className="slide-card">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Progreso</span>
+                      <h2>{currentSlideData.title}</h2>
+                    </div>
+                    <div className="gamification-grid compact-feature-grid">
+                      {currentSlideData.elements.map((element) => (
+                        <article key={element.title} className="gamification-card compact-card">
+                          <h3>{element.title}</h3>
+                          <p>{element.desc}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {currentSlideData.type === 'safety' && (
+                  <section className="slide-card">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Control</span>
+                      <h2>{currentSlideData.title}</h2>
+                    </div>
+                    <div className="bullet-panel safety-panel compact-panel">
+                      {currentSlideData.points.map((point) => (
+                        <div key={point} className="bullet-item compact-bullet">
+                          <span className="bullet-mark bullet-shield">🛡</span>
+                          <p>{point}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {currentSlideData.type === 'tech' && (
+                  <section className="slide-card">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Stack</span>
+                      <h2>{currentSlideData.title}</h2>
+                    </div>
+                    <div className="tech-grid compact-tech-grid">
+                      <article className="tech-panel compact-panel">
+                        <h3>Frontend</h3>
+                        <div className="tech-list">
+                          {currentSlideData.frontend.map((tech) => (
+                            <span key={tech} className="tech-chip">{tech}</span>
+                          ))}
+                        </div>
+                      </article>
+                      <article className="tech-panel compact-panel">
+                        <h3>Backend</h3>
+                        <div className="tech-list">
+                          {currentSlideData.backend.map((tech) => (
+                            <span key={tech} className="tech-chip">{tech}</span>
+                          ))}
+                        </div>
+                      </article>
+                      <article className="tech-panel compact-panel">
+                        <h3>Hosting</h3>
+                        <div className="tech-list">
+                          {currentSlideData.hosting.map((tech) => (
+                            <span key={tech} className="tech-chip">{tech}</span>
+                          ))}
+                        </div>
+                      </article>
+                    </div>
+                  </section>
+                )}
+
+                {currentSlideData.type === 'impact' && (
+                  <section className="slide-card">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Resultado</span>
+                      <h2>{currentSlideData.title}</h2>
+                    </div>
+                    <div className="impact-grid compact-feature-grid">
+                      {currentSlideData.metrics.map((metric) => (
+                        <article key={metric.label} className="metric-card compact-card">
+                          <strong>{metric.value}</strong>
+                          <h3>{metric.label}</h3>
+                          <p>{metric.desc}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
               </div>
             </div>
             {showFishTransition && fishTransition ? (
