@@ -39,6 +39,7 @@ const CameraPage = lazy(() => import('@/pages/CameraPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const AdminPanel = lazy(() => import('@/pages/AdminPanel'));
 const BannedUserPage = lazy(() => import('@/pages/BannedUserPage'));
+const PresentationPage = lazy(() => import('@/pages/PresentationPage'));
 
 // Components
 import Header from '@/components/Header';
@@ -98,6 +99,7 @@ const AppRoutes = () => {
             <Route path="/" element={user ? <Navigate to="/feed" /> : <LandingPage />} />
             <Route path="/login" element={user ? <Navigate to="/feed" /> : <LoginPage />} />
             <Route path="/signup" element={user ? <Navigate to="/feed" /> : <SignupPage />} />
+             <Route path="/presentacion" element={<PresentationPage />} />
             <Route path="/forgot-password" element={user ? <Navigate to="/feed" /> : <ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
