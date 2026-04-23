@@ -133,8 +133,11 @@ const PresentationPage = () => {
   const [passwordError, setPasswordError] = useState('');
   const [accessGranted, setAccessGranted] = useState(false);
   const [slideScale, setSlideScale] = useState(1);
+  const [showFishTransition, setShowFishTransition] = useState(false);
+  const [fishTransitionKey, setFishTransitionKey] = useState(0);
   const stageRef = useRef(null);
   const slideRef = useRef(null);
+  const previousSlideRef = useRef(0);
 
   useEffect(() => {
     if (!accessGranted) {
@@ -189,6 +192,28 @@ const PresentationPage = () => {
       window.clearTimeout(timeoutId);
       window.removeEventListener('resize', calculateScale);
     };
+  }, [accessGranted, currentSlide]);
+
+  useEffect(() => {
+    if (!accessGranted) {
+      previousSlideRef.current = currentSlide;
+      setShowFishTransition(false);
+      return;
+    }
+
+    if (previousSlideRef.current === currentSlide) {
+      return;
+    }
+
+    setFishTransitionKey((prev) => prev + 1);
+    setShowFishTransition(true);
+    previousSlideRef.current = currentSlide;
+
+    const timeoutId = window.setTimeout(() => {
+      setShowFishTransition(false);
+    }, 900);
+
+    return () => window.clearTimeout(timeoutId);
   }, [accessGranted, currentSlide]);
 
   const handlePasswordSubmit = (event) => {
@@ -488,6 +513,15 @@ const PresentationPage = () => {
             )}
               </div>
             </div>
+            {showFishTransition ? (
+              <div key={fishTransitionKey} className="slide-transition-fish" aria-hidden="true">
+                <span className="jump-fish">🐟</span>
+                <span className="jump-splash splash-left" />
+                <span className="jump-splash splash-center" />
+                <span className="jump-splash splash-right" />
+                <span className="jump-ripple" />
+              </div>
+            ) : null}
           </main>
 
           <footer className="presentation-footer">

@@ -231,6 +231,65 @@
   width: min(1240px, calc(100% - 0.8rem));
 }
 
+.slide-transition-fish {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  width: min(22rem, 42vw);
+  height: min(14rem, 28vh);
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.jump-fish {
+  position: absolute;
+  left: 50%;
+  bottom: 0.9rem;
+  font-size: clamp(2.6rem, 4.8vw, 3.8rem);
+  filter: drop-shadow(0 8px 18px rgba(34, 211, 238, 0.4));
+  transform-origin: center center;
+  animation: fishJumpOut 900ms cubic-bezier(0.32, 0.93, 0.58, 1) forwards;
+}
+
+.jump-ripple {
+  position: absolute;
+  left: 50%;
+  bottom: 0.65rem;
+  width: 3rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  border: 2px solid rgba(103, 232, 249, 0.75);
+  transform: translateX(-50%) scale(0.3);
+  opacity: 0;
+  animation: fishRipple 900ms ease-out forwards;
+}
+
+.jump-splash {
+  position: absolute;
+  bottom: 1rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: rgba(103, 232, 249, 0.95);
+  opacity: 0;
+}
+
+.splash-left {
+  left: 44%;
+  animation: splashLeft 900ms ease-out forwards;
+}
+
+.splash-center {
+  left: 50%;
+  animation: splashCenter 900ms ease-out forwards;
+}
+
+.splash-right {
+  left: 56%;
+  animation: splashRight 900ms ease-out forwards;
+}
+
 .slide-card {
   position: relative;
   width: 100%;
@@ -815,6 +874,91 @@
 @keyframes logoHover {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
+}
+
+@keyframes fishJumpOut {
+  0% {
+    transform: translate(-50%, 0) rotate(0deg) scale(0.9);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  38% {
+    transform: translate(-50%, -7.6rem) rotate(-14deg) scale(1);
+    opacity: 1;
+  }
+  62% {
+    transform: translate(-50%, -4.2rem) rotate(22deg) scale(0.98);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, 0.15rem) rotate(34deg) scale(0.8);
+    opacity: 0;
+  }
+}
+
+@keyframes fishRipple {
+  0% {
+    transform: translateX(-50%) scale(0.2);
+    opacity: 0;
+  }
+  42% {
+    opacity: 0;
+  }
+  56% {
+    transform: translateX(-50%) scale(0.35);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(-50%) scale(1.8);
+    opacity: 0;
+  }
+}
+
+@keyframes splashLeft {
+  0%, 44% {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+  }
+  58% {
+    transform: translate(-0.75rem, -2rem) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-1.3rem, -3rem) scale(0.2);
+    opacity: 0;
+  }
+}
+
+@keyframes splashCenter {
+  0%, 44% {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+  }
+  56% {
+    transform: translate(0.1rem, -2.6rem) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0.3rem, -3.8rem) scale(0.2);
+    opacity: 0;
+  }
+}
+
+@keyframes splashRight {
+  0%, 44% {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+  }
+  58% {
+    transform: translate(0.8rem, -2rem) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(1.4rem, -3rem) scale(0.2);
+    opacity: 0;
+  }
 }
 
 @media (max-width: 1100px) {
