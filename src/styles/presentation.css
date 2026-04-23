@@ -254,11 +254,11 @@
 }
 
 .slide-transition-fish.backward .jump-fish {
-  --fish-flip: -1;
+  --fish-flip: 1;
 }
 
 .slide-transition-fish.forward .jump-fish {
-  --fish-flip: 1;
+  --fish-flip: -1;
 }
 
 .jump-ripple {
