@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, MapPin, Clock, Users, Plus, X, ChevronLeft, ChevronRight, Fish, Trophy, Anchor, Star } from 'lucide-react';
+import { Calendar, MapPin, Clock, Users, Plus, X, ChevronLeft, ChevronRight, Fish, Trophy, Anchor, Star, GraduationCap, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +15,7 @@ const EVENT_CATEGORIES = [
   { id: 'tournament', label: 'Torneo', icon: Trophy, color: 'yellow' },
   { id: 'meetup', label: 'Quedada', icon: Users, color: 'cyan' },
   { id: 'fishing', label: 'Jornada pesca', icon: Fish, color: 'blue' },
+  { id: 'mentoring', label: 'Mentoría', icon: GraduationCap, color: 'emerald' },
   { id: 'workshop', label: 'Taller', icon: Star, color: 'purple' },
   { id: 'other', label: 'Otro', icon: Anchor, color: 'green' },
 ];
@@ -23,6 +24,7 @@ const categoryColors = {
   tournament: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
   meetup: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
   fishing: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  mentoring: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   workshop: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
   other: 'bg-green-500/20 text-green-400 border-green-500/30',
 };
@@ -207,6 +209,35 @@ const EventsCalendarPage = () => {
     }
   };
 
+  const handleDeleteEvent = async (eventId) => {
+    if (!user) return;
+
+    try {
+      if (dbAvailable) {
+        const { error } = await supabase
+          .from('fishing_events')
+          .delete()
+          .eq('id', eventId)
+          .eq('creator_id', user.id);
+
+        if (error) throw error;
+      }
+
+      setEvents(prev => {
+        const updated = prev.filter(eventItem => eventItem.id !== eventId);
+        if (!dbAvailable) {
+          localStorage.setItem('carpes_events', JSON.stringify(updated));
+        }
+        return updated;
+      });
+
+      toast({ title: 'Evento eliminado' });
+    } catch (err) {
+      console.error('Error deleting event:', err);
+      toast({ variant: 'destructive', title: 'No se pudo eliminar el evento' });
+    }
+  };
+
   // Calendar calculations
   const calendarDays = useMemo(() => {
     const start = startOfMonth(currentMonth);
@@ -231,6 +262,16 @@ const EventsCalendarPage = () => {
     try { return new Date(e.event_date) >= new Date(); } catch { return false; }
   }).slice(0, 5);
 
+  const upcomingMentoringSessions = events
+    .filter(e => {
+      try {
+        return e.category === 'mentoring' && new Date(e.event_date) >= new Date();
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, 3);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 flex items-center justify-center">
@@ -248,7 +289,7 @@ const EventsCalendarPage = () => {
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-white">Eventos</h1>
-              <p className="text-blue-400 text-sm">Torneos, quedadas y jornadas de pesca</p>
+              <p className="text-blue-400 text-sm">Torneos, quedadas, jornadas y mentorías para novatos</p>
             </div>
             <Button 
               onClick={() => setShowCreate(true)}
@@ -313,6 +354,7 @@ const EventsCalendarPage = () => {
                               e.category === 'tournament' ? 'bg-yellow-400' :
                               e.category === 'meetup' ? 'bg-cyan-400' :
                               e.category === 'fishing' ? 'bg-blue-400' :
+                              e.category === 'mentoring' ? 'bg-emerald-400' :
                               e.category === 'workshop' ? 'bg-purple-400' : 'bg-green-400'
                             }`} />
                           ))}
@@ -339,7 +381,7 @@ const EventsCalendarPage = () => {
                       {selectedDateEvents.length > 0 ? (
                         <div className="space-y-2">
                           {selectedDateEvents.map(event => (
-                            <EventCard key={event.id} event={event} user={user} onJoin={handleJoinEvent} onLeave={handleLeaveEvent} compact />
+                            <EventCard key={event.id} event={event} user={user} onJoin={handleJoinEvent} onLeave={handleLeaveEvent} onDelete={handleDeleteEvent} compact />
                           ))}
                         </div>
                       ) : (
@@ -362,7 +404,7 @@ const EventsCalendarPage = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
                   >
-                    <EventCard event={event} user={user} onJoin={handleJoinEvent} onLeave={handleLeaveEvent} />
+                    <EventCard event={event} user={user} onJoin={handleJoinEvent} onLeave={handleLeaveEvent} onDelete={handleDeleteEvent} />
                   </motion.div>
                 ))
               ) : (
@@ -372,6 +414,31 @@ const EventsCalendarPage = () => {
                   <p className="text-xs text-blue-600 mt-1">¡Crea el primero!</p>
                 </div>
               )}
+
+              <div className="bg-slate-900/40 rounded-2xl border border-emerald-500/20 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <GraduationCap className="w-4 h-4 text-emerald-400" />
+                  <h4 className="text-sm font-bold text-emerald-300">Mentorías abiertas</h4>
+                </div>
+
+                {upcomingMentoringSessions.length > 0 ? (
+                  <div className="space-y-2">
+                    {upcomingMentoringSessions.map((event) => (
+                      <EventCard
+                        key={`mentoring-${event.id}`}
+                        event={event}
+                        user={user}
+                        onJoin={handleJoinEvent}
+                        onLeave={handleLeaveEvent}
+                        onDelete={handleDeleteEvent}
+                        compact
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-emerald-400/80">No hay mentorías activas todavía. Crea una en categoría Mentoría.</p>
+                )}
+              </div>
             </motion.div>
           </div>
         </div>
@@ -391,12 +458,13 @@ const EventsCalendarPage = () => {
 };
 
 // ─── Event Card ────────────────────────────────────────────
-const EventCard = ({ event, user, onJoin, onLeave, compact = false }) => {
+const EventCard = ({ event, user, onJoin, onLeave, onDelete, compact = false }) => {
   const isJoined = user && (event.participants || []).some(p => p.user?.id === user.id);
   const isCreator = user && event.creator_id === user.id;
   const cat = EVENT_CATEGORIES.find(c => c.id === event.category) || EVENT_CATEGORIES[4];
   const CatIcon = cat.icon;
   const participantCount = (event.participants || []).length;
+  const isMentoring = event.category === 'mentoring';
 
   let dateStr = '';
   try { dateStr = format(parseISO(event.event_date), "d MMM · HH:mm", { locale: es }); } catch { dateStr = event.event_date; }
@@ -430,20 +498,33 @@ const EventCard = ({ event, user, onJoin, onLeave, compact = false }) => {
                 <span className="text-xs text-blue-600">/ {event.max_participants}</span>
               )}
             </div>
-            {!isCreator && (
-              <Button
-                size="sm"
-                onClick={() => isJoined ? onLeave(event.id) : onJoin(event.id)}
-                className={`h-7 text-xs rounded-lg ${
-                  isJoined 
-                    ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30'
-                    : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30'
-                }`}
-                variant="ghost"
-              >
-                {isJoined ? 'Salir' : 'Unirme'}
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {isCreator ? (
+                <Button
+                  size="sm"
+                  onClick={() => onDelete?.(event.id)}
+                  className="h-7 text-xs rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30"
+                  variant="ghost"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Eliminar
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => isJoined ? onLeave(event.id) : onJoin(event.id)}
+                  className={`h-7 text-xs rounded-lg ${
+                    isJoined
+                      ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30'
+                      : isMentoring
+                        ? 'bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/30'
+                        : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30'
+                  }`}
+                  variant="ghost"
+                >
+                  {isJoined ? 'Salir' : isMentoring ? 'Reservar plaza' : 'Unirme'}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -600,7 +681,7 @@ const CreateEventModal = ({ onClose, onCreate }) => {
             disabled={creating || !title.trim() || !date || !time}
             className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl h-12 font-semibold disabled:opacity-50"
           >
-            {creating ? 'Creando...' : '🎣 Crear Evento'}
+            {creating ? 'Creando...' : category === 'mentoring' ? '🎓 Crear Mentoría' : '🎣 Crear Evento'}
           </Button>
         </div>
       </motion.div>
