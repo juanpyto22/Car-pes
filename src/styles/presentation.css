@@ -243,11 +243,22 @@
   left: 0;
   top: 0;
   font-size: clamp(2.6rem, 4.8vw, 3.8rem);
-  filter: drop-shadow(0 8px 18px rgba(34, 211, 238, 0.4));
+  filter: none;
+  text-shadow: none;
   transform-origin: center center;
+  backface-visibility: hidden;
+  will-change: transform, offset-distance, opacity;
   offset-path: var(--fish-path);
-  offset-rotate: auto 0deg;
+  offset-rotate: 0deg;
   animation: fishPathTravel 1100ms linear forwards;
+}
+
+.slide-transition-fish.backward .jump-fish {
+  --fish-flip: -1;
+}
+
+.slide-transition-fish.forward .jump-fish {
+  --fish-flip: 1;
 }
 
 .jump-ripple {
@@ -909,13 +920,17 @@
 @keyframes fishPathTravel {
   0% {
     offset-distance: 0%;
-    transform: translate(-50%, -50%) scale(0.9);
-    opacity: 0;
+    transform: translate(-50%, -50%) scaleX(var(--fish-flip, 1)) scale(0.9);
+    opacity: 1;
   }
-  8% { opacity: 1; }
+  99% {
+    offset-distance: 100%;
+    transform: translate(-50%, -50%) scaleX(var(--fish-flip, 1)) scale(0.82);
+    opacity: 1;
+  }
   100% {
     offset-distance: 100%;
-    transform: translate(-50%, -50%) scale(0.82);
+    transform: translate(-50%, -50%) scaleX(var(--fish-flip, 1)) scale(0.82);
     opacity: 0;
   }
 }
