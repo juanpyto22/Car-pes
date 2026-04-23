@@ -15,13 +15,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
 import { motion } from 'framer-motion';
 
 const Header = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const isPresentationMode = location.pathname === '/presentacion';
   
   const { unreadCount: notifCount } = useNotifications(user ? profile : null);
   const { unreadCount: msgCount } = useMessages(user || null);
@@ -31,8 +34,16 @@ const Header = () => {
     navigate('/');
   };
 
+  const showPresentationBlockedToast = () => {
+    toast({
+      variant: 'destructive',
+      title: 'Modo presentacion',
+      description: 'En el modo presentacion esta opcion no esta disponible.',
+    });
+  };
+
   return (
-    <header className="sticky top-0 z-50 border-b border-sky-300/10 bg-slate-950/78 backdrop-blur-2xl">
+    <header className="sticky top-0 z-50 border-b border-sky-300/10 bg-slate-950/78 backdrop-blur-2xl relative">
       <div className="max-w-7xl mx-auto px-3 md:px-4">
         <div className="flex items-center justify-between gap-3 h-14 md:h-16">
           {/* Logo */}
@@ -161,6 +172,14 @@ const Header = () => {
           </nav>
         </div>
       </div>
+      {isPresentationMode && (
+        <button
+          type="button"
+          onClick={showPresentationBlockedToast}
+          className="absolute inset-0 z-[70] cursor-not-allowed bg-transparent"
+          aria-label="Opciones de header deshabilitadas en modo presentacion"
+        />
+      )}
     </header>
   );
 };

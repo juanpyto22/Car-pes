@@ -233,11 +233,11 @@
 
 .slide-transition-fish {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
   bottom: 8%;
-  width: min(22rem, 42vw);
+  width: 100%;
   height: min(14rem, 28vh);
-  transform: translateX(-50%);
   pointer-events: none;
   z-index: 20;
 }
@@ -249,12 +249,19 @@
   font-size: clamp(2.6rem, 4.8vw, 3.8rem);
   filter: drop-shadow(0 8px 18px rgba(34, 211, 238, 0.4));
   transform-origin: center center;
-  animation: fishJumpOut 900ms cubic-bezier(0.32, 0.93, 0.58, 1) forwards;
+}
+
+.slide-transition-fish.forward .jump-fish {
+  animation: fishJumpForward 900ms cubic-bezier(0.32, 0.93, 0.58, 1) forwards;
+}
+
+.slide-transition-fish.backward .jump-fish {
+  animation: fishJumpBackward 900ms cubic-bezier(0.32, 0.93, 0.58, 1) forwards;
 }
 
 .jump-ripple {
   position: absolute;
-  left: 50%;
+  left: calc(50% + 10rem);
   bottom: 0.65rem;
   width: 3rem;
   height: 0.9rem;
@@ -263,6 +270,10 @@
   transform: translateX(-50%) scale(0.3);
   opacity: 0;
   animation: fishRipple 900ms ease-out forwards;
+}
+
+.slide-transition-fish.backward .jump-ripple {
+  left: calc(50% - 10rem);
 }
 
 .jump-splash {
@@ -276,18 +287,30 @@
 }
 
 .splash-left {
-  left: 44%;
+  left: calc(50% + 9.2rem);
   animation: splashLeft 900ms ease-out forwards;
 }
 
 .splash-center {
-  left: 50%;
+  left: calc(50% + 10rem);
   animation: splashCenter 900ms ease-out forwards;
 }
 
 .splash-right {
-  left: 56%;
+  left: calc(50% + 10.8rem);
   animation: splashRight 900ms ease-out forwards;
+}
+
+.slide-transition-fish.backward .splash-left {
+  left: calc(50% - 10.8rem);
+}
+
+.slide-transition-fish.backward .splash-center {
+  left: calc(50% - 10rem);
+}
+
+.slide-transition-fish.backward .splash-right {
+  left: calc(50% - 9.2rem);
 }
 
 .slide-card {
@@ -876,7 +899,7 @@
   50% { transform: translateY(-10px); }
 }
 
-@keyframes fishJumpOut {
+@keyframes fishJumpForward {
   0% {
     transform: translate(-50%, 0) rotate(0deg) scale(0.9);
     opacity: 0;
@@ -885,15 +908,37 @@
     opacity: 1;
   }
   38% {
-    transform: translate(-50%, -7.6rem) rotate(-14deg) scale(1);
+    transform: translate(calc(-50% + 6rem), -7.6rem) rotate(-14deg) scale(1);
     opacity: 1;
   }
   62% {
-    transform: translate(-50%, -4.2rem) rotate(22deg) scale(0.98);
+    transform: translate(calc(-50% + 9.5rem), -4.2rem) rotate(22deg) scale(0.98);
     opacity: 1;
   }
   100% {
-    transform: translate(-50%, 0.15rem) rotate(34deg) scale(0.8);
+    transform: translate(calc(-50% + 12rem), 0.15rem) rotate(34deg) scale(0.8);
+    opacity: 0;
+  }
+}
+
+@keyframes fishJumpBackward {
+  0% {
+    transform: translate(-50%, 0) rotate(0deg) scale(0.9) scaleX(-1);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  38% {
+    transform: translate(calc(-50% - 6rem), -7.6rem) rotate(14deg) scale(1) scaleX(-1);
+    opacity: 1;
+  }
+  62% {
+    transform: translate(calc(-50% - 9.5rem), -4.2rem) rotate(-22deg) scale(0.98) scaleX(-1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% - 12rem), 0.15rem) rotate(-34deg) scale(0.8) scaleX(-1);
     opacity: 0;
   }
 }

@@ -135,6 +135,7 @@ const PresentationPage = () => {
   const [slideScale, setSlideScale] = useState(1);
   const [showFishTransition, setShowFishTransition] = useState(false);
   const [fishTransitionKey, setFishTransitionKey] = useState(0);
+  const [fishDirection, setFishDirection] = useState('forward');
   const stageRef = useRef(null);
   const slideRef = useRef(null);
   const previousSlideRef = useRef(0);
@@ -146,10 +147,12 @@ const PresentationPage = () => {
 
     const handleKeyDown = (event) => {
       if (event.key === 'ArrowRight') {
+        setFishDirection('forward');
         setCurrentSlide((prev) => (prev + 1) % slides.length);
       }
 
       if (event.key === 'ArrowLeft') {
+        setFishDirection('backward');
         setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
       }
     };
@@ -229,9 +232,24 @@ const PresentationPage = () => {
     setPasswordError('Contraseña incorrecta. Prueba de nuevo.');
   };
 
-  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length);
-  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
-  const goToSlide = (index) => setCurrentSlide(index);
+  const nextSlide = () => {
+    setFishDirection('forward');
+    setCurrentSlide((prev) => (prev + 1) % slides.length);
+  };
+
+  const prevSlide = () => {
+    setFishDirection('backward');
+    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+  };
+
+  const goToSlide = (index) => {
+    if (index === currentSlide) {
+      return;
+    }
+
+    setFishDirection(index > currentSlide ? 'forward' : 'backward');
+    setCurrentSlide(index);
+  };
 
   const currentSlideData = slides[currentSlide];
 
@@ -514,7 +532,11 @@ const PresentationPage = () => {
               </div>
             </div>
             {showFishTransition ? (
-              <div key={fishTransitionKey} className="slide-transition-fish" aria-hidden="true">
+              <div
+                key={fishTransitionKey}
+                className={`slide-transition-fish ${fishDirection === 'backward' ? 'backward' : 'forward'}`}
+                aria-hidden="true"
+              >
                 <span className="jump-fish">🐟</span>
                 <span className="jump-splash splash-left" />
                 <span className="jump-splash splash-center" />
