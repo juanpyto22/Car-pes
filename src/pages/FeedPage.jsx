@@ -102,20 +102,6 @@ const FeedPage = () => {
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-blue-950/10 to-slate-950 pb-20">
         <div className="max-w-xl mx-auto pt-2 md:pt-6 px-0 md:px-4">
 
-          <div className="mx-3 md:mx-0 mb-4 rounded-2xl border border-sky-400/20 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.15),transparent_50%),linear-gradient(180deg,rgba(15,23,42,0.85),rgba(2,6,23,0.88))] p-4 md:p-5 shadow-[0_10px_30px_rgba(2,6,23,0.35)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.22em] text-sky-300/80 font-semibold">Diario de Capturas</p>
-                <h2 className="mt-2 text-2xl md:text-3xl font-bold text-white">Tu marea social de pesca</h2>
-                <p className="mt-2 text-sm text-slate-300 max-w-md">Publica, aprende y compite. Cada captura que compartes ayuda a mejorar el mapa colectivo.</p>
-              </div>
-              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-sky-200 text-xs">
-                <Sparkles className="w-4 h-4" />
-                Comunidad activa
-              </div>
-            </div>
-          </div>
-
           {/* Stories Bar - full width on mobile */}
           <StoriesBar />
             
