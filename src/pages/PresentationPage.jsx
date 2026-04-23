@@ -136,9 +136,12 @@ const PresentationPage = () => {
   const [showFishTransition, setShowFishTransition] = useState(false);
   const [fishTransitionKey, setFishTransitionKey] = useState(0);
   const [fishDirection, setFishDirection] = useState('forward');
+  const [fishTransition, setFishTransition] = useState(null);
   const stageRef = useRef(null);
   const slideRef = useRef(null);
   const previousSlideRef = useRef(0);
+  const prevButtonRef = useRef(null);
+  const nextButtonRef = useRef(null);
 
   useEffect(() => {
     if (!accessGranted) {
@@ -147,12 +150,12 @@ const PresentationPage = () => {
 
     const handleKeyDown = (event) => {
       if (event.key === 'ArrowRight') {
-        setFishDirection('forward');
+        launchFishTransition('forward');
         setCurrentSlide((prev) => (prev + 1) % slides.length);
       }
 
       if (event.key === 'ArrowLeft') {
-        setFishDirection('backward');
+        launchFishTransition('backward');
         setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
       }
     };
@@ -201,6 +204,7 @@ const PresentationPage = () => {
     if (!accessGranted) {
       previousSlideRef.current = currentSlide;
       setShowFishTransition(false);
+      setFishTransition(null);
       return;
     }
 
@@ -219,6 +223,28 @@ const PresentationPage = () => {
     return () => window.clearTimeout(timeoutId);
   }, [accessGranted, currentSlide]);
 
+  const launchFishTransition = (direction) => {
+    const sourceButton = direction === 'forward' ? prevButtonRef.current : nextButtonRef.current;
+    const targetButton = direction === 'forward' ? nextButtonRef.current : prevButtonRef.current;
+
+    setFishDirection(direction);
+
+    if (!sourceButton || !targetButton) {
+      setFishTransition(null);
+      return;
+    }
+
+    const sourceRect = sourceButton.getBoundingClientRect();
+    const targetRect = targetButton.getBoundingClientRect();
+
+    setFishTransition({
+      startX: sourceRect.left + sourceRect.width / 2,
+      startY: sourceRect.top + sourceRect.height / 2,
+      endX: targetRect.left + targetRect.width / 2,
+      endY: targetRect.top + targetRect.height / 2,
+    });
+  };
+
   const handlePasswordSubmit = (event) => {
     event.preventDefault();
 
@@ -233,12 +259,12 @@ const PresentationPage = () => {
   };
 
   const nextSlide = () => {
-    setFishDirection('forward');
+    launchFishTransition('forward');
     setCurrentSlide((prev) => (prev + 1) % slides.length);
   };
 
   const prevSlide = () => {
-    setFishDirection('backward');
+    launchFishTransition('backward');
     setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
   };
 
@@ -247,7 +273,7 @@ const PresentationPage = () => {
       return;
     }
 
-    setFishDirection(index > currentSlide ? 'forward' : 'backward');
+    launchFishTransition(index > currentSlide ? 'forward' : 'backward');
     setCurrentSlide(index);
   };
 
@@ -531,11 +557,18 @@ const PresentationPage = () => {
             )}
               </div>
             </div>
-            {showFishTransition ? (
+            {showFishTransition && fishTransition ? (
               <div
                 key={fishTransitionKey}
                 className={`slide-transition-fish ${fishDirection === 'backward' ? 'backward' : 'forward'}`}
                 aria-hidden="true"
+                style={{
+                  '--start-x': `${fishTransition.startX}px`,
+                  '--start-y': `${fishTransition.startY}px`,
+                  '--end-x': `${fishTransition.endX}px`,
+                  '--end-y': `${fishTransition.endY}px`,
+                  '--fish-flip': fishDirection === 'backward' ? -1 : 1,
+                }}
               >
                 <span className="jump-fish">🐟</span>
                 <span className="jump-splash splash-left" />
@@ -547,7 +580,7 @@ const PresentationPage = () => {
           </main>
 
           <footer className="presentation-footer">
-            <button className="nav-btn" onClick={prevSlide} type="button" aria-label="Diapositiva anterior">
+            <button ref={prevButtonRef} className="nav-btn" onClick={prevSlide} type="button" aria-label="Diapositiva anterior">
               <ChevronLeft size={22} />
               <span>Anterior</span>
             </button>
@@ -564,7 +597,7 @@ const PresentationPage = () => {
               ))}
             </div>
 
-            <button className="nav-btn" onClick={nextSlide} type="button" aria-label="Siguiente diapositiva">
+            <button ref={nextButtonRef} className="nav-btn" onClick={nextSlide} type="button" aria-label="Siguiente diapositiva">
               <span>Siguiente</span>
               <ChevronRight size={22} />
             </button>

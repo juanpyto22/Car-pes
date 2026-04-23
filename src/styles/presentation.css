@@ -232,20 +232,16 @@
 }
 
 .slide-transition-fish {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 8%;
-  width: 100%;
-  height: min(14rem, 28vh);
+  position: fixed;
+  inset: 0;
   pointer-events: none;
-  z-index: 20;
+  z-index: 80;
 }
 
 .jump-fish {
   position: absolute;
-  left: 50%;
-  bottom: 0.9rem;
+  left: 0;
+  top: 0;
   font-size: clamp(2.6rem, 4.8vw, 3.8rem);
   filter: drop-shadow(0 8px 18px rgba(34, 211, 238, 0.4));
   transform-origin: center center;
@@ -261,24 +257,20 @@
 
 .jump-ripple {
   position: absolute;
-  left: calc(50% + 10rem);
-  bottom: 0.65rem;
+  left: 0;
+  top: 0;
   width: 3rem;
   height: 0.9rem;
   border-radius: 999px;
   border: 2px solid rgba(103, 232, 249, 0.75);
-  transform: translateX(-50%) scale(0.3);
+  transform: translate(-50%, -50%) scale(0.3);
   opacity: 0;
   animation: fishRipple 900ms ease-out forwards;
 }
 
-.slide-transition-fish.backward .jump-ripple {
-  left: calc(50% - 10rem);
-}
-
 .jump-splash {
   position: absolute;
-  bottom: 1rem;
+  top: 0;
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 999px;
@@ -287,30 +279,18 @@
 }
 
 .splash-left {
-  left: calc(50% + 9.2rem);
+  left: 0;
   animation: splashLeft 900ms ease-out forwards;
 }
 
 .splash-center {
-  left: calc(50% + 10rem);
+  left: 0;
   animation: splashCenter 900ms ease-out forwards;
 }
 
 .splash-right {
-  left: calc(50% + 10.8rem);
+  left: 0;
   animation: splashRight 900ms ease-out forwards;
-}
-
-.slide-transition-fish.backward .splash-left {
-  left: calc(50% - 10.8rem);
-}
-
-.slide-transition-fish.backward .splash-center {
-  left: calc(50% - 10rem);
-}
-
-.slide-transition-fish.backward .splash-right {
-  left: calc(50% - 9.2rem);
 }
 
 .slide-card {
@@ -901,107 +881,107 @@
 
 @keyframes fishJumpForward {
   0% {
-    transform: translate(-50%, 0) rotate(0deg) scale(0.9);
+    transform: translate(var(--start-x), var(--start-y)) translate(-50%, -50%) scaleX(var(--fish-flip)) scale(0.9);
     opacity: 0;
   }
   12% {
     opacity: 1;
   }
   38% {
-    transform: translate(calc(-50% + 6rem), -7.6rem) rotate(-14deg) scale(1);
+    transform: translate(calc((var(--start-x) * 0.62) + (var(--end-x) * 0.38)), calc(((var(--start-y) + var(--end-y)) / 2) - 8rem)) translate(-50%, -50%) rotate(-14deg) scaleX(var(--fish-flip)) scale(1);
     opacity: 1;
   }
   62% {
-    transform: translate(calc(-50% + 9.5rem), -4.2rem) rotate(22deg) scale(0.98);
+    transform: translate(calc((var(--start-x) * 0.28) + (var(--end-x) * 0.72)), calc(((var(--start-y) + var(--end-y)) / 2) - 4.2rem)) translate(-50%, -50%) rotate(22deg) scaleX(var(--fish-flip)) scale(0.98);
     opacity: 1;
   }
   100% {
-    transform: translate(calc(-50% + 12rem), 0.15rem) rotate(34deg) scale(0.8);
+    transform: translate(var(--end-x), var(--end-y)) translate(-50%, -50%) rotate(34deg) scaleX(var(--fish-flip)) scale(0.8);
     opacity: 0;
   }
 }
 
 @keyframes fishJumpBackward {
   0% {
-    transform: translate(-50%, 0) rotate(0deg) scale(0.9) scaleX(-1);
+    transform: translate(var(--start-x), var(--start-y)) translate(-50%, -50%) scaleX(var(--fish-flip)) scale(0.9);
     opacity: 0;
   }
   12% {
     opacity: 1;
   }
   38% {
-    transform: translate(calc(-50% - 6rem), -7.6rem) rotate(14deg) scale(1) scaleX(-1);
+    transform: translate(calc((var(--start-x) * 0.62) + (var(--end-x) * 0.38)), calc(((var(--start-y) + var(--end-y)) / 2) - 8rem)) translate(-50%, -50%) rotate(14deg) scaleX(var(--fish-flip)) scale(1);
     opacity: 1;
   }
   62% {
-    transform: translate(calc(-50% - 9.5rem), -4.2rem) rotate(-22deg) scale(0.98) scaleX(-1);
+    transform: translate(calc((var(--start-x) * 0.28) + (var(--end-x) * 0.72)), calc(((var(--start-y) + var(--end-y)) / 2) - 4.2rem)) translate(-50%, -50%) rotate(-22deg) scaleX(var(--fish-flip)) scale(0.98);
     opacity: 1;
   }
   100% {
-    transform: translate(calc(-50% - 12rem), 0.15rem) rotate(-34deg) scale(0.8) scaleX(-1);
+    transform: translate(var(--end-x), var(--end-y)) translate(-50%, -50%) rotate(-34deg) scaleX(var(--fish-flip)) scale(0.8);
     opacity: 0;
   }
 }
 
 @keyframes fishRipple {
   0% {
-    transform: translateX(-50%) scale(0.2);
+    transform: translate(var(--end-x), var(--end-y)) translate(-50%, -50%) scale(0.2);
     opacity: 0;
   }
   42% {
     opacity: 0;
   }
   56% {
-    transform: translateX(-50%) scale(0.35);
+    transform: translate(var(--end-x), var(--end-y)) translate(-50%, -50%) scale(0.35);
     opacity: 0.85;
   }
   100% {
-    transform: translateX(-50%) scale(1.8);
+    transform: translate(var(--end-x), var(--end-y)) translate(-50%, -50%) scale(1.8);
     opacity: 0;
   }
 }
 
 @keyframes splashLeft {
   0%, 44% {
-    transform: translate(0, 0) scale(0.4);
+    transform: translate(var(--end-x), var(--end-y)) translate(-2.2rem, -0.4rem) scale(0.4);
     opacity: 0;
   }
   58% {
-    transform: translate(-0.75rem, -2rem) scale(1);
+    transform: translate(var(--end-x), var(--end-y)) translate(-2.8rem, -2.2rem) scale(1);
     opacity: 1;
   }
   100% {
-    transform: translate(-1.3rem, -3rem) scale(0.2);
+    transform: translate(var(--end-x), var(--end-y)) translate(-3.5rem, -3.2rem) scale(0.2);
     opacity: 0;
   }
 }
 
 @keyframes splashCenter {
   0%, 44% {
-    transform: translate(0, 0) scale(0.4);
+    transform: translate(var(--end-x), var(--end-y)) translate(0, -0.6rem) scale(0.4);
     opacity: 0;
   }
   56% {
-    transform: translate(0.1rem, -2.6rem) scale(1.1);
+    transform: translate(var(--end-x), var(--end-y)) translate(0.1rem, -2.8rem) scale(1.1);
     opacity: 1;
   }
   100% {
-    transform: translate(0.3rem, -3.8rem) scale(0.2);
+    transform: translate(var(--end-x), var(--end-y)) translate(0.3rem, -4rem) scale(0.2);
     opacity: 0;
   }
 }
 
 @keyframes splashRight {
   0%, 44% {
-    transform: translate(0, 0) scale(0.4);
+    transform: translate(var(--end-x), var(--end-y)) translate(2.2rem, -0.4rem) scale(0.4);
     opacity: 0;
   }
   58% {
-    transform: translate(0.8rem, -2rem) scale(1);
+    transform: translate(var(--end-x), var(--end-y)) translate(2.8rem, -2.2rem) scale(1);
     opacity: 1;
   }
   100% {
-    transform: translate(1.4rem, -3rem) scale(0.2);
+    transform: translate(var(--end-x), var(--end-y)) translate(3.5rem, -3.2rem) scale(0.2);
     opacity: 0;
   }
 }
