@@ -245,14 +245,9 @@
   font-size: clamp(2.6rem, 4.8vw, 3.8rem);
   filter: drop-shadow(0 8px 18px rgba(34, 211, 238, 0.4));
   transform-origin: center center;
-}
-
-.slide-transition-fish.forward .jump-fish {
-  animation: fishJumpForward 1050ms cubic-bezier(0.18, 0.9, 0.28, 1) forwards;
-}
-
-.slide-transition-fish.backward .jump-fish {
-  animation: fishJumpBackward 1050ms cubic-bezier(0.18, 0.9, 0.28, 1) forwards;
+  offset-path: var(--fish-path);
+  offset-rotate: auto 0deg;
+  animation: fishPathTravel 1050ms cubic-bezier(0.2, 0.85, 0.25, 1) forwards;
 }
 
 .jump-ripple {
@@ -879,46 +874,28 @@
   50% { transform: translateY(-10px); }
 }
 
-@keyframes fishJumpForward {
+@keyframes fishPathTravel {
   0% {
-    transform: translate(var(--start-x), var(--start-y)) translate(-50%, -50%) scaleX(var(--fish-flip)) rotate(-8deg) scale(0.92);
+    offset-distance: 0%;
+    transform: translate(-50%, -50%) scale(0.9);
     opacity: 0;
   }
-  8% {
+  10% {
     opacity: 1;
   }
-  42% {
-    transform: translate(var(--apex-x), var(--apex-y)) translate(-50%, -50%) scaleX(var(--fish-flip)) rotate(8deg) scale(1.04);
+  48% {
+    offset-distance: 56%;
+    transform: translate(-50%, -50%) scale(1.04);
     opacity: 1;
   }
-  76% {
-    transform: translate(calc((var(--apex-x) * 0.4) + (var(--end-x) * 0.6)), calc((var(--apex-y) * 0.45) + (var(--end-y) * 0.55))) translate(-50%, -50%) scaleX(var(--fish-flip)) rotate(20deg) scale(0.98);
+  78% {
+    offset-distance: 82%;
+    transform: translate(-50%, -50%) scale(0.98);
     opacity: 1;
   }
   100% {
-    transform: translate(var(--end-x), var(--end-y)) translate(-50%, -50%) scaleX(var(--fish-flip)) rotate(28deg) scale(0.84);
-    opacity: 0;
-  }
-}
-
-@keyframes fishJumpBackward {
-  0% {
-    transform: translate(var(--start-x), var(--start-y)) translate(-50%, -50%) scaleX(var(--fish-flip)) rotate(8deg) scale(0.92);
-    opacity: 0;
-  }
-  8% {
-    opacity: 1;
-  }
-  42% {
-    transform: translate(var(--apex-x), var(--apex-y)) translate(-50%, -50%) scaleX(var(--fish-flip)) rotate(-8deg) scale(1.04);
-    opacity: 1;
-  }
-  76% {
-    transform: translate(calc((var(--apex-x) * 0.4) + (var(--end-x) * 0.6)), calc((var(--apex-y) * 0.45) + (var(--end-y) * 0.55))) translate(-50%, -50%) scaleX(var(--fish-flip)) rotate(-20deg) scale(0.98);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(var(--end-x), var(--end-y)) translate(-50%, -50%) scaleX(var(--fish-flip)) rotate(-28deg) scale(0.84);
+    offset-distance: 100%;
+    transform: translate(-50%, -50%) scale(0.82);
     opacity: 0;
   }
 }

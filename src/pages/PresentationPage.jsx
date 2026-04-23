@@ -243,6 +243,8 @@ const PresentationPage = () => {
     const distanceX = Math.abs(endX - startX);
     const lift = Math.min(180, Math.max(90, distanceX * 0.22));
     const midX = (startX + endX) / 2;
+    const controlY = Math.min(startY, endY) - lift;
+    const path = `M ${startX} ${startY} C ${startX + (direction === 'forward' ? 40 : -40)} ${controlY}, ${midX} ${controlY}, ${endX} ${endY}`;
 
     setFishTransition({
       startX,
@@ -251,6 +253,7 @@ const PresentationPage = () => {
       endY,
       apexX: midX + (direction === 'forward' ? 24 : -24),
       apexY: Math.min(startY, endY) - lift,
+      path,
     });
   };
 
@@ -578,6 +581,7 @@ const PresentationPage = () => {
                   '--end-y': `${fishTransition.endY}px`,
                   '--apex-x': `${fishTransition.apexX}px`,
                   '--apex-y': `${fishTransition.apexY}px`,
+                  '--fish-path': `path('${fishTransition.path}')`,
                   '--fish-flip': fishDirection === 'backward' ? -1 : 1,
                 }}
               >
