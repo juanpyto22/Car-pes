@@ -52,6 +52,7 @@ const AppRoutes = () => {
 
   const adminPathRegex = /^\/(admin|admin-panel|panel-admin|feed\/admin)\/?$/i;
   const isAdminPath = adminPathRegex.test(location.pathname || '');
+  const isPresentationPath = location.pathname === '/presentacion';
 
   useEffect(() => {
     document.body.classList.remove('admin-theme', 'user-theme');
@@ -93,7 +94,7 @@ const AppRoutes = () => {
         </div>
       ) : (
         <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-cyan-500/30">
-          <Header />
+          {!isPresentationPath ? <Header /> : null}
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={user ? <Navigate to="/feed" /> : <LandingPage />} />
@@ -133,7 +134,7 @@ const AppRoutes = () => {
           </Routes>
 
           {/* Mobile Bottom Navigation */}
-          <MobileBottomNav />
+          {!isPresentationPath ? <MobileBottomNav /> : null}
         </div>
       )}
     </Suspense>
