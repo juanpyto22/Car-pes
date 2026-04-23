@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Volume2, VolumeX, Play, Pause } from 'lucide-react';
-import '/styles/presentation.css';
+import '../styles/presentation.css';
 
 const PresentationPage = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
