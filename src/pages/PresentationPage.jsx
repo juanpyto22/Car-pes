@@ -216,9 +216,9 @@ const PresentationPage = () => {
     setShowFishTransition(true);
     previousSlideRef.current = currentSlide;
 
-    const timeoutId = window.setTimeout(() => {
-      setShowFishTransition(false);
-    }, 900);
+        const timeoutId = window.setTimeout(() => {
+          setShowFishTransition(false);
+        }, 1300);
 
     return () => window.clearTimeout(timeoutId);
   }, [accessGranted, currentSlide]);
