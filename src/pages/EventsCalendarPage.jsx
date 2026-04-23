@@ -29,6 +29,39 @@ const categoryColors = {
   other: 'bg-green-500/20 text-green-400 border-green-500/30',
 };
 
+const MENTORING_LEVELS = [
+  { id: 'principiante', label: 'Principiante' },
+  { id: 'intermedio', label: 'Intermedio' },
+  { id: 'avanzado', label: 'Avanzado' },
+  { id: 'todos', label: 'Todos los niveles' },
+];
+
+const MENTORING_TAG_PREFIX = '[NIVEL_MENTORIA:';
+
+const buildDescriptionWithMentoringLevel = (description, category, mentoringLevel) => {
+  const cleanDescription = (description || '').trim();
+
+  if (category !== 'mentoring' || !mentoringLevel) {
+    return cleanDescription;
+  }
+
+  return `${MENTORING_TAG_PREFIX}${mentoringLevel}] ${cleanDescription}`.trim();
+};
+
+const getMentoringLevel = (event) => {
+  if (event?.mentoring_level) {
+    return event.mentoring_level;
+  }
+
+  const rawDescription = event?.description || '';
+  const match = rawDescription.match(/\[NIVEL_MENTORIA:([^\]]+)\]/);
+  return match?.[1] || null;
+};
+
+const cleanEventDescription = (description) => {
+  return (description || '').replace(/\[NIVEL_MENTORIA:[^\]]+\]\s*/g, '').trim();
+};
+
 const formatLocationSuggestion = (spot) => {
   const baseLabel = `${spot.name}, ${spot.region}`;
   return spot.country && spot.country !== 'España'
@@ -97,6 +130,16 @@ const EventsCalendarPage = () => {
         return;
       }
 
+      const mentoringLevel = eventData.category === 'mentoring'
+        ? (eventData.mentoringLevel || null)
+        : null;
+
+      const normalizedDescription = buildDescriptionWithMentoringLevel(
+        eventData.description,
+        eventData.category,
+        mentoringLevel
+      );
+
       const rawMaxParticipants = Number(eventData.maxParticipants);
       const maxParticipants = Number.isFinite(rawMaxParticipants)
         ? Math.max(2, Math.min(rawMaxParticipants, 300))
@@ -106,6 +149,8 @@ const EventsCalendarPage = () => {
         const newEvent = {
           id: crypto.randomUUID(),
           ...eventData,
+          description: normalizedDescription,
+          mentoring_level: mentoringLevel,
           event_date: parsedDate.toISOString(),
           max_participants: maxParticipants,
           creator_id: user?.id || 'local-user',
@@ -124,7 +169,7 @@ const EventsCalendarPage = () => {
             .from('fishing_events')
             .insert({
               title: eventData.title,
-              description: eventData.description,
+              description: normalizedDescription,
               event_date: parsedDate.toISOString(),
               location: eventData.location,
               category: eventData.category,
@@ -146,6 +191,7 @@ const EventsCalendarPage = () => {
           });
 
           data.participants = [{ user: { id: user.id, username: profile?.username, foto_perfil: profile?.foto_perfil }}];
+          data.mentoring_level = mentoringLevel;
           setEvents(prev => [...prev, data].sort((a, b) => new Date(a.event_date) - new Date(b.event_date)));
         } catch (dbError) {
           console.warn('Supabase insert failed, saving event locally:', dbError);
@@ -465,6 +511,8 @@ const EventCard = ({ event, user, onJoin, onLeave, onDelete, compact = false }) 
   const CatIcon = cat.icon;
   const participantCount = (event.participants || []).length;
   const isMentoring = event.category === 'mentoring';
+  const mentoringLevel = getMentoringLevel(event);
+  const descriptionText = cleanEventDescription(event.description);
 
   let dateStr = '';
   try { dateStr = format(parseISO(event.event_date), "d MMM · HH:mm", { locale: es }); } catch { dateStr = event.event_date; }
@@ -488,7 +536,12 @@ const EventCard = ({ event, user, onJoin, onLeave, onDelete, compact = false }) 
             )}
           </div>
           {!compact && event.description && (
-            <p className="text-xs text-blue-400 mt-1.5 line-clamp-2">{event.description}</p>
+            <p className="text-xs text-blue-400 mt-1.5 line-clamp-2">{descriptionText}</p>
+          )}
+          {isMentoring && mentoringLevel && (
+            <span className="inline-flex mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-300">
+              Nivel requerido: {MENTORING_LEVELS.find((level) => level.id === mentoringLevel)?.label || mentoringLevel}
+            </span>
           )}
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center gap-1">
@@ -540,6 +593,7 @@ const CreateEventModal = ({ onClose, onCreate }) => {
   const [time, setTime] = useState(format(new Date(), 'HH:mm'));
   const [location, setLocation] = useState('');
   const [category, setCategory] = useState('fishing');
+  const [mentoringLevel, setMentoringLevel] = useState('');
   const [maxParticipants, setMaxParticipants] = useState('');
   const [creating, setCreating] = useState(false);
   const [locationFocused, setLocationFocused] = useState(false);
@@ -559,6 +613,7 @@ const CreateEventModal = ({ onClose, onCreate }) => {
       date: `${date}T${time}`,
       location,
       category,
+      mentoringLevel,
       maxParticipants: maxParticipants ? parseInt(maxParticipants) : null,
     });
     setCreating(false);
@@ -653,7 +708,12 @@ const CreateEventModal = ({ onClose, onCreate }) => {
                   <motion.button
                     key={cat.id}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => setCategory(cat.id)}
+                    onClick={() => {
+                      setCategory(cat.id);
+                      if (cat.id !== 'mentoring') {
+                        setMentoringLevel('');
+                      }
+                    }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
                       category === cat.id
                         ? categoryColors[cat.id]
@@ -666,6 +726,22 @@ const CreateEventModal = ({ onClose, onCreate }) => {
               })}
             </div>
           </div>
+
+          {category === 'mentoring' && (
+            <div>
+              <label className="text-sm text-blue-200 mb-1 block">Nivel requerido (opcional)</label>
+              <select
+                value={mentoringLevel}
+                onChange={(e) => setMentoringLevel(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              >
+                <option value="">Sin requisito</option>
+                {MENTORING_LEVELS.map((level) => (
+                  <option key={level.id} value={level.id}>{level.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="text-sm text-blue-200 mb-1 block">Máx. participantes (opcional)</label>
