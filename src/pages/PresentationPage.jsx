@@ -236,12 +236,21 @@ const PresentationPage = () => {
 
     const sourceRect = sourceButton.getBoundingClientRect();
     const targetRect = targetButton.getBoundingClientRect();
+    const startX = sourceRect.left + sourceRect.width / 2;
+    const startY = sourceRect.top + sourceRect.height / 2;
+    const endX = targetRect.left + targetRect.width / 2;
+    const endY = targetRect.top + targetRect.height / 2;
+    const distanceX = Math.abs(endX - startX);
+    const lift = Math.min(180, Math.max(90, distanceX * 0.22));
+    const midX = (startX + endX) / 2;
 
     setFishTransition({
-      startX: sourceRect.left + sourceRect.width / 2,
-      startY: sourceRect.top + sourceRect.height / 2,
-      endX: targetRect.left + targetRect.width / 2,
-      endY: targetRect.top + targetRect.height / 2,
+      startX,
+      startY,
+      endX,
+      endY,
+      apexX: midX + (direction === 'forward' ? 24 : -24),
+      apexY: Math.min(startY, endY) - lift,
     });
   };
 
@@ -567,6 +576,8 @@ const PresentationPage = () => {
                   '--start-y': `${fishTransition.startY}px`,
                   '--end-x': `${fishTransition.endX}px`,
                   '--end-y': `${fishTransition.endY}px`,
+                  '--apex-x': `${fishTransition.apexX}px`,
+                  '--apex-y': `${fishTransition.apexY}px`,
                   '--fish-flip': fishDirection === 'backward' ? -1 : 1,
                 }}
               >
