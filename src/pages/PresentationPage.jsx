@@ -1,147 +1,176 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Volume2, VolumeX, Play, Pause } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight, Lock, Fish, Shield, Sparkles } from 'lucide-react';
 import '../styles/presentation.css';
+
+const PASSWORD = '1234';
+const UNLOCK_KEY = 'carpes_presentation_unlocked';
+
+const slides = [
+  {
+    id: 1,
+    type: 'cover',
+    title: 'Car-Pes',
+    subtitle: 'La Comunidad de Pesca Digital',
+    description: 'Conectando pescadores, compartiendo historias y creando una comunidad viva alrededor del mar, los pantanos y los ríos.',
+  },
+  {
+    id: 2,
+    type: 'index',
+    title: 'Índice de Presentación',
+    items: [
+      'Problema detectado',
+      'Objetivo del proyecto',
+      'Solución propuesta',
+      'Funcionalidades principales',
+      'Mapas interactivos',
+      'Gamificación y progreso',
+      'Moderación y seguridad',
+      'Tecnología utilizada',
+      'Impacto del proyecto',
+      'Cierre y conclusiones',
+    ],
+  },
+  {
+    id: 3,
+    type: 'problem',
+    title: 'El problema que resuelve Car-Pes',
+    points: [
+      'Las redes sociales generales no están pensadas para la cultura de la pesca.',
+      'No existe una referencia clara para compartir capturas, spots y experiencias.',
+      'La comunidad necesita herramientas específicas y seguras para organizarse.',
+      'Faltan espacios donde información, comunidad y utilidad vayan de la mano.',
+    ],
+  },
+  {
+    id: 4,
+    type: 'vision',
+    title: 'Misión y visión',
+    mission: 'Construir una plataforma especializada donde cualquier pescador pueda compartir conocimiento, mostrar sus capturas y relacionarse con una comunidad activa.',
+    vision: 'Convertir Car-Pes en el punto de encuentro de referencia para la pesca en el entorno digital.',
+  },
+  {
+    id: 5,
+    type: 'solution',
+    title: 'La solución',
+    features: [
+      'Red social vertical para pescadores.',
+      'Feed visual centrado en capturas, historias y actividad real.',
+      'Mapa de spots con información útil y filtrable.',
+      'Sistema de mensajes, comentarios y seguimiento social.',
+      'Interfaz preparada para móvil, comunidad y uso diario.',
+    ],
+  },
+  {
+    id: 6,
+    type: 'features',
+    title: 'Funciones principales',
+    categories: [
+      { icon: '📸', title: 'Publicaciones', desc: 'Capturas, fotos y vídeos con contexto real.' },
+      { icon: '🧭', title: 'Exploración', desc: 'Búsqueda de usuarios, contenidos y ubicaciones.' },
+      { icon: '💬', title: 'Interacción', desc: 'Comentarios, likes, guardados y seguimiento.' },
+      { icon: '📱', title: 'Uso móvil', desc: 'Navegación cómoda pensada para salir al campo.' },
+    ],
+  },
+  {
+    id: 7,
+    type: 'maps',
+    title: 'Mapas interactivos',
+    description: 'El mapa es una pieza clave del proyecto porque permite organizar la información por localización real.',
+    features: [
+      'Guardar y consultar spots de pesca.',
+      'Ver zonas activas y referencias útiles.',
+      'Filtrar por tipo de pesca y actividad.',
+      'Compartir información con otros pescadores.',
+      'Unificar experiencia social y utilidad práctica.',
+    ],
+  },
+  {
+    id: 8,
+    type: 'gamification',
+    title: 'Gamificación y progreso',
+    elements: [
+      { title: 'Logros', desc: 'Insignias por actividad y capturas destacadas.' },
+      { title: 'Niveles', desc: 'Progresión visible dentro de la comunidad.' },
+      { title: 'Recompensas', desc: 'Incentivos para participar más y mejor.' },
+      { title: 'Retos', desc: 'Dinámicas para mantener el interés del usuario.' },
+    ],
+  },
+  {
+    id: 9,
+    type: 'safety',
+    title: 'Moderación y seguridad',
+    points: [
+      'Panel de administración con herramientas de control.',
+      'Sistema de reportes para contenido no apropiado.',
+      'Normas orientadas a pesca responsable y comunidad sana.',
+      'Perfiles y contenidos con criterios de confianza.',
+      'Protección de la experiencia de usuario y de la plataforma.',
+    ],
+  },
+  {
+    id: 10,
+    type: 'tech',
+    title: 'Tecnología utilizada',
+    frontend: ['React + Vite', 'Tailwind CSS', 'Framer Motion', 'Lucide Icons'],
+    backend: ['Supabase', 'PostgreSQL', 'Funciones Edge'],
+    hosting: ['Vercel', 'Supabase Cloud'],
+  },
+  {
+    id: 11,
+    type: 'impact',
+    title: 'Impacto y cierre',
+    metrics: [
+      { label: 'Comunidad', value: 'Global', desc: 'Enfocada en pescadores de todos los niveles.' },
+      { label: 'Valor', value: 'Útil', desc: 'Combina red social, mapa y comunidad.' },
+      { label: 'Visión', value: 'Escalable', desc: 'Pensada para crecer y evolucionar.' },
+      { label: 'Resultado', value: 'Diferencial', desc: 'Una propuesta especializada y coherente.' },
+    ],
+  },
+];
 
 const PresentationPage = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [autoPlay, setAutoPlay] = useState(false);
-  const [volumeOn, setVolumeOn] = useState(false);
-
-  const slides = [
-    {
-      id: 1,
-      type: 'cover',
-      title: 'Car-Pes',
-      subtitle: 'La Comunidad de Pesca Digital',
-      description: 'Conectando pescadores, compartiendo historias, viviendo la pasión',
-    },
-    {
-      id: 2,
-      type: 'index',
-      title: 'Índice de Presentación',
-      items: [
-        'Problema Identificado',
-        'Visión y Misión',
-        'Solución Principal',
-        'Características Principales',
-        'Mapas Interactivos',
-        'Sistemas de Gamificación',
-        'Moderación y Seguridad',
-        'Funcionalidades Avanzadas',
-        'Tecnología Utilizada',
-        'Impacto y Proyecciones',
-      ],
-    },
-    {
-      id: 3,
-      type: 'problem',
-      title: 'El Problema',
-      points: [
-        'Las redes sociales generales no entienden las necesidades de los pescadores',
-        'No existen espacios dedicados para compartir spots de pesca',
-        'Falta de herramientas para organizarse por intereses comunes',
-        'Contenido no moderado específicamente para la comunidad de pesca',
-        'Experiencias aisladas sin comunidad real',
-      ],
-    },
-    {
-      id: 4,
-      type: 'vision',
-      title: 'Misión y Visión',
-      mission: 'Crear una plataforma especializada que conecte pescadores de todo nivel para compartir conocimiento, experiencias y fomentar una comunidad segura y responsable.',
-      vision: 'Ser la red social referente mundial para la comunidad de pesca, con herramientas prácticas y una comunidad vibrante.',
-    },
-    {
-      id: 5,
-      type: 'solution',
-      title: 'Nuestra Solución',
-      features: [
-        'Red social especializada en pesca con feed personalizado',
-        'Sistema de mapas interactivos para compartir spots de pesca',
-        'Perfil integral del pescador con historial de capturas',
-        'Mensajería privada y grupos de pesca temáticos',
-        'Sistema de notificaciones inteligentes',
-      ],
-    },
-    {
-      id: 6,
-      type: 'features',
-      title: 'Características Principales',
-      categories: [
-        { icon: '🐟', title: 'Publicaciones', desc: 'Compartir capturas con foto, video y descripción' },
-        { icon: '🗺️', title: 'Mapas', desc: 'Geolocalización de spots de pesca' },
-        { icon: '❤️', title: 'Interacción', desc: 'Likes, comentarios y salvados' },
-        { icon: '💬', title: 'Mensajería', desc: 'Comunicación directa con otros pescadores' },
-      ],
-    },
-    {
-      id: 7,
-      type: 'maps',
-      title: 'Mapas Interactivos',
-      description: 'Sistema de mapas en tiempo real donde los pescadores pueden:',
-      features: [
-        'Marcar spots de pesca con coordenadas exactas',
-        'Compartir información sobre tipos de peces disponibles',
-        'Ver actividad reciente de otros usuarios en la zona',
-        'Cargar históricos de capturas y condiciones',
-        'Filtrar por tipo de pesca (caña, mosca, etc)',
-      ],
-    },
-    {
-      id: 8,
-      type: 'gamification',
-      title: 'Sistema de Gamificación',
-      elements: [
-        { title: 'Logros', desc: 'Desbloquea insignias por tus capturas épicas' },
-        { title: 'Batalla Pase', desc: 'Progresa y gana recompensas mensuales' },
-        { title: 'Niveles', desc: 'Sube de nivel conforme ganas experiencia' },
-        { title: 'Competiciones', desc: 'Participa en torneos y desafíos comunitarios' },
-        { title: 'Marketplace', desc: 'Compra y vende equipo con otros usuarios' },
-      ],
-    },
-    {
-      id: 9,
-      type: 'safety',
-      title: 'Moderación y Seguridad',
-      points: [
-        '✓ Panel administrativo avanzado con herramientas de moderación',
-        '✓ Sistema automático de detección de contenido dañino',
-        '✓ Reportes de usuarios y contenido inapropiado',
-        '✓ Políticas claras específicas para pesca responsable',
-        '✓ Perfiles verificados con sistema de reputación',
-        '✓ Privacidad controlada por el usuario',
-      ],
-    },
-    {
-      id: 10,
-      type: 'tech',
-      title: 'Tecnología Utilizada',
-      frontend: ['React + Vite', 'Tailwind CSS', 'Framer Motion', 'Lucide Icons'],
-      backend: ['Supabase (BaaS)', 'PostgreSQL', 'Funciones Edge'],
-      hosting: ['Vercel (Frontend)', 'Supabase Cloud'],
-    },
-    {
-      id: 11,
-      type: 'impact',
-      title: 'Impacto y Proyecciones',
-      metrics: [
-        { label: 'Comunidad Potencial', value: '50M+', desc: 'Pescadores amateurs en el mundo' },
-        { label: 'Mercado Objetivo', value: '$15B', desc: 'Industria de equipos de pesca' },
-        { label: 'Enganche Esperado', value: '30%+', desc: 'De usuarios activos mensuales' },
-        { label: 'Modelo Revenue', value: 'Freemium', desc: 'Premium features + marketplace' },
-      ],
-    },
-  ];
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [accessGranted, setAccessGranted] = useState(false);
 
   useEffect(() => {
-    if (!autoPlay) return;
+    const storedAccess = window.sessionStorage.getItem(UNLOCK_KEY) === 'true';
+    setAccessGranted(storedAccess);
+  }, []);
 
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 5000);
+  useEffect(() => {
+    if (!accessGranted) {
+      return;
+    }
 
-    return () => clearInterval(timer);
-  }, [autoPlay, slides.length]);
+    const handleKeyDown = (event) => {
+      if (event.key === 'ArrowRight') {
+        setCurrentSlide((prev) => (prev + 1) % slides.length);
+      }
+
+      if (event.key === 'ArrowLeft') {
+        setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [accessGranted]);
+
+  const handlePasswordSubmit = (event) => {
+    event.preventDefault();
+
+    if (password.trim() === PASSWORD) {
+      window.sessionStorage.setItem(UNLOCK_KEY, 'true');
+      setAccessGranted(true);
+      setPassword('');
+      setPasswordError('');
+      return;
+    }
+
+    setPasswordError('Contraseña incorrecta. Prueba de nuevo.');
+  };
 
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length);
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
@@ -151,259 +180,302 @@ const PresentationPage = () => {
 
   return (
     <div className="presentation-container">
-      {/* Animated Background */}
       <div className="presentation-background">
-        <div className="wave wave1"></div>
-        <div className="wave wave2"></div>
-        <div className="wave wave3"></div>
-        <div className="fish fish1">🐟</div>
-        <div className="fish fish2">🐠</div>
-        <div className="fish fish3">🐟</div>
-        <div className="bubble bubble1"></div>
-        <div className="bubble bubble2"></div>
-        <div className="bubble bubble3"></div>
+        <div className="bg-glow bg-glow-left" />
+        <div className="bg-glow bg-glow-right" />
+        <div className="wave wave-a" />
+        <div className="wave wave-b" />
+        <div className="fish fish-a">🐟</div>
+        <div className="fish fish-b">🐠</div>
+        <div className="bubble bubble-a" />
+        <div className="bubble bubble-b" />
+        <div className="bubble bubble-c" />
       </div>
 
-      {/* Slide Container */}
-      <div className="presentation-content">
-        {currentSlideData.type === 'cover' && (
-          <div className="slide slide-cover">
-            <div className="cover-content">
-              <div className="cover-logo">
-                <span className="logo-emoji">🎣</span>
-              </div>
-              <h1 className="cover-title">{currentSlideData.title}</h1>
-              <p className="cover-subtitle">{currentSlideData.subtitle}</p>
-              <p className="cover-description">{currentSlideData.description}</p>
-              <div className="slide-counter">Diapositiva 1 de {slides.length}</div>
+      {!accessGranted ? (
+        <div className="gate-screen">
+          <div className="gate-card">
+            <div className="gate-badge">
+              <Lock size={22} />
             </div>
+            <h1>Acceso a la presentación</h1>
+            <p>Introduce la contraseña para ver la presentación dinámica de Car-Pes.</p>
+            <form className="gate-form" onSubmit={handlePasswordSubmit}>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Contraseña"
+                autoComplete="off"
+                autoFocus
+              />
+              {passwordError ? <span className="gate-error">{passwordError}</span> : null}
+              <button type="submit">Entrar</button>
+            </form>
+            <div className="gate-hint">Contraseña: 1234</div>
           </div>
-        )}
-
-        {currentSlideData.type === 'index' && (
-          <div className="slide slide-index">
-            <h2 className="slide-title">{currentSlideData.title}</h2>
-            <div className="index-grid">
-              {currentSlideData.items.map((item, idx) => (
-                <div key={idx} className="index-item" style={{ animationDelay: `${idx * 0.1}s` }}>
-                  <span className="index-number">{idx + 1}</span>
-                  <span className="index-text">{item}</span>
-                </div>
-              ))}
-            </div>
-            <div className="slide-counter">Diapositiva {currentSlide + 1} de {slides.length}</div>
-          </div>
-        )}
-
-        {currentSlideData.type === 'problem' && (
-          <div className="slide slide-problem">
-            <h2 className="slide-title">{currentSlideData.title}</h2>
-            <div className="points-container">
-              {currentSlideData.points.map((point, idx) => (
-                <div key={idx} className="point-item" style={{ animationDelay: `${idx * 0.15}s` }}>
-                  <div className="point-icon">⚠️</div>
-                  <p>{point}</p>
-                </div>
-              ))}
-            </div>
-            <div className="slide-counter">Diapositiva {currentSlide + 1} de {slides.length}</div>
-          </div>
-        )}
-
-        {currentSlideData.type === 'vision' && (
-          <div className="slide slide-vision">
-            <h2 className="slide-title">{currentSlideData.title}</h2>
-            <div className="vision-boxes">
-              <div className="vision-box mission-box">
-                <h3>🎯 Misión</h3>
-                <p>{currentSlideData.mission}</p>
-              </div>
-              <div className="vision-box vision-box-main">
-                <h3>🌟 Visión</h3>
-                <p>{currentSlideData.vision}</p>
-              </div>
-            </div>
-            <div className="slide-counter">Diapositiva {currentSlide + 1} de {slides.length}</div>
-          </div>
-        )}
-
-        {currentSlideData.type === 'solution' && (
-          <div className="slide slide-solution">
-            <h2 className="slide-title">{currentSlideData.title}</h2>
-            <div className="features-list">
-              {currentSlideData.features.map((feature, idx) => (
-                <div key={idx} className="feature-item" style={{ animationDelay: `${idx * 0.1}s` }}>
-                  <div className="feature-check">✓</div>
-                  <p>{feature}</p>
-                </div>
-              ))}
-            </div>
-            <div className="slide-counter">Diapositiva {currentSlide + 1} de {slides.length}</div>
-          </div>
-        )}
-
-        {currentSlideData.type === 'features' && (
-          <div className="slide slide-features">
-            <h2 className="slide-title">{currentSlideData.title}</h2>
-            <div className="features-grid">
-              {currentSlideData.categories.map((cat, idx) => (
-                <div key={idx} className="feature-card" style={{ animationDelay: `${idx * 0.1}s` }}>
-                  <div className="feature-icon">{cat.icon}</div>
-                  <h3>{cat.title}</h3>
-                  <p>{cat.desc}</p>
-                </div>
-              ))}
-            </div>
-            <div className="slide-counter">Diapositiva {currentSlide + 1} de {slides.length}</div>
-          </div>
-        )}
-
-        {currentSlideData.type === 'maps' && (
-          <div className="slide slide-maps">
-            <h2 className="slide-title">{currentSlideData.title}</h2>
-            <p className="slide-description">{currentSlideData.description}</p>
-            <div className="maps-features">
-              {currentSlideData.features.map((feature, idx) => (
-                <div key={idx} className="map-feature" style={{ animationDelay: `${idx * 0.1}s` }}>
-                  <span className="map-icon">📍</span>
-                  <span>{feature}</span>
-                </div>
-              ))}
-            </div>
-            <div className="slide-counter">Diapositiva {currentSlide + 1} de {slides.length}</div>
-          </div>
-        )}
-
-        {currentSlideData.type === 'gamification' && (
-          <div className="slide slide-gamification">
-            <h2 className="slide-title">{currentSlideData.title}</h2>
-            <div className="gamification-grid">
-              {currentSlideData.elements.map((element, idx) => (
-                <div key={idx} className="gamification-card" style={{ animationDelay: `${idx * 0.1}s` }}>
-                  <h3>{element.title}</h3>
-                  <p>{element.desc}</p>
-                </div>
-              ))}
-            </div>
-            <div className="slide-counter">Diapositiva {currentSlide + 1} de {slides.length}</div>
-          </div>
-        )}
-
-        {currentSlideData.type === 'safety' && (
-          <div className="slide slide-safety">
-            <h2 className="slide-title">{currentSlideData.title}</h2>
-            <div className="safety-list">
-              {currentSlideData.points.map((point, idx) => (
-                <div key={idx} className="safety-point" style={{ animationDelay: `${idx * 0.1}s` }}>
-                  <span className="safety-check">🛡️</span>
-                  <p>{point}</p>
-                </div>
-              ))}
-            </div>
-            <div className="slide-counter">Diapositiva {currentSlide + 1} de {slides.length}</div>
-          </div>
-        )}
-
-        {currentSlideData.type === 'tech' && (
-          <div className="slide slide-tech">
-            <h2 className="slide-title">{currentSlideData.title}</h2>
-            <div className="tech-grid">
-              <div className="tech-section">
-                <h3>Frontend</h3>
-                <div className="tech-list">
-                  {currentSlideData.frontend.map((tech, idx) => (
-                    <div key={idx} className="tech-item">
-                      {tech}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="tech-section">
-                <h3>Backend</h3>
-                <div className="tech-list">
-                  {currentSlideData.backend.map((tech, idx) => (
-                    <div key={idx} className="tech-item">
-                      {tech}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="tech-section">
-                <h3>Hosting</h3>
-                <div className="tech-list">
-                  {currentSlideData.hosting.map((tech, idx) => (
-                    <div key={idx} className="tech-item">
-                      {tech}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="slide-counter">Diapositiva {currentSlide + 1} de {slides.length}</div>
-          </div>
-        )}
-
-        {currentSlideData.type === 'impact' && (
-          <div className="slide slide-impact">
-            <h2 className="slide-title">{currentSlideData.title}</h2>
-            <div className="impact-metrics">
-              {currentSlideData.metrics.map((metric, idx) => (
-                <div key={idx} className="metric-card" style={{ animationDelay: `${idx * 0.15}s` }}>
-                  <div className="metric-value">{metric.value}</div>
-                  <div className="metric-label">{metric.label}</div>
-                  <div className="metric-desc">{metric.desc}</div>
-                </div>
-              ))}
-            </div>
-            <div className="slide-counter">Diapositiva {currentSlide + 1} de {slides.length}</div>
-          </div>
-        )}
-      </div>
-
-      {/* Controls */}
-      <div className="presentation-controls">
-        <button className="control-btn prev-btn" onClick={prevSlide} title="Diapositiva anterior">
-          <ChevronLeft size={24} />
-        </button>
-
-        <div className="slide-dots">
-          {slides.map((_, idx) => (
-            <button
-              key={idx}
-              className={`dot ${idx === currentSlide ? 'active' : ''}`}
-              onClick={() => goToSlide(idx)}
-              title={`Ir a diapositiva ${idx + 1}`}
-            />
-          ))}
         </div>
+      ) : (
+        <div className="presentation-shell">
+          <header className="presentation-topbar">
+            <div className="brand-lockup">
+              <div className="brand-icon">
+                <Fish size={22} />
+              </div>
+              <div>
+                <h2>Car-Pes</h2>
+                <p>Presentación del proyecto</p>
+              </div>
+            </div>
+            <div className="topbar-meta">
+              <Sparkles size={16} />
+              <span>Diapositiva {currentSlide + 1} de {slides.length}</span>
+            </div>
+          </header>
 
-        <button className="control-btn next-btn" onClick={nextSlide} title="Siguiente diapositiva">
-          <ChevronRight size={24} />
-        </button>
-      </div>
+          <main className="presentation-stage">
+            {currentSlideData.type === 'cover' && (
+              <section className="slide-card slide-cover">
+                <div className="cover-hero">
+                  <div className="cover-logo">
+                    <span>🎣</span>
+                  </div>
+                  <div className="cover-copy">
+                    <span className="cover-kicker">TFG · Proyecto web</span>
+                    <h1>{currentSlideData.title}</h1>
+                    <h2>{currentSlideData.subtitle}</h2>
+                    <p>{currentSlideData.description}</p>
+                  </div>
+                </div>
+                <div className="cover-pills">
+                  <span>Red social</span>
+                  <span>Pesca</span>
+                  <span>Mapa</span>
+                  <span>Comunidad</span>
+                </div>
+              </section>
+            )}
 
-      {/* Top Controls */}
-      <div className="presentation-top-controls">
-        <button
-          className={`top-control-btn ${autoPlay ? 'active' : ''}`}
-          onClick={() => setAutoPlay(!autoPlay)}
-          title={autoPlay ? 'Pausar presentación' : 'Reproducir presentación'}
-        >
-          {autoPlay ? <Pause size={20} /> : <Play size={20} />}
-        </button>
-        <button
-          className={`top-control-btn ${volumeOn ? 'active' : ''}`}
-          onClick={() => setVolumeOn(!volumeOn)}
-          title={volumeOn ? 'Silenciar' : 'Activar sonido'}
-        >
-          {volumeOn ? <Volume2 size={20} /> : <VolumeX size={20} />}
-        </button>
-      </div>
+            {currentSlideData.type === 'index' && (
+              <section className="slide-card slide-index">
+                <div className="slide-heading-block">
+                  <span className="slide-kicker">Ruta de la presentación</span>
+                  <h2>{currentSlideData.title}</h2>
+                  <p>Todo el recorrido de la exposición, organizado para avanzar con claridad.</p>
+                </div>
+                <div className="index-grid">
+                  {currentSlideData.items.map((item, idx) => (
+                    <button key={item} className="index-item" onClick={() => goToSlide(Math.min(idx + 2, slides.length - 1))} type="button">
+                      <span className="index-number">{String(idx + 1).padStart(2, '0')}</span>
+                      <span className="index-text">{item}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
 
-      {/* Keyboard hint */}
-      <div className="keyboard-hint">
-        Usa ← → o haz clic en los puntos para navegar
-      </div>
+            {currentSlideData.type === 'problem' && (
+              <section className="slide-card">
+                <div className="slide-heading-block">
+                  <span className="slide-kicker">Contexto</span>
+                  <h2>{currentSlideData.title}</h2>
+                </div>
+                <div className="bullet-panel problem-panel">
+                  {currentSlideData.points.map((point) => (
+                    <div key={point} className="bullet-item">
+                      <span className="bullet-mark">•</span>
+                      <p>{point}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {currentSlideData.type === 'vision' && (
+              <section className="slide-card">
+                <div className="slide-heading-block">
+                  <span className="slide-kicker">Dirección</span>
+                  <h2>{currentSlideData.title}</h2>
+                </div>
+                <div className="vision-grid">
+                  <article className="info-panel mission-panel">
+                    <h3>🎯 Misión</h3>
+                    <p>{currentSlideData.mission}</p>
+                  </article>
+                  <article className="info-panel vision-panel">
+                    <h3>🌟 Visión</h3>
+                    <p>{currentSlideData.vision}</p>
+                  </article>
+                </div>
+              </section>
+            )}
+
+            {currentSlideData.type === 'solution' && (
+              <section className="slide-card">
+                <div className="slide-heading-block">
+                  <span className="slide-kicker">Propuesta</span>
+                  <h2>{currentSlideData.title}</h2>
+                </div>
+                <div className="feature-list">
+                  {currentSlideData.features.map((feature) => (
+                    <div key={feature} className="feature-row">
+                      <span className="feature-icon">✓</span>
+                      <p>{feature}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {currentSlideData.type === 'features' && (
+              <section className="slide-card">
+                <div className="slide-heading-block">
+                  <span className="slide-kicker">Uso diario</span>
+                  <h2>{currentSlideData.title}</h2>
+                </div>
+                <div className="feature-grid">
+                  {currentSlideData.categories.map((category) => (
+                    <article key={category.title} className="feature-card">
+                      <div className="feature-card-icon">{category.icon}</div>
+                      <h3>{category.title}</h3>
+                      <p>{category.desc}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {currentSlideData.type === 'maps' && (
+              <section className="slide-card">
+                <div className="slide-heading-block">
+                  <span className="slide-kicker">Ubicación</span>
+                  <h2>{currentSlideData.title}</h2>
+                  <p>{currentSlideData.description}</p>
+                </div>
+                <div className="map-panel">
+                  {currentSlideData.features.map((feature, idx) => (
+                    <div key={feature} className="map-row">
+                      <span className="map-number">{idx + 1}</span>
+                      <p>{feature}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {currentSlideData.type === 'gamification' && (
+              <section className="slide-card">
+                <div className="slide-heading-block">
+                  <span className="slide-kicker">Progreso</span>
+                  <h2>{currentSlideData.title}</h2>
+                </div>
+                <div className="gamification-grid">
+                  {currentSlideData.elements.map((element) => (
+                    <article key={element.title} className="gamification-card">
+                      <h3>{element.title}</h3>
+                      <p>{element.desc}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {currentSlideData.type === 'safety' && (
+              <section className="slide-card">
+                <div className="slide-heading-block">
+                  <span className="slide-kicker">Control</span>
+                  <h2>{currentSlideData.title}</h2>
+                </div>
+                <div className="bullet-panel safety-panel">
+                  {currentSlideData.points.map((point) => (
+                    <div key={point} className="bullet-item">
+                      <span className="bullet-mark bullet-shield">🛡</span>
+                      <p>{point}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {currentSlideData.type === 'tech' && (
+              <section className="slide-card">
+                <div className="slide-heading-block">
+                  <span className="slide-kicker">Stack</span>
+                  <h2>{currentSlideData.title}</h2>
+                </div>
+                <div className="tech-grid">
+                  <article className="tech-panel">
+                    <h3>Frontend</h3>
+                    <div className="tech-list">
+                      {currentSlideData.frontend.map((tech) => (
+                        <span key={tech} className="tech-chip">{tech}</span>
+                      ))}
+                    </div>
+                  </article>
+                  <article className="tech-panel">
+                    <h3>Backend</h3>
+                    <div className="tech-list">
+                      {currentSlideData.backend.map((tech) => (
+                        <span key={tech} className="tech-chip">{tech}</span>
+                      ))}
+                    </div>
+                  </article>
+                  <article className="tech-panel">
+                    <h3>Hosting</h3>
+                    <div className="tech-list">
+                      {currentSlideData.hosting.map((tech) => (
+                        <span key={tech} className="tech-chip">{tech}</span>
+                      ))}
+                    </div>
+                  </article>
+                </div>
+              </section>
+            )}
+
+            {currentSlideData.type === 'impact' && (
+              <section className="slide-card">
+                <div className="slide-heading-block">
+                  <span className="slide-kicker">Resultado</span>
+                  <h2>{currentSlideData.title}</h2>
+                </div>
+                <div className="impact-grid">
+                  {currentSlideData.metrics.map((metric) => (
+                    <article key={metric.label} className="metric-card">
+                      <strong>{metric.value}</strong>
+                      <h3>{metric.label}</h3>
+                      <p>{metric.desc}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+          </main>
+
+          <footer className="presentation-footer">
+            <button className="nav-btn" onClick={prevSlide} type="button" aria-label="Diapositiva anterior">
+              <ChevronLeft size={22} />
+              <span>Anterior</span>
+            </button>
+
+            <div className="slide-dots" aria-label="Navegación de diapositivas">
+              {slides.map((slide, idx) => (
+                <button
+                  key={slide.id}
+                  type="button"
+                  className={`dot ${idx === currentSlide ? 'active' : ''}`}
+                  onClick={() => goToSlide(idx)}
+                  aria-label={`Ir a la diapositiva ${idx + 1}`}
+                />
+              ))}
+            </div>
+
+            <button className="nav-btn" onClick={nextSlide} type="button" aria-label="Siguiente diapositiva">
+              <span>Siguiente</span>
+              <ChevronRight size={22} />
+            </button>
+          </footer>
+        </div>
+      )}
     </div>
   );
 };
