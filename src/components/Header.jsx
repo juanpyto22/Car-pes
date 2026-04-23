@@ -42,7 +42,7 @@ const Header = () => {
               <img
                 src={logoImg}
                 alt="Car-Pes"
-                className="h-16 md:h-18 w-auto object-contain relative z-10"
+                className="h-24 md:h-32 w-auto object-contain relative z-10"
               />
             </div>
             <span className="hidden sm:block text-lg md:text-xl font-black bg-gradient-to-r from-sky-200 via-cyan-200 to-blue-400 bg-clip-text text-transparent tracking-tight">
