@@ -214,8 +214,21 @@
 
 .presentation-stage {
   min-height: 0;
-  display: flex;
-  align-items: stretch;
+  position: relative;
+  overflow: hidden;
+}
+
+.slide-fit-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.slide-fit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center;
+  width: min(1240px, calc(100% - 0.8rem));
 }
 
 .slide-card {
@@ -843,7 +856,7 @@
     border-radius: 1.4rem;
     padding: 1rem;
     justify-content: start;
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   .cover-hero,

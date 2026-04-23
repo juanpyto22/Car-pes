@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Lock, Fish, Shield, Sparkles } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Lock, Fish, Sparkles } from 'lucide-react';
 import '../styles/presentation.css';
 
 const PASSWORD = '1234';
-const UNLOCK_KEY = 'carpes_presentation_unlocked';
 
 const slides = [
   {
@@ -133,11 +132,9 @@ const PresentationPage = () => {
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [accessGranted, setAccessGranted] = useState(false);
-
-  useEffect(() => {
-    const storedAccess = window.sessionStorage.getItem(UNLOCK_KEY) === 'true';
-    setAccessGranted(storedAccess);
-  }, []);
+  const [slideScale, setSlideScale] = useState(1);
+  const stageRef = useRef(null);
+  const slideRef = useRef(null);
 
   useEffect(() => {
     if (!accessGranted) {
@@ -158,11 +155,46 @@ const PresentationPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [accessGranted]);
 
+  useEffect(() => {
+    if (!accessGranted) {
+      return;
+    }
+
+    const calculateScale = () => {
+      if (!stageRef.current || !slideRef.current) {
+        return;
+      }
+
+      const stageWidth = stageRef.current.clientWidth - 8;
+      const stageHeight = stageRef.current.clientHeight - 8;
+      const contentWidth = slideRef.current.scrollWidth;
+      const contentHeight = slideRef.current.scrollHeight;
+
+      const widthScale = stageWidth / contentWidth;
+      const heightScale = stageHeight / contentHeight;
+      const nextScale = Math.min(1, widthScale, heightScale);
+
+      if (Number.isFinite(nextScale) && nextScale > 0) {
+        setSlideScale(nextScale);
+      }
+    };
+
+    const rafId = window.requestAnimationFrame(calculateScale);
+    const timeoutId = window.setTimeout(calculateScale, 120);
+
+    window.addEventListener('resize', calculateScale);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+      window.removeEventListener('resize', calculateScale);
+    };
+  }, [accessGranted, currentSlide]);
+
   const handlePasswordSubmit = (event) => {
     event.preventDefault();
 
     if (password.trim() === PASSWORD) {
-      window.sessionStorage.setItem(UNLOCK_KEY, 'true');
       setAccessGranted(true);
       setPassword('');
       setPasswordError('');
@@ -212,7 +244,6 @@ const PresentationPage = () => {
               {passwordError ? <span className="gate-error">{passwordError}</span> : null}
               <button type="submit">Entrar</button>
             </form>
-            <div className="gate-hint">Contraseña: 1234</div>
           </div>
         </div>
       ) : (
@@ -233,7 +264,13 @@ const PresentationPage = () => {
             </div>
           </header>
 
-          <main className="presentation-stage">
+          <main className="presentation-stage" ref={stageRef}>
+            <div className="slide-fit-frame">
+              <div
+                className="slide-fit"
+                ref={slideRef}
+                style={{ transform: `translate(-50%, -50%) scale(${slideScale})` }}
+              >
             {currentSlideData.type === 'cover' && (
               <section className="slide-card slide-cover">
                 <div className="cover-hero">
@@ -449,6 +486,8 @@ const PresentationPage = () => {
                 </div>
               </section>
             )}
+              </div>
+            </div>
           </main>
 
           <footer className="presentation-footer">
