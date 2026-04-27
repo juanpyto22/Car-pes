@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -49,6 +49,7 @@ const AppRoutes = () => {
   const { user } = useAuth();
   const { isBanned, banType, reason, remainingHours } = useCheckUserBan();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const adminPathRegex = /^\/(admin|admin-panel|panel-admin|feed\/admin)\/?$/i;
   const isAdminPath = adminPathRegex.test(location.pathname || '');
@@ -62,6 +63,39 @@ const AppRoutes = () => {
       document.body.classList.remove('admin-theme', 'user-theme');
     };
   }, [isAdminPath]);
+
+  useEffect(() => {
+    if (location.pathname === '/reset-password') {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(location.search);
+    const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+
+    const hasRecoveryType =
+      searchParams.get('type') === 'recovery' || hashParams.get('type') === 'recovery';
+    const hasRecoveryTokens =
+      searchParams.has('code') ||
+      searchParams.has('token_hash') ||
+      hashParams.has('access_token') ||
+      hashParams.has('refresh_token');
+    const hasRecoveryError =
+      searchParams.get('error_code') === 'otp_expired' ||
+      hashParams.get('error_code') === 'otp_expired' ||
+      searchParams.get('error') === 'access_denied' ||
+      hashParams.get('error') === 'access_denied';
+
+    if (hasRecoveryType || hasRecoveryTokens || hasRecoveryError) {
+      navigate(
+        {
+          pathname: '/reset-password',
+          search: location.search,
+          hash: location.hash,
+        },
+        { replace: true }
+      );
+    }
+  }, [location.pathname, location.search, location.hash, navigate]);
 
   // Si el usuario está autenticado y baneado, mostrar página de baneado
   return (
