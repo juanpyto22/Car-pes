@@ -24,21 +24,71 @@ const ResetPasswordPage = () => {
   useEffect(() => {
     // Verificar si hay una sesión válida de recuperación
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        setValidSession(true);
-      } else {
-        // Intentar obtener la sesión del hash de la URL
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const type = hashParams.get('type');
-        
-        if (accessToken && type === 'recovery') {
-          setValidSession(true);
+      try {
+        let hasValidRecoverySession = false;
+
+        const {
+          data: { session: existingSession },
+        } = await supabase.auth.getSession();
+
+        if (existingSession) {
+          hasValidRecoverySession = true;
+        } else {
+          const url = new URL(window.location.href);
+          const searchParams = url.searchParams;
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+          const code = searchParams.get('code');
+          const tokenHash = searchParams.get('token_hash');
+          const type = searchParams.get('type') || hashParams.get('type');
+          const hashAccessToken = hashParams.get('access_token');
+          const hashRefreshToken = hashParams.get('refresh_token');
+
+          // PKCE flow: exchange code for a valid auth session.
+          if (code) {
+            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+            if (!exchangeError) {
+              hasValidRecoverySession = true;
+            }
+          }
+
+          // OTP flow: verify token hash for recovery links.
+          if (!hasValidRecoverySession && tokenHash && type === 'recovery') {
+            const { error: verifyError } = await supabase.auth.verifyOtp({
+              type: 'recovery',
+              token_hash: tokenHash,
+            });
+
+            if (!verifyError) {
+              hasValidRecoverySession = true;
+            }
+          }
+
+          // Implicit flow fallback: create session from URL hash tokens.
+          if (!hasValidRecoverySession && hashAccessToken && hashRefreshToken && type === 'recovery') {
+            const { error: setSessionError } = await supabase.auth.setSession({
+              access_token: hashAccessToken,
+              refresh_token: hashRefreshToken,
+            });
+
+            if (!setSessionError) {
+              hasValidRecoverySession = true;
+            }
+          }
+
+          // Keep URL clean after processing auth params.
+          if (code || tokenHash || hashAccessToken) {
+            window.history.replaceState({}, document.title, '/reset-password');
+          }
         }
+
+        setValidSession(hasValidRecoverySession);
+      } catch (err) {
+        console.error('Error verificando sesión de recuperación:', err);
+        setValidSession(false);
+      } finally {
+        setCheckingSession(false);
       }
-      setCheckingSession(false);
     };
 
     checkSession();
