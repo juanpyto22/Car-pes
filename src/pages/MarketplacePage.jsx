@@ -77,7 +77,6 @@ const MarketplacePage = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [dbAvailable, setDbAvailable] = useState(true);
   const [favorites, setFavorites] = useState([]);
   const [purchasedIds, setPurchasedIds] = useState([]);
   const [buyingIds, setBuyingIds] = useState([]);
@@ -89,6 +88,23 @@ const MarketplacePage = () => {
     const storedBuys = safeJsonParse(localStorage.getItem(`carpes_mp_buys_${user?.id || 'guest'}`) || '[]', []);
     setPurchasedIds(storedBuys);
   }, [user]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('marketplace-products-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'marketplace_products' },
+        () => {
+          fetchProducts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -102,115 +118,71 @@ const MarketplacePage = () => {
       if (error) throw error;
       setProducts((data || []).map(normalizeProduct));
     } catch (err) {
-      console.warn('marketplace_products table not available:', err.message);
-      setDbAvailable(false);
-      const stored = localStorage.getItem('carpes_marketplace');
-      const localProducts = safeJsonParse(stored || '[]', []).map(normalizeProduct);
-      setProducts(localProducts);
+      console.error('Error loading marketplace products:', err?.message || err);
+      setProducts([]);
+      toast({
+        variant: 'destructive',
+        title: 'Error cargando marketplace',
+        description: 'No se pudieron cargar los productos globales.',
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleCreateProduct = async (productData) => {
-    const createLocalProduct = () => {
-      const newProduct = {
-        id: crypto.randomUUID(),
-        ...productData,
-        image_url: productData.imageDataUrl || null,
-        seller_id: user?.id,
-        seller: { id: user?.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil },
+    try {
+      let imageUrl = null;
+      if (productData.imageFile) {
+        const ext = productData.imageFile.name.split('.').pop();
+        const filePath = `marketplace/${user.id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('posts').upload(filePath, productData.imageFile);
+        if (!upErr) {
+          const { data: urlData } = supabase.storage.from('posts').getPublicUrl(filePath);
+          imageUrl = urlData.publicUrl;
+        }
+      }
+
+      const basePayload = {
+        title: productData.title,
+        description: productData.description,
+        price: productData.price,
+        category: productData.category,
+        condition: productData.condition,
+        location: productData.location,
+        image_url: imageUrl,
+        seller_id: user.id,
         status: 'active',
-        created_at: new Date().toISOString(),
       };
 
-      let created = false;
-      setProducts(prev => {
-        const duplicated = prev.some(p =>
-          p.seller_id === newProduct.seller_id &&
-          p.title === newProduct.title &&
-          Number(p.price) === Number(newProduct.price) &&
-          Math.abs(new Date(p.created_at).getTime() - Date.now()) < 8000
-        );
+      let insertRes = await supabase
+        .from('marketplace_products')
+        .insert(basePayload)
+        .select('*')
+        .single();
 
-        if (duplicated) return prev;
-
-        created = true;
-        const updated = [normalizeProduct(newProduct), ...prev];
-        localStorage.setItem('carpes_marketplace', JSON.stringify(updated));
-        return updated;
-      });
-
-      return created;
-    };
-
-    try {
-      if (dbAvailable) {
-        let imageUrl = null;
-        if (productData.imageFile) {
-          const ext = productData.imageFile.name.split('.').pop();
-          const filePath = `marketplace/${user.id}/${Date.now()}.${ext}`;
-          const { error: upErr } = await supabase.storage.from('posts').upload(filePath, productData.imageFile);
-          if (!upErr) {
-            const { data: urlData } = supabase.storage.from('posts').getPublicUrl(filePath);
-            imageUrl = urlData.publicUrl;
-          }
-        }
-
-        const basePayload = {
-          title: productData.title,
-          description: productData.description,
-          price: productData.price,
-          category: productData.category,
-          condition: productData.condition,
-          location: productData.location,
-          image_url: imageUrl,
-          seller_id: user.id,
-          status: 'active',
-        };
-
-        let insertRes = await supabase
+      if (insertRes.error && /location/i.test(insertRes.error.message || '')) {
+        const { location, ...payloadWithoutLocation } = basePayload;
+        insertRes = await supabase
           .from('marketplace_products')
-          .insert(basePayload)
+          .insert(payloadWithoutLocation)
           .select('*')
           .single();
-
-        if (insertRes.error && /location/i.test(insertRes.error.message || '')) {
-          const { location, ...payloadWithoutLocation } = basePayload;
-          insertRes = await supabase
-            .from('marketplace_products')
-            .insert(payloadWithoutLocation)
-            .select('*')
-            .single();
-        }
-
-        if (insertRes.error) throw insertRes.error;
-
-        const createdProduct = {
-          ...insertRes.data,
-          seller: { id: user.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil },
-        };
-
-        setProducts(prev => [normalizeProduct(createdProduct), ...prev]);
-        toast({ title: '¡Producto publicado!' });
-        setShowCreate(false);
-      } else {
-        createLocalProduct();
-        toast({ title: '¡Producto publicado!' });
-        setShowCreate(false);
       }
+
+      if (insertRes.error) throw insertRes.error;
+
+      const createdProduct = {
+        ...insertRes.data,
+        seller: { id: user.id, username: profile?.username || 'Tú', foto_perfil: profile?.foto_perfil },
+      };
+
+      setProducts(prev => [normalizeProduct(createdProduct), ...prev]);
+      toast({ title: '¡Producto publicado!' });
+      setShowCreate(false);
     } catch (err) {
-      console.warn('DB publish failed, trying local fallback:', err?.message || err);
-      setDbAvailable(false);
-
-      try {
-        createLocalProduct();
-        toast({ title: '¡Producto publicado!', description: 'Guardado en este dispositivo.' });
-        setShowCreate(false);
-      } catch (localErr) {
-        console.error('Error creating product:', localErr);
-        toast({ variant: 'destructive', title: 'Error al publicar' });
-      }
+      console.error('Error creating product:', err);
+      toast({ variant: 'destructive', title: 'Error al publicar', description: 'No se pudo guardar el producto globalmente.' });
     }
   };
 
@@ -219,29 +191,23 @@ const MarketplacePage = () => {
 
     setBuyingIds(prev => [...prev, product.id]);
     try {
-      if (dbAvailable) {
-        const { error } = await supabase.from('marketplace_offers').insert({
-          product_id: product.id,
-          buyer_id: user.id,
-          seller_id: product.seller_id,
-          offer_price: product.price,
-          status: 'pending',
-        });
+      const { error } = await supabase.from('marketplace_offers').insert({
+        product_id: product.id,
+        buyer_id: user.id,
+        seller_id: product.seller_id,
+        offer_price: product.price,
+        status: 'pending',
+      });
 
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       const updated = [...new Set([...purchasedIds, product.id])];
       setPurchasedIds(updated);
       localStorage.setItem(`carpes_mp_buys_${user.id}`, JSON.stringify(updated));
       toast({ title: 'Compra registrada', description: 'Se ha enviado tu solicitud al vendedor.' });
     } catch (err) {
-      console.warn('Error registering purchase in DB, using local purchase:', err?.message || err);
-      setDbAvailable(false);
-      const updated = [...new Set([...purchasedIds, product.id])];
-      setPurchasedIds(updated);
-      localStorage.setItem(`carpes_mp_buys_${user.id}`, JSON.stringify(updated));
-      toast({ title: 'Compra guardada', description: 'La compra se guardó en este dispositivo.' });
+      console.error('Error registering purchase:', err?.message || err);
+      toast({ variant: 'destructive', title: 'Error registrando compra' });
     } finally {
       setBuyingIds(prev => prev.filter(id => id !== product.id));
     }
@@ -257,22 +223,15 @@ const MarketplacePage = () => {
     if (!confirmDelete) return;
 
     try {
-      if (dbAvailable) {
-        const { error } = await supabase
-          .from('marketplace_products')
-          .delete()
-          .eq('id', product.id)
-          .eq('seller_id', user.id);
+      const { error } = await supabase
+        .from('marketplace_products')
+        .delete()
+        .eq('id', product.id)
+        .eq('seller_id', user.id);
 
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       setProducts(prev => prev.filter(p => p.id !== product.id));
-
-      if (!dbAvailable) {
-        const updated = products.filter(p => p.id !== product.id);
-        localStorage.setItem('carpes_marketplace', JSON.stringify(updated));
-      }
 
       toast({ title: 'Producto eliminado' });
     } catch (err) {
