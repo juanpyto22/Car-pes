@@ -21,6 +21,7 @@ const ResetPasswordPage = () => {
   const [validSession, setValidSession] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [recoveryLinkState, setRecoveryLinkState] = useState('invalid');
+  const [recoveryParams, setRecoveryParams] = useState(null);
 
   useEffect(() => {
     // Verificar si hay una sesión válida de recuperación
@@ -35,6 +36,7 @@ const ResetPasswordPage = () => {
 
         if (existingSession) {
           hasValidRecoverySession = true;
+          nextRecoveryLinkState = 'ok';
         } else {
           const url = new URL(window.location.href);
           const searchParams = url.searchParams;
@@ -47,6 +49,15 @@ const ResetPasswordPage = () => {
           const hashRefreshToken = hashParams.get('refresh_token');
           const errorCode = searchParams.get('error_code') || hashParams.get('error_code');
           const errorKind = searchParams.get('error') || hashParams.get('error');
+
+          const nextParams = {
+            code,
+            tokenHash,
+            type,
+            hashAccessToken,
+            hashRefreshToken,
+          };
+          setRecoveryParams(nextParams);
 
           if (errorCode === 'otp_expired') {
             nextRecoveryLinkState = 'expired';
@@ -89,10 +100,7 @@ const ResetPasswordPage = () => {
             }
           }
 
-          // Keep URL clean after processing auth params.
-          if (code || tokenHash || hashAccessToken) {
-            window.history.replaceState({}, document.title, '/reset-password');
-          }
+          // No limpiamos la URL aquí para poder reestablecer sesión en submit si expira.
         }
 
         setValidSession(hasValidRecoverySession);
@@ -126,6 +134,42 @@ const ResetPasswordPage = () => {
     setLoading(true);
 
     try {
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      let hasActiveSession = Boolean(initialSession);
+
+      if (!hasActiveSession && recoveryParams) {
+        if (recoveryParams.code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(recoveryParams.code);
+          hasActiveSession = !exchangeError;
+        }
+
+        if (!hasActiveSession && recoveryParams.tokenHash && recoveryParams.type === 'recovery') {
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            type: 'recovery',
+            token_hash: recoveryParams.tokenHash,
+          });
+          hasActiveSession = !verifyError;
+        }
+
+        if (!hasActiveSession && recoveryParams.hashAccessToken && recoveryParams.hashRefreshToken) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: recoveryParams.hashAccessToken,
+            refresh_token: recoveryParams.hashRefreshToken,
+          });
+          hasActiveSession = !setSessionError;
+        }
+      }
+
+      const { data: { session: ensuredSession } } = await supabase.auth.getSession();
+      if (!ensuredSession) {
+        throw new Error('RECOVERY_SESSION_MISSING');
+      }
+
+      const msToExpire = (ensuredSession.expires_at || 0) * 1000 - Date.now();
+      if (msToExpire < 90_000) {
+        await supabase.auth.refreshSession();
+      }
+
       const { error } = await supabase.auth.updateUser({
         password: password
       });
@@ -144,7 +188,11 @@ const ResetPasswordPage = () => {
       }, 3000);
     } catch (err) {
       console.error('Error:', err);
-      setError('No se pudo actualizar la contraseña. El enlace puede haber expirado.');
+      if (err?.message === 'RECOVERY_SESSION_MISSING') {
+        setError('La sesion de recuperacion no es valida o caduco. Solicita un enlace nuevo.');
+      } else {
+        setError('No se pudo actualizar la contraseña. El enlace puede haber expirado.');
+      }
     } finally {
       setLoading(false);
     }
