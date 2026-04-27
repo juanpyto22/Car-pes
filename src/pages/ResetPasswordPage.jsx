@@ -29,6 +29,25 @@ const ResetPasswordPage = () => {
       try {
         let hasValidRecoverySession = false;
         let nextRecoveryLinkState = 'invalid';
+        const url = new URL(window.location.href);
+        const searchParams = url.searchParams;
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+        const code = searchParams.get('code');
+        const tokenHash = searchParams.get('token_hash');
+        const type = searchParams.get('type') || hashParams.get('type');
+        const hashAccessToken = hashParams.get('access_token');
+        const hashRefreshToken = hashParams.get('refresh_token');
+        const errorCode = searchParams.get('error_code') || hashParams.get('error_code');
+        const errorKind = searchParams.get('error') || hashParams.get('error');
+
+        setRecoveryParams({
+          code,
+          tokenHash,
+          type,
+          hashAccessToken,
+          hashRefreshToken,
+        });
 
         const {
           data: { session: existingSession },
@@ -38,27 +57,6 @@ const ResetPasswordPage = () => {
           hasValidRecoverySession = true;
           nextRecoveryLinkState = 'ok';
         } else {
-          const url = new URL(window.location.href);
-          const searchParams = url.searchParams;
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
-
-          const code = searchParams.get('code');
-          const tokenHash = searchParams.get('token_hash');
-          const type = searchParams.get('type') || hashParams.get('type');
-          const hashAccessToken = hashParams.get('access_token');
-          const hashRefreshToken = hashParams.get('refresh_token');
-          const errorCode = searchParams.get('error_code') || hashParams.get('error_code');
-          const errorKind = searchParams.get('error') || hashParams.get('error');
-
-          const nextParams = {
-            code,
-            tokenHash,
-            type,
-            hashAccessToken,
-            hashRefreshToken,
-          };
-          setRecoveryParams(nextParams);
-
           if (errorCode === 'otp_expired') {
             nextRecoveryLinkState = 'expired';
           } else if (errorKind === 'access_denied') {
@@ -188,8 +186,14 @@ const ResetPasswordPage = () => {
       }, 3000);
     } catch (err) {
       console.error('Error:', err);
+      const errorMessage = String(err?.message || '').toLowerCase();
+
       if (err?.message === 'RECOVERY_SESSION_MISSING') {
         setError('La sesion de recuperacion no es valida o caduco. Solicita un enlace nuevo.');
+      } else if (errorMessage.includes('different from the old password') || errorMessage.includes('same password')) {
+        setError('La nueva contraseña debe ser diferente a la anterior.');
+      } else if (errorMessage.includes('password')) {
+        setError(`No se pudo actualizar la contraseña: ${err.message}`);
       } else {
         setError('No se pudo actualizar la contraseña. El enlace puede haber expirado.');
       }
