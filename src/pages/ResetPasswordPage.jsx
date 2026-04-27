@@ -20,12 +20,14 @@ const ResetPasswordPage = () => {
   const [error, setError] = useState('');
   const [validSession, setValidSession] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [recoveryLinkState, setRecoveryLinkState] = useState('invalid');
 
   useEffect(() => {
     // Verificar si hay una sesión válida de recuperación
     const checkSession = async () => {
       try {
         let hasValidRecoverySession = false;
+        let nextRecoveryLinkState = 'invalid';
 
         const {
           data: { session: existingSession },
@@ -43,12 +45,21 @@ const ResetPasswordPage = () => {
           const type = searchParams.get('type') || hashParams.get('type');
           const hashAccessToken = hashParams.get('access_token');
           const hashRefreshToken = hashParams.get('refresh_token');
+          const errorCode = searchParams.get('error_code') || hashParams.get('error_code');
+          const errorKind = searchParams.get('error') || hashParams.get('error');
+
+          if (errorCode === 'otp_expired') {
+            nextRecoveryLinkState = 'expired';
+          } else if (errorKind === 'access_denied') {
+            nextRecoveryLinkState = 'denied';
+          }
 
           // PKCE flow: exchange code for a valid auth session.
           if (code) {
             const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
             if (!exchangeError) {
               hasValidRecoverySession = true;
+              nextRecoveryLinkState = 'ok';
             }
           }
 
@@ -61,6 +72,7 @@ const ResetPasswordPage = () => {
 
             if (!verifyError) {
               hasValidRecoverySession = true;
+              nextRecoveryLinkState = 'ok';
             }
           }
 
@@ -73,6 +85,7 @@ const ResetPasswordPage = () => {
 
             if (!setSessionError) {
               hasValidRecoverySession = true;
+              nextRecoveryLinkState = 'ok';
             }
           }
 
@@ -83,9 +96,11 @@ const ResetPasswordPage = () => {
         }
 
         setValidSession(hasValidRecoverySession);
+        setRecoveryLinkState(nextRecoveryLinkState);
       } catch (err) {
         console.error('Error verificando sesión de recuperación:', err);
         setValidSession(false);
+        setRecoveryLinkState('invalid');
       } finally {
         setCheckingSession(false);
       }
@@ -158,10 +173,13 @@ const ResetPasswordPage = () => {
             <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
               <AlertCircle className="w-10 h-10 text-red-400" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-3">Enlace inválido o expirado</h1>
+            <h1 className="text-2xl font-bold text-white mb-3">
+              {recoveryLinkState === 'expired' ? 'Enlace expirado' : 'Enlace inválido'}
+            </h1>
             <p className="text-blue-200 mb-6">
-              El enlace de recuperación no es válido o ha expirado. 
-              Por favor, solicita uno nuevo.
+              {recoveryLinkState === 'expired'
+                ? 'Este enlace de recuperación ya caducó. Solicita uno nuevo para cambiar tu contraseña.'
+                : 'El enlace de recuperación no es válido. Solicita uno nuevo para continuar.'}
             </p>
             <Link to="/forgot-password">
               <Button className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold">
