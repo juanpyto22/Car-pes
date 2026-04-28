@@ -69,6 +69,15 @@ const normalizeProduct = (product) => ({
   status: product.status || 'active',
 });
 
+const mergeSellerProfiles = (products, profiles) => {
+  const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
+
+  return (products || []).map((product) => ({
+    ...product,
+    seller: product.seller || profileMap.get(product.seller_id) || null,
+  }));
+};
+
 const MarketplacePage = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -109,14 +118,31 @@ const MarketplacePage = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: productsData, error: productsError } = await supabase
         .from('marketplace_products')
-        .select(`*, seller:profiles!marketplace_products_seller_id_fkey(id, username, foto_perfil)`)
+        .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setProducts((data || []).map(normalizeProduct));
+      if (productsError) throw productsError;
+
+      const sellerIds = [...new Set((productsData || []).map((product) => product.seller_id).filter(Boolean))];
+      let sellerProfiles = [];
+
+      if (sellerIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, foto_perfil')
+          .in('id', sellerIds);
+
+        if (profilesError) {
+          console.warn('Error loading seller profiles:', profilesError.message || profilesError);
+        } else {
+          sellerProfiles = profilesData || [];
+        }
+      }
+
+      setProducts(mergeSellerProfiles((productsData || []).map(normalizeProduct), sellerProfiles));
     } catch (err) {
       console.error('Error loading marketplace products:', err?.message || err);
       setProducts([]);

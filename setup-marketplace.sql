@@ -55,35 +55,41 @@ CREATE INDEX IF NOT EXISTS idx_marketplace_favorites_product_id ON marketplace_f
 
 -- Políticas de seguridad para marketplace_products
 ALTER TABLE marketplace_products ENABLE ROW LEVEL SECURITY;
-
+-- Ensure existing policies are removed so the script is re-runnable
+DROP POLICY IF EXISTS "Users can view all active products" ON marketplace_products;
 CREATE POLICY "Users can view all active products"
   ON marketplace_products FOR SELECT
   USING (status = 'active' OR seller_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can create their own products" ON marketplace_products;
 CREATE POLICY "Users can create their own products"
   ON marketplace_products FOR INSERT
   WITH CHECK (seller_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update their own products" ON marketplace_products;
 CREATE POLICY "Users can update their own products"
   ON marketplace_products FOR UPDATE
   USING (seller_id = auth.uid())
   WITH CHECK (seller_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can delete their own products" ON marketplace_products;
 CREATE POLICY "Users can delete their own products"
   ON marketplace_products FOR DELETE
   USING (seller_id = auth.uid());
 
 -- Políticas para marketplace_offers
 ALTER TABLE marketplace_offers ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users can view their own offers" ON marketplace_offers;
 CREATE POLICY "Users can view their own offers"
   ON marketplace_offers FOR SELECT
   USING (buyer_id = auth.uid() OR seller_id = auth.uid());
 
+DROP POLICY IF EXISTS "Buyers can create offers" ON marketplace_offers;
 CREATE POLICY "Buyers can create offers"
   ON marketplace_offers FOR INSERT
   WITH CHECK (buyer_id = auth.uid());
 
+DROP POLICY IF EXISTS "Sellers can update offers on their products" ON marketplace_offers;
 CREATE POLICY "Sellers can update offers on their products"
   ON marketplace_offers FOR UPDATE
   USING (seller_id = auth.uid())
@@ -91,15 +97,17 @@ CREATE POLICY "Sellers can update offers on their products"
 
 -- Políticas para marketplace_favorites
 ALTER TABLE marketplace_favorites ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users can view their own favorites" ON marketplace_favorites;
 CREATE POLICY "Users can view their own favorites"
   ON marketplace_favorites FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can manage their own favorites" ON marketplace_favorites;
 CREATE POLICY "Users can manage their own favorites"
   ON marketplace_favorites FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can delete their own favorites" ON marketplace_favorites;
 CREATE POLICY "Users can delete their own favorites"
   ON marketplace_favorites FOR DELETE
   USING (user_id = auth.uid());
@@ -116,7 +124,7 @@ CREATE TABLE IF NOT EXISTS user_statistics (
 
 -- Políticas para user_statistics
 ALTER TABLE user_statistics ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "Users can view their own statistics" ON user_statistics;
 CREATE POLICY "Users can view their own statistics"
   ON user_statistics FOR SELECT
   USING (user_id = auth.uid());
