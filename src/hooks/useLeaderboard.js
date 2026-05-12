@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
 
 /**
- * Hook: Obtener leaderboard de usuarios por followers
+ * Hook: Obtener leaderboard de usuarios por followers (contando realmente desde follows table)
  */
-export const useLeaderboard = (limit = 100, businessType = null) => {
+export const useLeaderboard = (limit = 100) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,28 +14,36 @@ export const useLeaderboard = (limit = 100, businessType = null) => {
       try {
         setLoading(true);
 
-        // Obtener perfiles ordenados por followers
-        let query = supabase
+        // 1. Obtener todos los perfiles
+        const { data: profilesData, error: profilesErr } = await supabase
           .from('profiles')
-          .select(`
-            id,
-            username,
-            nombre,
-            foto_perfil,
-            bio,
-            followers_count,
-            created_at
-          `)
-          .order('followers_count', { ascending: false })
-          .limit(limit);
-
-        const { data: profilesData, error: profilesErr } = await query;
+          .select('id, username, nombre, foto_perfil, bio, created_at');
 
         if (profilesErr) throw profilesErr;
 
-        const profileIds = (profilesData || []).map(p => p.id);
+        // 2. Para cada perfil, contar sus followers realmente
+        const profilesWithFollowerCounts = await Promise.all(
+          (profilesData || []).map(async (profile) => {
+            const { count: followersCount } = await supabase
+              .from('follows')
+              .select('id', { count: 'exact', head: true })
+              .eq('following_id', profile.id);
 
-        // Obtener estado PRO para cada usuario
+            return {
+              ...profile,
+              followers_count: followersCount || 0
+            };
+          })
+        );
+
+        // 3. Ordenar por followers en descendente
+        profilesWithFollowerCounts.sort((a, b) => b.followers_count - a.followers_count);
+
+        // 4. Tomar solo los primeros 'limit'
+        const topUsers = profilesWithFollowerCounts.slice(0, limit);
+
+        // 5. Obtener estado PRO para cada usuario
+        const profileIds = topUsers.map(p => p.id);
         let proStatus = {};
         if (profileIds.length > 0) {
           const { data: proData, error: proErr } = await supabase
@@ -55,23 +63,15 @@ export const useLeaderboard = (limit = 100, businessType = null) => {
           }
         }
 
-        // Combinar datos
-        const enrichedUsers = (profilesData || []).map((profile, index) => ({
+        // 6. Agregar rank y enriquecer datos
+        const enrichedUsers = topUsers.map((profile, index) => ({
           ...profile,
           rank: index + 1,
           isPro: proStatus[profile.id]?.isPro || false,
           businessType: proStatus[profile.id]?.businessType || null
         }));
 
-        // Filtrar por tipo de negocio si se especifica
-        let filtered = enrichedUsers;
-        if (businessType) {
-          filtered = enrichedUsers.filter(u => u.isPro && u.businessType === businessType);
-          // Re-numerar ranks después de filtrar
-          filtered = filtered.map((u, idx) => ({ ...u, rank: idx + 1 }));
-        }
-
-        setUsers(filtered);
+        setUsers(enrichedUsers);
         setError(null);
       } catch (err) {
         console.error('Error fetching leaderboard:', err);
@@ -83,7 +83,7 @@ export const useLeaderboard = (limit = 100, businessType = null) => {
     };
 
     fetchLeaderboard();
-  }, [limit, businessType]);
+  }, [limit]);
 
   return { users, loading, error };
 };

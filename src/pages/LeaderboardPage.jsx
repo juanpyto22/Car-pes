@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Trophy, TrendingUp, Zap, Users, BadgeCheck, Crown } from 'lucide-react';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
@@ -9,8 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Helmet } from 'react-helmet';
 
 const LeaderboardPage = () => {
-  const [filter, setFilter] = useState('all'); // all, pro, empresa, pescador, guia
-  const { users, loading } = useLeaderboard(100, filter === 'all' ? null : filter);
+  const { users, loading } = useLeaderboard(100);
 
   const getMedalColor = (rank) => {
     switch (rank) {
@@ -30,17 +29,6 @@ const LeaderboardPage = () => {
     if (rank === 2) return '🥈';
     if (rank === 3) return '🥉';
     return `#${rank}`;
-  };
-
-  const getFilterLabel = () => {
-    const labels = {
-      all: 'Todos',
-      pro: 'Perfiles PRO',
-      empresa: 'Empresas',
-      pescador: 'Pescadores',
-      guia: 'Guías'
-    };
-    return labels[filter] || 'Todos';
   };
 
   return (
@@ -67,27 +55,6 @@ const LeaderboardPage = () => {
 
         {/* Content */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-          {/* Filter Buttons */}
-          <div className="flex flex-wrap gap-2 mb-8">
-            {['all', 'pro', 'empresa', 'pescador', 'guia'].map(filterType => (
-              <button
-                key={filterType}
-                onClick={() => setFilter(filterType)}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  filter === filterType
-                    ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/30'
-                    : 'bg-slate-800 text-gray-300 hover:bg-slate-700 border border-white/10'
-                }`}
-              >
-                {filterType === 'all' && '👥 Todos'}
-                {filterType === 'pro' && '⭐ Perfiles PRO'}
-                {filterType === 'empresa' && '🏢 Empresas'}
-                {filterType === 'pescador' && '🎣 Pescadores'}
-                {filterType === 'guia' && '🗺️ Guías'}
-              </button>
-            ))}
-          </div>
-
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <Card className="bg-slate-900/50 border border-white/10 p-4">
@@ -100,33 +67,29 @@ const LeaderboardPage = () => {
               </div>
             </Card>
 
-            {filter === 'all' && (
-              <>
-                <Card className="bg-slate-900/50 border border-white/10 p-4">
-                  <div className="flex items-center gap-3">
-                    <TrendingUp className="w-8 h-8 text-green-400" />
-                    <div>
-                      <p className="text-gray-400 text-sm">Top Usuario</p>
-                      <p className="text-xl font-bold text-white">
-                        {users[0]?.followers_count?.toLocaleString() || 0} seguidores
-                      </p>
-                    </div>
-                  </div>
-                </Card>
+            <Card className="bg-slate-900/50 border border-white/10 p-4">
+              <div className="flex items-center gap-3">
+                <TrendingUp className="w-8 h-8 text-green-400" />
+                <div>
+                  <p className="text-gray-400 text-sm">Top Usuario</p>
+                  <p className="text-xl font-bold text-white">
+                    {users[0]?.followers_count?.toLocaleString() || 0} seguidores
+                  </p>
+                </div>
+              </div>
+            </Card>
 
-                <Card className="bg-slate-900/50 border border-white/10 p-4">
-                  <div className="flex items-center gap-3">
-                    <BadgeCheck className="w-8 h-8 text-emerald-400" />
-                    <div>
-                      <p className="text-gray-400 text-sm">Usuarios PRO</p>
-                      <p className="text-xl font-bold text-white">
-                        {users.filter(u => u.isPro).length}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              </>
-            )}
+            <Card className="bg-slate-900/50 border border-white/10 p-4">
+              <div className="flex items-center gap-3">
+                <BadgeCheck className="w-8 h-8 text-emerald-400" />
+                <div>
+                  <p className="text-gray-400 text-sm">Usuarios PRO</p>
+                  <p className="text-xl font-bold text-white">
+                    {users.filter(u => u.isPro).length}
+                  </p>
+                </div>
+              </div>
+            </Card>
           </div>
 
           {/* Leaderboard Table */}
