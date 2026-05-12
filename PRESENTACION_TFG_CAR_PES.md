@@ -135,7 +135,7 @@ Notas del orador:
 
 ## Diapositiva 12: Cierre
 - Car-Pes demuestra una solución vertical real para una comunidad específica
-- Combina producto, diseño y seguridad
+- Combina producto, diseño y seguridad 
 - Preguntas
 
 Notas del orador:
@@ -151,3 +151,4 @@ Notas del orador:
 - 4:30 a 5:30 -> UX y decisiones de diseño
 - 5:30 a 6:30 -> Resultados y mejoras futuras
 - 6:30 a 8:00 -> Mini demo o preguntas
+   

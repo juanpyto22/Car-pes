@@ -11,6 +11,9 @@ import { Helmet } from 'react-helmet';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import FollowersModal from '@/components/FollowersModal';
+import { useProStatus } from '@/hooks/useProStatus';
+import { ProInfoCard, ProBenefitsList } from '@/components/ProBenefitsDisplay';
+import { UpgradeProCTA } from '@/components/ProUpgradeWidget';
 
 const ProfilePage = () => {
   const { userId } = useParams();
@@ -23,7 +26,9 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [proStatus, setProStatus] = useState(null);
+  
+  // Usar hook useProStatus en lugar de estado local
+  const { proStatus, isPro, benefits } = useProStatus(targetUserId);
   
   // Modal state
   const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -35,7 +40,6 @@ const ProfilePage = () => {
   useEffect(() => {
     if (targetUserId) {
       fetchProfileData();
-      fetchProStatus();
     }
   }, [targetUserId]);
 
@@ -128,33 +132,6 @@ const ProfilePage = () => {
       toast({ variant: "destructive", title: "Error", description: "No se pudo cargar el perfil" });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchProStatus = async () => {
-    if (!targetUserId) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('pro_verification_requests')
-        .select('status, business_type, updated_at')
-        .eq('user_id', targetUserId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        if (error.code !== '42P01') {
-          console.error('Error cargando estado pro:', error);
-        }
-        setProStatus(null);
-        return;
-      }
-
-      setProStatus(data || null);
-    } catch (err) {
-      console.error('Error cargando estado pro:', err);
-      setProStatus(null);
     }
   };
 
@@ -414,6 +391,21 @@ const ProfilePage = () => {
               </div>
             </div>
           </div>
+
+          {/* PRO Benefits Section */}
+          {isPro && (
+            <div className="mt-8 mb-8">
+              <ProInfoCard userProfile={{ isPro, businessType: proStatus?.business_type }} />
+              <ProBenefitsList benefits={benefits} className="mb-6" />
+            </div>
+          )}
+
+          {/* Upgrade PRO CTA */}
+          {isOwnProfile && !isPro && (
+            <div className="mt-8 mb-8">
+              <UpgradeProCTA isOwnProfile={true} />
+            </div>
+          )}
 
           {/* Posts Grid */}
           <div>
