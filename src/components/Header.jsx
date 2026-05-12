@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Bookmark, Map, Users, Calendar, ShoppingBag, BarChart3, Settings, DollarSign, Radio, CloudSun } from 'lucide-react';
+import { Home, Compass, MessageCircle, Bell, User, LogOut, Plus, Edit3, LogIn, Bookmark, Map, Users, Calendar, ShoppingBag, BarChart3, Settings, DollarSign, Radio, CloudSun, Trophy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import SearchBar from '@/components/SearchBar';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -15,16 +15,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
 import { motion } from 'framer-motion';
 
 const Header = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const isPresentationMode = location.pathname === '/presentacion';
   
   const { unreadCount: notifCount } = useNotifications(user ? profile : null);
   const { unreadCount: msgCount } = useMessages(user || null);
@@ -34,16 +30,8 @@ const Header = () => {
     navigate('/');
   };
 
-  const showPresentationBlockedToast = () => {
-    toast({
-      variant: 'destructive',
-      title: 'Modo presentacion',
-      description: 'En el modo presentacion esta opcion no esta disponible.',
-    });
-  };
-
   return (
-    <header className="sticky top-0 z-50 border-b border-sky-300/10 bg-slate-950/78 backdrop-blur-2xl relative">
+    <header className="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-xl border-b border-white/5">
       <div className="max-w-7xl mx-auto px-3 md:px-4">
         <div className="flex items-center justify-between gap-3 h-14 md:h-16">
           {/* Logo */}
@@ -53,10 +41,10 @@ const Header = () => {
               <img
                 src={logoImg}
                 alt="Car-Pes"
-                className="h-9 w-9 max-[380px]:h-8 max-[380px]:w-8 md:h-11 md:w-11 lg:h-12 lg:w-12 rounded-full object-cover relative z-10 shrink-0"
+                className="h-16 md:h-18 w-auto object-contain relative z-10"
               />
             </div>
-            <span className="hidden sm:block text-lg md:text-xl font-black bg-gradient-to-r from-sky-200 via-cyan-200 to-blue-400 bg-clip-text text-transparent tracking-tight">
+            <span className="hidden sm:block text-lg md:text-xl font-black bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent tracking-tight">
               Car-Pes
             </span>
           </Link>
@@ -82,25 +70,17 @@ const Header = () => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="p-2 bg-gradient-to-r from-sky-500 to-blue-600 rounded-full hover:shadow-lg shadow-blue-900/40 transition-all ml-1 ring-1 ring-sky-300/20"
+                    className="p-2 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full hover:shadow-lg shadow-cyan-900/30 transition-all ml-1"
                     title="Crear Publicación"
                   >
                     <Plus className="w-4 h-4 text-white" />
                   </motion.button>
                 </Link>
 
-                {profileMenuOpen && (
-                  <div
-                    className="fixed bottom-0 left-0 right-0 top-14 z-40 bg-slate-950/35 backdrop-blur-2xl md:top-16"
-                    onClick={() => setProfileMenuOpen(false)}
-                    aria-hidden="true"
-                  />
-                )}
-
-                <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
+                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="focus:outline-none ml-1.5">
-                      <Avatar className="w-8 h-8 md:w-9 md:h-9 border-2 border-sky-400/35 cursor-pointer hover:border-sky-300 transition-colors shadow-[0_0_0_4px_rgba(2,6,23,0.5)]">
+                      <Avatar className="w-8 h-8 md:w-9 md:h-9 border-2 border-cyan-500/30 cursor-pointer hover:border-cyan-400 transition-colors">
                         <AvatarImage src={profile?.foto_perfil} alt={profile?.nombre} className="object-cover" />
                         <AvatarFallback className="bg-blue-900 text-cyan-200 font-bold text-sm">
                           {profile?.nombre?.[0] || user.email?.[0]?.toUpperCase()}
@@ -108,7 +88,7 @@ const Header = () => {
                       </Avatar>
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="z-[60] w-[min(14rem,calc(100vw-1rem))] max-h-[calc(100dvh-5rem)] overflow-y-auto border border-sky-300/20 bg-slate-950/93 text-white backdrop-blur-2xl shadow-2xl shadow-black/40 rounded-2xl">
+                  <DropdownMenuContent align="end" className="w-52 bg-slate-900/95 border-white/10 text-white backdrop-blur-xl">
                     <DropdownMenuItem onClick={() => navigate(`/profile`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
                       <User className="mr-2 h-4 w-4 text-cyan-400" /> Mi Perfil
                     </DropdownMenuItem>
@@ -134,6 +114,9 @@ const Header = () => {
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate(`/marketplace`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
                       <ShoppingBag className="mr-2 h-4 w-4 text-blue-400" /> Marketplace
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/leaderboard`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
+                      <Trophy className="mr-2 h-4 w-4 text-amber-400" /> Leaderboard
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate(`/live`)} className="cursor-pointer hover:bg-white/5 focus:bg-white/5 focus:text-white py-2.5">
                       <Radio className="mr-2 h-4 w-4 text-red-400" /> Directos
@@ -163,7 +146,7 @@ const Header = () => {
                   </Button>
                 </Link>
                 <Link to="/signup">
-                  <Button className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white ml-1 rounded-xl text-sm h-9 shadow-lg shadow-blue-900/30 ring-1 ring-sky-300/20">
+                  <Button className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white ml-1 rounded-xl text-sm h-9 shadow-lg shadow-blue-900/20">
                     Registrarse
                   </Button>
                 </Link>
@@ -172,32 +155,20 @@ const Header = () => {
           </nav>
         </div>
       </div>
-      {isPresentationMode && (
-        <button
-          type="button"
-          onClick={showPresentationBlockedToast}
-          className="absolute inset-0 z-[70] cursor-not-allowed bg-transparent"
-          aria-label="Opciones de header deshabilitadas en modo presentacion"
-        />
-      )}
     </header>
   );
 };
 
 const NavLink = ({ to, icon: Icon, badge, active }) => (
   <Link to={to}>
-    <motion.div
-      whileHover={{ y: -1 }}
-      whileTap={{ scale: 0.96 }}
-      className={`relative p-2.5 rounded-xl transition-all ${active ? 'text-sky-300 bg-sky-500/12 ring-1 ring-sky-400/25' : 'text-blue-300 hover:text-sky-300 hover:bg-white/5'}`}
-    >
+    <div className={`relative p-2.5 rounded-xl transition-all ${active ? 'text-cyan-400 bg-cyan-500/10' : 'text-blue-300 hover:text-cyan-400 hover:bg-white/5'}`}>
       <Icon className="w-5 h-5" />
       {badge > 0 && (
         <span className="absolute top-1 right-0.5 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold border border-slate-950">
           {badge > 9 ? '9+' : badge}
         </span>
       )}
-    </motion.div>
+    </div>
   </Link>
 );
 
