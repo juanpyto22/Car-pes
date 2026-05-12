@@ -27,15 +27,15 @@ const ProfilePage = () => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   
-  // Usar hook useProStatus en lugar de estado local
-  const { proStatus, isPro, benefits } = useProStatus(targetUserId);
-  
   // Modal state
   const [showFollowersModal, setShowFollowersModal] = useState(false);
   const [modalType, setModalType] = useState('followers');
 
   const targetUserId = userId || currentUser?.id;
   const isOwnProfile = currentUser?.id === targetUserId;
+  
+  // Usar hook useProStatus en lugar de estado local (después de definir targetUserId)
+  const { proStatus, isPro, benefits } = useProStatus(targetUserId);
 
   useEffect(() => {
     if (targetUserId) {
