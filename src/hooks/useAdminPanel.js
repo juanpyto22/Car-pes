@@ -389,14 +389,31 @@ export const useAdminReviewProRequest = () => {
         reviewed_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
+      const { data: updatedRows, error } = await supabase
         .from('pro_verification_requests')
         .update(payload)
         .eq('id', requestId)
-        .select('id, user_id, status')
-        .single();
+        .select('id, user_id, status');
 
       if (error) throw error;
+
+      let data = Array.isArray(updatedRows) ? updatedRows[0] : updatedRows;
+
+      if (!data) {
+        const { data: freshRow, error: freshRowError } = await supabase
+          .from('pro_verification_requests')
+          .select('id, user_id, status')
+          .eq('id', requestId)
+          .limit(1)
+          .maybeSingle();
+
+        if (freshRowError) throw freshRowError;
+        if (!freshRow || freshRow.status !== status) {
+          throw new Error('No se pudo actualizar la solicitud Pro. Revisa permisos RLS del administrador.');
+        }
+
+        data = freshRow;
+      }
 
       if (data?.user_id) {
         const sent = await sendReviewNotification({
