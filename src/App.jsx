@@ -38,6 +38,7 @@ import SettingsPage from '@/pages/SettingsPage';
 import AdminPanel from '@/pages/AdminPanel';
 import BannedUserPage from '@/pages/BannedUserPage';
 import LeaderboardPage from '@/pages/LeaderboardPage';
+import PresentationPage from '@/pages/PresentationPage';
 
 // Components
 import Header from '@/components/Header';
@@ -62,6 +63,7 @@ const AppRoutes = () => {
         <Route path="/signup" element={user ? <Navigate to="/feed" /> : <SignupPage />} />
         <Route path="/forgot-password" element={user ? <Navigate to="/feed" /> : <ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/presentacion" element={<PresentationPage />} />
         
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/search" element={<SearchPage />} />
