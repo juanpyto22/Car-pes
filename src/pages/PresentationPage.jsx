@@ -4,6 +4,44 @@ import '../styles/presentation.css';
 
 const PASSWORD = '1234';
 
+const overviewCards = [
+  {
+    title: 'Red social de pesca',
+    subtitle: 'Publicaciones, historias y comunidad en un mismo lugar.',
+    detail: 'Los pescadores comparten capturas, experiencias y contenido visual con identidad propia.',
+  },
+  {
+    title: 'Mapa útil y vivo',
+    subtitle: 'Spots, referencias y zonas de interés para planificar salidas.',
+    detail: 'La geolocalización aporta contexto real y convierte la plataforma en una herramienta práctica.',
+  },
+  {
+    title: 'Progreso y gamificación',
+    subtitle: 'Logros, niveles y recompensas para mantener la actividad.',
+    detail: 'La experiencia no solo informa: también motiva a participar y volver a la app.',
+  },
+  {
+    title: 'Moderación y seguridad',
+    subtitle: 'Control, reportes y administración para cuidar la comunidad.',
+    detail: 'El proyecto prioriza una experiencia ordenada, segura y adaptada a la temática.',
+  },
+];
+
+const journeySteps = [
+  {
+    title: 'Descubrir',
+    text: 'El usuario entra en el feed y encuentra publicaciones, historias y actividad reciente.',
+  },
+  {
+    title: 'Explorar',
+    text: 'Puede buscar perfiles, ver contenido, consultar mapas y seguir conversaciones relevantes.',
+  },
+  {
+    title: 'Participar',
+    text: 'Publica, comenta, guarda contenido y progresa dentro de la comunidad de Car-Pes.',
+  },
+];
+
 const slides = [
   {
     id: 1,
@@ -14,9 +52,25 @@ const slides = [
   },
   {
     id: 2,
+    type: 'overview',
+    title: 'Qué es Car-Pes',
+    description: 'Car-Pes es una red social especializada que reúne comunidad, utilidad y experiencia de pesca en una sola plataforma.',
+    highlights: overviewCards,
+  },
+  {
+    id: 3,
+    type: 'journey',
+    title: 'Cómo se usa la plataforma',
+    description: 'La experiencia está pensada para que cualquier pescador pueda entrar, descubrir contenido y participar de forma intuitiva.',
+    steps: journeySteps,
+  },
+  {
+    id: 4,
     type: 'index',
     title: 'Índice de Presentación',
     items: [
+      'Qué es Car-Pes',
+      'Cómo se usa la plataforma',
       'Problema detectado',
       'Objetivo del proyecto',
       'Solución propuesta',
@@ -41,14 +95,14 @@ const slides = [
     ],
   },
   {
-    id: 4,
+    id: 5,
     type: 'vision',
     title: 'Misión y visión',
     mission: 'Construir una plataforma especializada donde cualquier pescador pueda compartir conocimiento, mostrar sus capturas y relacionarse con una comunidad activa.',
     vision: 'Convertir Car-Pes en el punto de encuentro de referencia para la pesca en el entorno digital.',
   },
   {
-    id: 5,
+    id: 6,
     type: 'solution',
     title: 'La solución',
     features: [
@@ -60,7 +114,7 @@ const slides = [
     ],
   },
   {
-    id: 6,
+    id: 7,
     type: 'features',
     title: 'Funciones principales',
     categories: [
@@ -71,7 +125,7 @@ const slides = [
     ],
   },
   {
-    id: 7,
+    id: 8,
     type: 'maps',
     title: 'Mapas interactivos',
     description: 'El mapa es una pieza clave del proyecto porque permite organizar la información por localización real.',
@@ -84,7 +138,7 @@ const slides = [
     ],
   },
   {
-    id: 8,
+    id: 9,
     type: 'gamification',
     title: 'Gamificación y progreso',
     elements: [
@@ -95,7 +149,7 @@ const slides = [
     ],
   },
   {
-    id: 9,
+    id: 10,
     type: 'safety',
     title: 'Moderación y seguridad',
     points: [
@@ -107,7 +161,7 @@ const slides = [
     ],
   },
   {
-    id: 10,
+    id: 11,
     type: 'tech',
     title: 'Tecnología utilizada',
     frontend: ['React + Vite', 'Tailwind CSS', 'Framer Motion', 'Lucide Icons'],
@@ -115,7 +169,7 @@ const slides = [
     hosting: ['Vercel', 'Supabase Cloud'],
   },
   {
-    id: 11,
+    id: 12,
     type: 'impact',
     title: 'Impacto y cierre',
     metrics: [
@@ -137,16 +191,27 @@ const PresentationPage = () => {
   const [fishTransitionKey, setFishTransitionKey] = useState(0);
   const [fishDirection, setFishDirection] = useState('forward');
   const [fishTransition, setFishTransition] = useState(null);
+  const [activeOverviewCard, setActiveOverviewCard] = useState(0);
   const stageRef = useRef(null);
   const slideRef = useRef(null);
   const previousSlideRef = useRef(0);
   const prevButtonRef = useRef(null);
   const nextButtonRef = useRef(null);
+  const currentSlideData = slides[currentSlide];
 
   useEffect(() => {
     if (!accessGranted) {
       return;
     }
+
+    if (currentSlideData.type !== 'overview') {
+      setActiveOverviewCard(0);
+      return;
+    }
+
+    const overviewInterval = window.setInterval(() => {
+      setActiveOverviewCard((prev) => (prev + 1) % overviewCards.length);
+    }, 2600);
 
     const handleKeyDown = (event) => {
       if (event.key === 'ArrowRight') {
@@ -161,8 +226,11 @@ const PresentationPage = () => {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [accessGranted]);
+    return () => {
+      window.clearInterval(overviewInterval);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [accessGranted, currentSlideData.type]);
 
   useEffect(() => {
     if (!accessGranted) {
@@ -289,8 +357,6 @@ const PresentationPage = () => {
     setCurrentSlide(index);
   };
 
-  const currentSlideData = slides[currentSlide];
-
   return (
     <div className="presentation-container">
       <div className="presentation-background">
@@ -383,10 +449,74 @@ const PresentationPage = () => {
                     </div>
                     <div className="index-grid">
                       {currentSlideData.items.map((item, idx) => (
-                        <button key={item} className="index-item" onClick={() => goToSlide(Math.min(idx + 2, slides.length - 1))} type="button">
+                        <button key={item} className="index-item" onClick={() => goToSlide(Math.min(idx + 4, slides.length - 1))} type="button">
                           <span className="index-number">{String(idx + 1).padStart(2, '0')}</span>
                           <span className="index-text">{item}</span>
                         </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {currentSlideData.type === 'overview' && (
+                  <section className="slide-card slide-overview">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Resumen inicial</span>
+                      <h2>{currentSlideData.title}</h2>
+                      <p>{currentSlideData.description}</p>
+                    </div>
+                    <div className="overview-layout">
+                      <div className="overview-card-stack">
+                        {currentSlideData.highlights.map((card, idx) => (
+                          <article key={card.title} className={`overview-card ${idx === activeOverviewCard ? 'active' : ''}`}>
+                            <div className="overview-card-top">
+                              <span className="overview-index">0{idx + 1}</span>
+                              <span className="overview-status">{idx === activeOverviewCard ? 'En foco' : 'Disponible'}</span>
+                            </div>
+                            <h3>{card.title}</h3>
+                            <p className="overview-subtitle">{card.subtitle}</p>
+                            <p>{card.detail}</p>
+                          </article>
+                        ))}
+                      </div>
+                      <aside className="overview-summary-panel compact-panel">
+                        <h3>Por qué importa</h3>
+                        <p>Car-Pes no es solo una red social. Está pensada para unir comunidad, utilidad y experiencia de pesca en una interfaz clara, visual y preparada para crecer.</p>
+                        <div className="overview-signal-grid">
+                          <div>
+                            <strong>Comunidad</strong>
+                            <span>Conexión entre pescadores</span>
+                          </div>
+                          <div>
+                            <strong>Función</strong>
+                            <span>Contenido + mapa + interacción</span>
+                          </div>
+                          <div>
+                            <strong>Valor</strong>
+                            <span>Especialización real de nicho</span>
+                          </div>
+                        </div>
+                      </aside>
+                    </div>
+                  </section>
+                )}
+
+                {currentSlideData.type === 'journey' && (
+                  <section className="slide-card slide-journey">
+                    <div className="slide-heading-block">
+                      <span className="slide-kicker">Uso de la app</span>
+                      <h2>{currentSlideData.title}</h2>
+                      <p>{currentSlideData.description}</p>
+                    </div>
+                    <div className="journey-track">
+                      {currentSlideData.steps.map((step, idx) => (
+                        <article key={step.title} className="journey-step">
+                          <span className="journey-step-number">{String(idx + 1).padStart(2, '0')}</span>
+                          <div>
+                            <h3>{step.title}</h3>
+                            <p>{step.text}</p>
+                          </div>
+                        </article>
                       ))}
                     </div>
                   </section>
