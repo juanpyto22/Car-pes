@@ -2,5 +2,11 @@
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run build",
+  "env": {
+    "VERCEL_ENV": "production"
+  },
+  "git": {
+    "silent": false
+  }
 }
