@@ -40,6 +40,11 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
   }, [user?.id, post.id]);
 
   useEffect(() => {
+    // Reset image index when post changes to avoid stale index
+    setCurrentImageIndex(0);
+  }, [post?.id]);
+
+  useEffect(() => {
     setCommentsCount(post.comments_count || 0);
   }, [post.comments_count]);
 
@@ -174,15 +179,22 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
 
   // Parsear múltiples imágenes del post
   const getImages = () => {
-    if (post.image_urls) {
+    // Support several storage formats: JSON string array, already-array, comma separated
+    const field = post?.image_urls ?? post?.image_urls_json ?? null;
+    if (field) {
       try {
-        const images = JSON.parse(post.image_urls);
-        return Array.isArray(images) ? images : [post.foto_url];
+        if (Array.isArray(field)) return field;
+        const parsed = JSON.parse(field);
+        if (Array.isArray(parsed)) return parsed;
       } catch (e) {
-        return [post.foto_url];
+        // not JSON, try comma-separated
+        if (typeof field === 'string' && field.includes(',')) {
+          return field.split(',').map(s => s.trim()).filter(Boolean);
+        }
       }
     }
-    return [post.foto_url];
+    // fallback to single image compatibility field
+    return post?.foto_url ? [post.foto_url] : [];
   };
 
   const images = getImages();
@@ -265,26 +277,30 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
           </div>
         )}
         
-        {/* Flechitas de navegación */}
-        {hasMultipleImages && (
+        {/* Flechitas de navegación - siempre visibles cuando hay >1 imagen */}
+        {hasMultipleImages && images.length > 1 && (
           <>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 goToPrevious();
               }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-3 rounded-full transition-all z-30 shadow-lg"
+              aria-label="Anterior"
+              className="absolute left-[2.5%] top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-3 rounded-full transition-all z-50 shadow-2xl"
+              style={{ backdropFilter: 'blur(6px)' }}
             >
-              <ChevronLeft className="w-8 h-8" />
+              <ChevronLeft className="w-7 h-7" />
             </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 goToNext();
               }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-3 rounded-full transition-all z-30 shadow-lg"
+              aria-label="Siguiente"
+              className="absolute right-[2.5%] top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-3 rounded-full transition-all z-50 shadow-2xl"
+              style={{ backdropFilter: 'blur(6px)' }}
             >
-              <ChevronRight className="w-8 h-8" />
+              <ChevronRight className="w-7 h-7" />
             </button>
           </>
         )}
