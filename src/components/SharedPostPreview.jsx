@@ -13,32 +13,42 @@ export const SharedPostPreview = ({ postId }) => {
       try {
         console.log('🔍 SharedPostPreview: Buscando postId:', postId);
         
-        // Intenta con nombres de columnas nuevas primero
-        let { data, error: fetchError } = await supabase
+        // Query 1: Intenta con nombres de columnas nuevas
+        const { data: newData, error: newError } = await supabase
           .from('posts')
-          .select('id, content, fish_species, image_url, fish_weight, likes_count, comments_count')
+          .select('*')
           .eq('id', postId)
           .single();
 
-        // Si falla por columnas no existentes, intenta con nombres antiguos
-        if (fetchError && fetchError.message?.includes('does not exist')) {
-          console.log('⚠️ Intentando con nombres de columnas antiguos...');
-          const fallback = await supabase
+        if (newError) {
+          console.log('⚠️ Query con nuevos nombres falló, intentando con nombres antiguos...');
+          
+          // Query 2: Fallback a nombres antiguos - select todo y mapea manualmente
+          const { data: oldData, error: oldError } = await supabase
             .from('posts')
-            .select('id, descripcion as content, tipo_pez as fish_species, foto_url as image_url, peso as fish_weight, likes_count, comments_count')
+            .select('*')
             .eq('id', postId)
             .single();
           
-          if (fallback.error) throw fallback.error;
-          data = fallback.data;
-          console.log('✅ Datos con fallback:', data);
-        } else if (fetchError) {
-          throw fetchError;
+          if (oldError) throw oldError;
+          
+          // Mapea los nombres antiguos a nuevos
+          const mappedData = {
+            id: oldData.id,
+            content: oldData.descripcion || oldData.content,
+            fish_species: oldData.tipo_pez || oldData.fish_species,
+            image_url: oldData.foto_url || oldData.image_url,
+            fish_weight: oldData.peso || oldData.fish_weight,
+            likes_count: oldData.likes_count || 0,
+            comments_count: oldData.comments_count || 0
+          };
+          
+          console.log('✅ Post cargado con mapeo:', mappedData);
+          setPost(mappedData);
+        } else {
+          console.log('✅ Post cargado con nuevos nombres:', newData);
+          setPost(newData);
         }
-
-        if (!data) throw new Error('Post no encontrado');
-        console.log('✅ Post cargado:', data);
-        setPost(data);
       } catch (err) {
         console.error('❌ Error final:', err.message);
         setError('No se pudo cargar el post');
