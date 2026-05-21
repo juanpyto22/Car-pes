@@ -57,9 +57,7 @@ const SendPostModal = ({ isOpen, onClose, post }) => {
         const { error: msgError } = await supabase.from('direct_messages').insert({
           sender_id: user.id,
           receiver_id: selectedUser.id,
-          content: messageText,
-          shared_post_id: post.id,
-          created_at: new Date().toISOString()
+          content: messageText
         });
 
         if (msgError) throw msgError;
