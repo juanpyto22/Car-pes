@@ -232,6 +232,17 @@ export const usePosts = (options = {}) => {
         setPosts(prev => [newPost, ...prev]);
       }
 
+      // If we retried without image_urls due to missing column, try to update the inserted row with image_urls now (non-blocking)
+      try {
+        if ((insertResult.data?.[0]) && postData?.image_urls) {
+          const insertedId = insertResult.data[0].id;
+          // Attempt update - if column still missing this will error silently
+          await supabase.from('posts').update({ image_urls: postData.image_urls }).eq('id', insertedId);
+        }
+      } catch (updErr) {
+        console.warn('Could not update image_urls after insert (schema may be missing):', updErr.message);
+      }
+
       return { success: true, data: data?.[0] };
     } catch (error) {
       console.error('Error creating post:', error);
