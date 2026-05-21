@@ -256,6 +256,23 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
         )}
       </div>
 
+      {/* Miniaturas para cambiar de imagen (solo cuando hay >1) */}
+      {hasMultipleImages && (
+        <div className="px-4 pb-3">
+          <div className="flex gap-2 overflow-x-auto">
+            {images.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentImageIndex(idx)}
+                className={`flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 ${idx === currentImageIndex ? 'border-cyan-400 shadow-lg' : 'border-transparent'} `}
+              >
+                <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Media - con doble tap para like */}
       <div className="relative aspect-square">
         <div 
