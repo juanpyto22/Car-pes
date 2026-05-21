@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, MessageCircle, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -96,7 +97,7 @@ const SendPostModal = ({ isOpen, onClose, post }) => {
     }
   };
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -339,6 +340,7 @@ const SendPostModal = ({ isOpen, onClose, post }) => {
         </>
       )}
     </AnimatePresence>
+    , document.body
   );
 };
 
