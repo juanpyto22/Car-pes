@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, MoreVertical, MapPin, Ruler, Weight, Fish, Bookmark, BookmarkCheck } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MoreVertical, MapPin, Ruler, Weight, Fish, Bookmark, BookmarkCheck, Send } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
 import { useAdvancedSocial } from '@/hooks/useAdvancedSocial';
+import SendPostModal from './SendPostModal';
 
 const PostCard = ({ post, onDelete, onToggleLike }) => {
   const { user } = useAuth();
@@ -28,6 +29,7 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
   const lastTap = useRef(0);
 
   useEffect(() => {
@@ -262,6 +264,16 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
             <button onClick={handleShare}>
               <Share2 className="w-6 h-6 text-white hover:text-slate-300 transition-colors" />
             </button>
+            {user && (
+              <motion.button
+                whileTap={{ scale: 0.8 }}
+                onClick={() => setShowSendModal(true)}
+                title="Enviar a un usuario que sigues"
+                className="transition-colors"
+              >
+                <Send className="w-6 h-6 text-white hover:text-slate-300" />
+              </motion.button>
+            )}
           </div>
           <button 
             onClick={handleSave} 
@@ -321,6 +333,13 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
         )}
 
       </div>
+
+      {/* Send Post Modal */}
+      <SendPostModal 
+        isOpen={showSendModal} 
+        onClose={() => setShowSendModal(false)} 
+        post={post}
+      />
     </motion.div>
   );
 };
