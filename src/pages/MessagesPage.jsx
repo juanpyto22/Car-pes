@@ -764,23 +764,41 @@ const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroup
   // Usar 'content' ahora que ya lo corregimos en la BD
   let contentText = msg.content || msg.contenido;
   
-  // Detectar posts compartidos: "📌 Post compartido [${postId}]: descripción"
-  const sharedPostMatch = contentText?.match(/📌 Post compartido \[([^\]]+)\]:/);
-  const postId = sharedPostMatch ? sharedPostMatch[1] : null;
-  
-  if (postId) {
-    console.log('📌 MessageBubble: Post detectado con ID:', postId, 'Full content:', contentText);
-  }
-  
-  // Extraer mensaje personalizado antes del post (si existe)
+  // Detectar posts compartidos: formato "SHARED_POST:{postId}"
+  const isSharedPost = contentText?.includes('SHARED_POST:');
+  let postId = null;
   let messageBeforePost = null;
-  if (postId && contentText.includes('\n\n')) {
-    const parts = contentText.split('\n\n📌 Post compartido');
-    messageBeforePost = parts[0];
+  
+  if (isSharedPost) {
+    // Extraer postId
+    const match = contentText.match(/SHARED_POST:([a-f0-9\-]+)/);
+    postId = match ? match[1] : null;
+    
+    // Extraer mensaje antes del shared post
+    const parts = contentText.split('\n\nSHARED_POST:');
+    if (parts.length > 1) {
+      messageBeforePost = parts[0];
+    } else if (contentText.startsWith('SHARED_POST:')) {
+      messageBeforePost = null; // Solo es el post
+    }
+    
+    console.log('📌 SharedPost detectado:', { postId, messageBeforePost });
   }
   
   const msgImageUrl = msg.image_url || (isImageUrl(contentText) && !postId ? contentText : null);
-  const textContent = (msgImageUrl && msgImageUrl === contentText) ? null : (postId ? null : contentText);
+  
+  // Si es un post compartido, el textContent es el mensaje antes del post (si existe)
+  // Si no es post compartido y es imagen, textContent es null
+  // Si no es nada de eso, textContent es el contenido completo
+  let textContent;
+  if (postId) {
+    textContent = messageBeforePost; // Puede ser null o el mensaje personalizado
+  } else if (msgImageUrl && msgImageUrl === contentText) {
+    textContent = null;
+  } else {
+    textContent = contentText;
+  }
+  
   const senderInfo = isGroupChat ? msg.sender : (isMe ? null : selectedUser);
   const likesCount = msg.likesCount || 0;
   const likedByMe = !!msg.likedByMe;
