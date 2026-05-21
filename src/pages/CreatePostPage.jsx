@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, X, Fish, Weight, Ruler } from 'lucide-react';
+import { Upload, X, Fish, Weight, Ruler, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { usePosts } from '@/hooks/usePosts';
@@ -16,8 +16,9 @@ const CreatePostPage = () => {
   const { createPost } = usePosts();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]); // Array de archivos
+  const [previews, setPreviews] = useState([]); // Array de previews
+  const [currentIndex, setCurrentIndex] = useState(0); // Índice actual del carrusel
   
   const [formData, setFormData] = useState({
     descripcion: '',
@@ -31,28 +32,58 @@ const CreatePostPage = () => {
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
-    validateAndSetFile(selectedFile);
+    addImage(selectedFile);
   };
 
-  const validateAndSetFile = (selectedFile) => {
+  const addImage = (selectedFile) => {
     if (selectedFile) {
       if (selectedFile.size > 15 * 1024 * 1024) { 
         toast({
           variant: "destructive",
           title: "Archivo muy grande",
-          description: "Por favor selecciona una imagen o video menor a 15MB",
+          description: "Por favor selecciona una imagen menor a 15MB",
         });
         return;
       }
-      setFile(selectedFile);
+
+      if (files.length >= 10) {
+        toast({
+          variant: "destructive",
+          title: "Máximo de imágenes",
+          description: "Puedes subir máximo 10 imágenes",
+        });
+        return;
+      }
+
       const url = URL.createObjectURL(selectedFile);
-      setPreview(url);
+      setFiles([...files, selectedFile]);
+      setPreviews([...previews, url]);
     }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    validateAndSetFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files.length > 0) {
+      addImage(e.dataTransfer.files[0]);
+    }
+  };
+
+  const removeImage = (index) => {
+    const newFiles = files.filter((_, i) => i !== index);
+    const newPreviews = previews.filter((_, i) => i !== index);
+    setFiles(newFiles);
+    setPreviews(newPreviews);
+    if (currentIndex >= newFiles.length && currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  const goToPrevious = () => {
+    setCurrentIndex((prev) => (prev === 0 ? previews.length - 1 : prev - 1));
+  };
+
+  const goToNext = () => {
+    setCurrentIndex((prev) => (prev === previews.length - 1 ? 0 : prev + 1));
   };
 
   const handleSubmit = async (e) => {
@@ -67,11 +98,11 @@ const CreatePostPage = () => {
       return;
     }
 
-    if (!file) {
+    if (files.length === 0) {
       toast({
         variant: "destructive",
         title: "Falta imagen",
-        description: "Debes subir una foto de tu captura",
+        description: "Debes subir al menos una foto",
       });
       return;
     }
@@ -79,25 +110,17 @@ const CreatePostPage = () => {
     setLoading(true);
 
     try {
-      let mediaUrl = null;
-      const isVideo = file?.type?.startsWith('video/');
-
-      // Subir imagen
-      if (file) {
-        const uploadResult = await uploadImage(file, 'posts', user.id);
-        
-        if (!uploadResult.success) {
-          throw new Error(uploadResult.error || 'Error subiendo imagen');
-        }
-        
-        mediaUrl = uploadResult.url;
+      // Subir la primera imagen (mantener compatibilidad con BD actual)
+      const uploadResult = await uploadImage(files[0], 'posts', user.id);
+      
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Error subiendo imagen');
       }
 
-      // Crear el post usando el hook
+      // Crear el post
       const result = await createPost({
         descripcion: formData.descripcion,
-        foto_url: !isVideo ? mediaUrl : null,
-        video_url: isVideo ? mediaUrl : null,
+        foto_url: uploadResult.url,
         ubicacion: formData.ubicacion,
         tipo_pez: formData.tipo_pez !== 'Otro' ? formData.tipo_pez : null,
         peso: formData.peso || null,
@@ -136,39 +159,103 @@ const CreatePostPage = () => {
           </h1>
 
           <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Upload Area */}
+            {/* Upload Area - Carrusel */}
             <div 
               className={`relative border-2 border-dashed rounded-3xl p-10 transition-all ${
-                preview ? 'border-cyan-500/50 bg-slate-900' : 'border-blue-800/50 hover:border-cyan-400/50 bg-slate-900/50 hover:bg-slate-900'
+                previews.length > 0 ? 'border-cyan-500/50 bg-slate-900' : 'border-blue-800/50 hover:border-cyan-400/50 bg-slate-900/50 hover:bg-slate-900'
               }`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
             >
-              {preview ? (
-                <div className="relative aspect-video rounded-xl overflow-hidden bg-black/50 shadow-2xl">
-                  {file?.type.startsWith('video/') ? (
-                      <video src={preview} className="w-full h-full object-contain" controls />
-                  ) : (
-                      <img src={preview} alt="Preview" className="w-full h-full object-contain" />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => { setPreview(null); setFile(null); }}
-                    className="absolute top-3 right-3 p-2 bg-red-500/80 backdrop-blur rounded-full text-white hover:bg-red-600 transition-colors shadow-lg"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+              {previews.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Carrusel */}
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-black/50 shadow-2xl group">
+                    <img 
+                      src={previews[currentIndex]} 
+                      alt={`Preview ${currentIndex + 1}`} 
+                      className="w-full h-full object-cover" 
+                    />
+                    
+                    {/* Overlay con contador */}
+                    <div className="absolute top-3 right-3 bg-black/60 backdrop-blur rounded-lg px-3 py-1.5 text-sm font-bold text-white">
+                      {currentIndex + 1}/{previews.length}
+                    </div>
+
+                    {/* Flechas de navegación */}
+                    {previews.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={goToPrevious}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-black/50 hover:bg-black/80 backdrop-blur rounded-full text-white transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <ChevronLeft className="w-6 h-6" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={goToNext}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-black/50 hover:bg-black/80 backdrop-blur rounded-full text-white transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <ChevronRight className="w-6 h-6" />
+                        </button>
+                      </>
+                    )}
+
+                    {/* Botón eliminar imagen actual */}
+                    <button
+                      type="button"
+                      onClick={() => removeImage(currentIndex)}
+                      className="absolute top-3 right-16 p-2 bg-red-500/80 backdrop-blur rounded-full text-white hover:bg-red-600 transition-colors shadow-lg"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Miniaturas */}
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {previews.map((preview, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setCurrentIndex(idx)}
+                        className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                          idx === currentIndex 
+                            ? 'border-cyan-400 shadow-lg shadow-cyan-500/50' 
+                            : 'border-slate-600 hover:border-cyan-400'
+                        }`}
+                      >
+                        <img src={preview} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+
+                    {/* Botón agregar más fotos */}
+                    {previews.length < 10 && (
+                      <label
+                        className="flex-shrink-0 w-20 h-20 rounded-lg border-2 border-dashed border-cyan-500/50 bg-slate-800/50 hover:bg-slate-800 flex items-center justify-center cursor-pointer transition-all hover:border-cyan-400"
+                      >
+                        <Upload className="w-6 h-6 text-cyan-400" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8">
                   <div className="w-20 h-20 bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
                     <Upload className="w-10 h-10 text-cyan-400" />
                   </div>
-                  <h3 className="text-xl text-white font-bold mb-2">Sube tu captura</h3>
-                  <p className="text-blue-300 text-sm mb-8">Arrastra y suelta o selecciona desde tu dispositivo</p>
+                  <h3 className="text-xl text-white font-bold mb-2">Sube tus capturas</h3>
+                  <p className="text-blue-300 text-sm mb-2">Puedes subir hasta 10 fotos</p>
+                  <p className="text-blue-400 text-xs mb-8 opacity-75">Arrastra y suelta o selecciona desde tu dispositivo</p>
                   <input
                     type="file"
-                    accept="image/*,video/*"
+                    accept="image/*"
                     onChange={handleFileChange}
                     className="hidden"
                     id="file-upload"
@@ -177,7 +264,7 @@ const CreatePostPage = () => {
                     htmlFor="file-upload"
                     className="inline-block px-8 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold cursor-pointer transition-colors shadow-lg shadow-cyan-900/20"
                   >
-                    Seleccionar Archivo
+                    Seleccionar Fotos
                   </label>
                 </div>
               )}
