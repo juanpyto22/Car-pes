@@ -840,6 +840,15 @@ const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroup
           </div>
         )}
         
+        {/* Badge "Post enviado" si es un post compartido sin mensaje personalizado */}
+        {postId && !messageBeforePost && (
+          <div className="mb-2 flex items-center gap-1">
+            <span className="text-xs px-2.5 py-1 bg-cyan-500/20 text-cyan-200 rounded-full font-semibold">
+              📌 Post enviado
+            </span>
+          </div>
+        )}
+        
         {/* Contenedor del contenido (imagen/texto o post) */}
         <div className={`rounded-2xl overflow-hidden shadow-lg ${
           isMe
