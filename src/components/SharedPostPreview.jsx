@@ -18,14 +18,17 @@ export const SharedPostPreview = ({ postId }) => {
         // Query 1: Intenta con nombres de columnas nuevas
         const { data: newData, error: newError } = await supabase
           .from('posts')
-          .select('*')
+          .select(`
+            *,
+            user:user_id(username, foto_perfil)
+          `)
           .eq('id', postId)
           .single();
 
         if (newError) {
-          console.log('⚠️ Query con nuevos nombres falló, intentando con nombres antiguos...');
+          console.log('⚠️ Query con nuevos nombres falló, intentando con select *...');
           
-          // Query 2: Fallback a nombres antiguos - select todo y mapea manualmente
+          // Query 2: Fallback - select todo sin join
           const { data: oldData, error: oldError } = await supabase
             .from('posts')
             .select('*')
@@ -33,6 +36,17 @@ export const SharedPostPreview = ({ postId }) => {
             .single();
           
           if (oldError) throw oldError;
+          
+          // Obtener username del usuario por separado
+          let username = null;
+          if (oldData.user_id) {
+            const { data: userData } = await supabase
+              .from('profiles')
+              .select('username, foto_perfil')
+              .eq('id', oldData.user_id)
+              .single();
+            username = userData?.username;
+          }
           
           // Mapea los nombres antiguos a nuevos
           const mappedData = {
@@ -42,7 +56,11 @@ export const SharedPostPreview = ({ postId }) => {
             image_url: oldData.foto_url || oldData.image_url,
             fish_weight: oldData.peso || oldData.fish_weight,
             likes_count: oldData.likes_count || 0,
-            comments_count: oldData.comments_count || 0
+            comments_count: oldData.comments_count || 0,
+            user: {
+              username: username,
+              foto_perfil: oldData.user?.foto_perfil
+            }
           };
           
           console.log('✅ Post cargado con mapeo:', mappedData);
@@ -110,6 +128,24 @@ export const SharedPostPreview = ({ postId }) => {
                 className="w-full h-full object-cover group-hover:scale-125 transition-transform duration-300"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent" />
+              
+              {/* Nombre de usuario en esquina superior izquierda */}
+              {post.user?.username && (
+                <div className="absolute top-2 left-2 flex items-center gap-2">
+                  {post.user?.foto_perfil && (
+                    <img 
+                      src={post.user.foto_perfil} 
+                      alt={post.user.username}
+                      className="w-7 h-7 rounded-full border border-white/50 object-cover"
+                    />
+                  )}
+                  <span className="text-xs font-bold text-white drop-shadow-lg bg-black/30 px-2 py-1 rounded-full">
+                    {post.user.username}
+                  </span>
+                </div>
+              )}
+              
+              {/* Ícono de abrir en el centro */}
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <div className="bg-white/20 backdrop-blur-sm p-3 rounded-full">
                   <ExternalLink className="w-6 h-6 text-white" />
