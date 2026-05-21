@@ -245,20 +245,22 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
       </div>
 
       {/* Media - con doble tap para like */}
-      <div 
-        className="relative aspect-square bg-black flex items-center justify-center overflow-hidden group cursor-pointer"
-        onClick={handleDoubleTap}
-      >
-        {post.video_url ? (
-           <video src={post.video_url} controls className="w-full h-full object-contain" poster={post.foto_url} />
-        ) : (
-          <img src={images[currentImageIndex]} alt={post.descripcion} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.045]" />
-        )}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
+      <div className="relative aspect-square">
+        <div 
+          className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden group cursor-pointer"
+          onClick={handleDoubleTap}
+        >
+          {post.video_url ? (
+             <video src={post.video_url} controls className="w-full h-full object-contain" poster={post.foto_url} />
+          ) : (
+            <img src={images[currentImageIndex]} alt={post.descripcion} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.045]" />
+          )}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
+        </div>
         
         {/* Contador de imágenes */}
         {hasMultipleImages && (
-          <div className="absolute top-4 right-4 bg-black/50 px-3 py-1.5 rounded-full text-white text-xs font-medium pointer-events-none">
+          <div className="absolute top-4 right-4 bg-black/50 px-3 py-1.5 rounded-full text-white text-xs font-medium pointer-events-none z-20">
             {currentImageIndex + 1}/{images.length}
           </div>
         )}
@@ -271,18 +273,18 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
                 e.stopPropagation();
                 goToPrevious();
               }}
-              className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-2.5 rounded-full transition-all z-10 shadow-lg"
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-3 rounded-full transition-all z-30 shadow-lg"
             >
-              <ChevronLeft className="w-7 h-7" />
+              <ChevronLeft className="w-8 h-8" />
             </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 goToNext();
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-2.5 rounded-full transition-all z-10 shadow-lg"
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-3 rounded-full transition-all z-30 shadow-lg"
             >
-              <ChevronRight className="w-7 h-7" />
+              <ChevronRight className="w-8 h-8" />
             </button>
           </>
         )}
@@ -293,7 +295,7 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
           >
             <Heart className="w-24 h-24 text-white fill-white drop-shadow-2xl" />
           </motion.div>
