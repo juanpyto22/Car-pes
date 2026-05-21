@@ -768,6 +768,10 @@ const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroup
   const sharedPostMatch = contentText?.match(/📌 Post compartido \[([^\]]+)\]:/);
   const postId = sharedPostMatch ? sharedPostMatch[1] : null;
   
+  if (postId) {
+    console.log('📌 MessageBubble: Post detectado con ID:', postId, 'Full content:', contentText);
+  }
+  
   // Extraer mensaje personalizado antes del post (si existe)
   let messageBeforePost = null;
   if (postId && contentText.includes('\n\n')) {
