@@ -13,17 +13,26 @@ export const SharedPostPreview = ({ postId }) => {
       try {
         console.log('🔍 SharedPostPreview: Buscando postId:', postId);
         
-        // Select solo los campos de la tabla posts, sin joins
-        const { data, error: fetchError } = await supabase
+        // Intenta con nombres de columnas nuevas primero
+        let { data, error: fetchError } = await supabase
           .from('posts')
           .select('id, content, fish_species, image_url, fish_weight, likes_count, comments_count')
           .eq('id', postId)
           .single();
 
-        console.log('📊 Query result:', { data, error: fetchError });
-
-        if (fetchError) {
-          console.error('❌ Error fetching post:', fetchError);
+        // Si falla por columnas no existentes, intenta con nombres antiguos
+        if (fetchError && fetchError.message?.includes('does not exist')) {
+          console.log('⚠️ Intentando con nombres de columnas antiguos...');
+          const fallback = await supabase
+            .from('posts')
+            .select('id, descripcion as content, tipo_pez as fish_species, foto_url as image_url, peso as fish_weight, likes_count, comments_count')
+            .eq('id', postId)
+            .single();
+          
+          if (fallback.error) throw fallback.error;
+          data = fallback.data;
+          console.log('✅ Datos con fallback:', data);
+        } else if (fetchError) {
           throw fetchError;
         }
 
