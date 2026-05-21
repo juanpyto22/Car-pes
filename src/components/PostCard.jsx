@@ -292,35 +292,29 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
 
         {/* Catch Details Badge Grid */}
         <div className="flex flex-wrap gap-2 mb-4">
-          {post.tipo_pez && (
+          {(post.fish_species || post.tipo_pez) && (
             <div className="flex items-center gap-1.5 bg-sky-500/10 px-3 py-1.5 rounded-full border border-sky-500/25">
               <Fish className="w-3.5 h-3.5 text-sky-300" />
-              <span className="text-xs font-medium text-sky-100">{post.tipo_pez}</span>
+              <span className="text-xs font-medium text-sky-100">{post.fish_species || post.tipo_pez}</span>
             </div>
           )}
-          {post.peso && (
+          {(post.fish_weight || post.peso) && (
             <div className="flex items-center gap-1.5 bg-sky-500/10 px-3 py-1.5 rounded-full border border-sky-500/25">
               <Weight className="w-3.5 h-3.5 text-sky-300" />
-              <span className="text-xs font-medium text-sky-100">{post.peso} kg</span>
-            </div>
-          )}
-          {post.tamano && (
-            <div className="flex items-center gap-1.5 bg-sky-500/10 px-3 py-1.5 rounded-full border border-sky-500/25">
-              <Ruler className="w-3.5 h-3.5 text-sky-300" />
-              <span className="text-xs font-medium text-sky-100">{post.tamano} cm</span>
+              <span className="text-xs font-medium text-sky-100">{post.fish_weight || post.peso}</span>
             </div>
           )}
         </div>
 
         {/* Caption with enhanced text rendering */}
-        {post.descripcion && (
+        {(post.content || post.descripcion) && (
           <div className="text-sm text-slate-200 leading-relaxed mb-2">
             <Link to={`/profile/${post.user_id}`} className="font-bold text-white hover:text-sky-300 transition-colors mr-2">
               {post.user?.username}
             </Link>
             <span 
               dangerouslySetInnerHTML={{ 
-                __html: renderEnhancedText(post.descripcion) 
+                __html: renderEnhancedText(post.content || post.descripcion) 
               }}
             />
           </div>

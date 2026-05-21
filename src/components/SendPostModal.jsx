@@ -48,8 +48,8 @@ const SendPostModal = ({ isOpen, onClose, post }) => {
     try {
       // Crear un mensaje con el post compartido (incluir post_id para poder renderizar preview)
       const messageText = message.trim() 
-        ? `${message}\n\n📌 Post compartido [${post.id}]: ${post.contenido || 'Captura de ' + post.tipo_pez || 'Pesca'}` 
-        : `📌 Post compartido [${post.id}]: ${post.contenido || 'Captura de ' + post.tipo_pez || 'Pesca'}`;
+        ? `${message}\n\n📌 Post compartido [${post.id}]: ${post.content || 'Captura de ' + post.fish_species || 'Pesca'}` 
+        : `📌 Post compartido [${post.id}]: ${post.content || 'Captura de ' + post.fish_species || 'Pesca'}`;
 
       // Enviar a todos los usuarios seleccionados en paralelo
       const promises = selectedUsers.map(async (selectedUser) => {
@@ -155,25 +155,24 @@ const SendPostModal = ({ isOpen, onClose, post }) => {
                   <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 rounded-2xl p-6 border border-cyan-500/30 backdrop-blur-sm flex-1 flex flex-col">
                     <p className="text-xs text-cyan-300 font-bold mb-3 uppercase tracking-wider">📌 Publicación a compartir</p>
                     
-                    {post.foto_url && (
+                    {post.image_url && (
                       <img
-                        src={post.foto_url}
+                        src={post.image_url}
                         alt="post"
                         className="w-full h-48 rounded-xl object-cover bg-slate-700 border border-cyan-500/30 mb-4"
                       />
                     )}
                     
                     <p className="text-lg font-bold text-white mb-2">
-                      {post.tipo_pez ? `🎣 Captura de ${post.tipo_pez}` : '📸 Publicación'}
+                      {post.fish_species ? `🎣 Captura de ${post.fish_species}` : '📸 Publicación'}
                     </p>
                     <p className="text-sm text-blue-300 mb-4 flex-1">
-                      {post.contenido || post.descripcion || 'Sin descripción'}
+                      {post.content || 'Sin descripción'}
                     </p>
                     
-                    {(post.peso || post.tamano) && (
+                    {post.fish_weight && (
                       <div className="flex gap-2 text-sm text-cyan-300 bg-slate-800/50 p-3 rounded-lg">
-                        {post.peso && <span>⚖️ {post.peso} kg</span>}
-                        {post.tamano && <span>📏 {post.tamano} cm</span>}
+                        <span>⚖️ {post.fish_weight}</span>
                       </div>
                     )}
                   </div>
