@@ -46,10 +46,10 @@ const SendPostModal = ({ isOpen, onClose, post }) => {
 
     setSending(true);
     try {
-      // Crear un mensaje con el post compartido
+      // Crear un mensaje con el post compartido (incluir post_id para poder renderizar preview)
       const messageText = message.trim() 
-        ? `${message}\n\n📌 Post compartido: ${post.contenido || 'Captura de ' + post.tipo_pez || 'Pesca'}` 
-        : `📌 Post compartido: ${post.contenido || 'Captura de ' + post.tipo_pez || 'Pesca'}`;
+        ? `${message}\n\n📌 Post compartido [${post.id}]: ${post.contenido || 'Captura de ' + post.tipo_pez || 'Pesca'}` 
+        : `📌 Post compartido [${post.id}]: ${post.contenido || 'Captura de ' + post.tipo_pez || 'Pesca'}`;
 
       // Enviar a todos los usuarios seleccionados en paralelo
       const promises = selectedUsers.map(async (selectedUser) => {

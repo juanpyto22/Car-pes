@@ -10,6 +10,7 @@ import { es } from 'date-fns/locale';
 import { supabase } from '@/lib/customSupabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet';
+import { SharedPostPreview } from '@/components/SharedPostPreview';
 
 // Helper: detect if content is an image URL
 const isImageUrl = (text) => {
@@ -759,8 +760,23 @@ const EmptyState = ({ icon: Icon, text, sub }) => (
 const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroupChat, selectedUser, onToggleLike, onDeleteMessage }) => {
   const isMe = msg.sender_id === currentUserId;
   const showAvatar = !isMe && (index === 0 || messages[index - 1]?.sender_id !== msg.sender_id);
-  const msgImageUrl = msg.image_url || (isImageUrl(msg.contenido) ? msg.contenido : null);
-  const textContent = msgImageUrl && msgImageUrl === msg.contenido ? null : msg.contenido;
+  
+  // Usar 'content' ahora que ya lo corregimos en la BD
+  let contentText = msg.content || msg.contenido;
+  
+  // Detectar posts compartidos: "📌 Post compartido [${postId}]: descripción"
+  const sharedPostMatch = contentText?.match(/📌 Post compartido \[([^\]]+)\]:/);
+  const postId = sharedPostMatch ? sharedPostMatch[1] : null;
+  
+  // Extraer mensaje personalizado antes del post (si existe)
+  let messageBeforePost = null;
+  if (postId && contentText.includes('\n\n')) {
+    const parts = contentText.split('\n\n📌 Post compartido');
+    messageBeforePost = parts[0];
+  }
+  
+  const msgImageUrl = msg.image_url || (isImageUrl(contentText) && !postId ? contentText : null);
+  const textContent = (msgImageUrl && msgImageUrl === contentText) ? null : (postId ? null : contentText);
   const senderInfo = isGroupChat ? msg.sender : (isMe ? null : selectedUser);
   const likesCount = msg.likesCount || 0;
   const likedByMe = !!msg.likedByMe;
@@ -790,12 +806,33 @@ const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroup
             {senderInfo?.username || 'Usuario'}
           </span>
         )}
+        
+        {/* Mensaje personalizado antes del post (si existe) */}
+        {messageBeforePost && (
+          <div className={`rounded-2xl overflow-hidden shadow-lg mb-2 ${
+            isMe
+              ? 'bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-br-md'
+              : 'bg-slate-800/80 backdrop-blur-sm text-white rounded-bl-md border border-white/5'
+          }`}>
+            <p className="text-sm leading-relaxed break-words px-4 py-2.5">{messageBeforePost}</p>
+          </div>
+        )}
+        
+        {/* Contenedor del contenido (imagen/texto o post) */}
         <div className={`rounded-2xl overflow-hidden shadow-lg ${
           isMe
             ? 'bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-br-md'
             : 'bg-slate-800/80 backdrop-blur-sm text-white rounded-bl-md border border-white/5'
         }`}>
-          {msgImageUrl && (
+          {/* Si es un post compartido, mostrar preview */}
+          {postId && (
+            <div className="p-2">
+              <SharedPostPreview postId={postId} />
+            </div>
+          )}
+          
+          {/* Si es imagen (sin ser post), mostrar imagen */}
+          {!postId && msgImageUrl && (
             <div className="max-w-xs">
               <img
                 src={msgImageUrl}
@@ -806,11 +843,15 @@ const MessageBubble = React.memo(({ msg, index, messages, currentUserId, isGroup
               />
             </div>
           )}
-          {textContent && (
+          
+          {/* Si es texto (sin ser post), mostrar texto */}
+          {!postId && textContent && (
             <p className="text-sm leading-relaxed break-words px-4 py-2.5">{textContent}</p>
           )}
-          {!textContent && msgImageUrl && <div className="h-1" />}
+          
+          {!textContent && !postId && msgImageUrl && <div className="h-1" />}
         </div>
+        
         <p className={`text-[10px] mt-0.5 mx-1 ${isMe ? 'text-blue-400/60 text-right' : 'text-blue-500/60'}`}>
           {formatDistanceToNow(new Date(msg.created_at), { locale: es, addSuffix: true })}
         </p>
