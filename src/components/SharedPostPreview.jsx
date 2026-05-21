@@ -15,62 +15,52 @@ export const SharedPostPreview = ({ postId }) => {
       try {
         console.log('🔍 SharedPostPreview: Buscando postId:', postId);
         
-        // Query 1: Intenta con nombres de columnas nuevas
-        const { data: newData, error: newError } = await supabase
+        // Traer TODOS los datos del post
+        const { data: postData, error: postError } = await supabase
           .from('posts')
-          .select(`
-            *,
-            user:user_id(username, foto_perfil)
-          `)
+          .select('*')
           .eq('id', postId)
           .single();
 
-        if (newError) {
-          console.log('⚠️ Query con nuevos nombres falló, intentando con select *...');
-          
-          // Query 2: Fallback - select todo sin join
-          const { data: oldData, error: oldError } = await supabase
-            .from('posts')
-            .select('*')
-            .eq('id', postId)
+        if (postError) throw postError;
+        
+        console.log('📊 Post data:', postData);
+        
+        // Obtener usuario si existe user_id
+        let userData = null;
+        if (postData?.user_id) {
+          const { data: userResult } = await supabase
+            .from('profiles')
+            .select('username, foto_perfil')
+            .eq('id', postData.user_id)
             .single();
-          
-          if (oldError) throw oldError;
-          
-          // Obtener username del usuario por separado
-          let username = null;
-          if (oldData.user_id) {
-            const { data: userData } = await supabase
-              .from('profiles')
-              .select('username, foto_perfil')
-              .eq('id', oldData.user_id)
-              .single();
-            username = userData?.username;
-          }
-          
-          // Mapea los nombres antiguos a nuevos
-          const mappedData = {
-            id: oldData.id,
-            content: oldData.descripcion || oldData.content,
-            fish_species: oldData.tipo_pez || oldData.fish_species,
-            image_url: oldData.foto_url || oldData.image_url,
-            fish_weight: oldData.peso || oldData.fish_weight,
-            likes_count: oldData.likes_count || 0,
-            comments_count: oldData.comments_count || 0,
-            user: {
-              username: username,
-              foto_perfil: oldData.user?.foto_perfil
-            }
-          };
-          
-          console.log('✅ Post cargado con mapeo:', mappedData);
-          setPost(mappedData);
-        } else {
-          console.log('✅ Post cargado con nuevos nombres:', newData);
-          setPost(newData);
+          userData = userResult;
+          console.log('👤 User data:', userData);
         }
+        
+        // Mapear los datos al formato estándar
+        const mappedData = {
+          id: postData.id,
+          // Probar todos los nombres posibles de columnas de contenido
+          content: postData.content || postData.descripcion || postData.description || '',
+          // Probar todos los nombres posibles de foto
+          image_url: postData.image_url || postData.foto_url || postData.photo_url || null,
+          // Probar todos los nombres posibles de tipo de pez
+          fish_species: postData.fish_species || postData.tipo_pez || postData.type_fish || null,
+          // Probar todos los nombres posibles de peso
+          fish_weight: postData.fish_weight || postData.peso || postData.weight || null,
+          likes_count: postData.likes_count || 0,
+          comments_count: postData.comments_count || 0,
+          user: {
+            username: userData?.username || 'Usuario',
+            foto_perfil: userData?.foto_perfil
+          }
+        };
+        
+        console.log('✅ Post final:', mappedData);
+        setPost(mappedData);
       } catch (err) {
-        console.error('❌ Error final:', err.message);
+        console.error('❌ Error:', err.message);
         setError('No se pudo cargar el post');
       } finally {
         setLoading(false);
@@ -80,7 +70,7 @@ export const SharedPostPreview = ({ postId }) => {
     if (postId) {
       fetchPost();
     } else {
-      console.log('⚠️ SharedPostPreview: postId es null o vacío');
+      console.log('⚠️ postId es null');
       setLoading(false);
     }
   }, [postId]);
