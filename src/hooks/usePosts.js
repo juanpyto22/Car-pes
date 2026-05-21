@@ -196,7 +196,8 @@ export const usePosts = (options = {}) => {
         };
       }
 
-      const { data, error } = await supabase
+      // Intentar insertar; si falla por columna faltante (p.ej. image_urls), reintentar sin esa columna
+      let insertResult = await supabase
         .from('posts')
         .insert({
           user_id: user.id,
@@ -204,7 +205,27 @@ export const usePosts = (options = {}) => {
         })
         .select('*');
 
-      if (error) throw error;
+      if (insertResult.error) {
+        const msg = String(insertResult.error.message || insertResult.error.details || '');
+        // Detectar error de columna inexistente (cache de esquema de supabase)
+        if (msg.toLowerCase().includes('image_urls') || msg.toLowerCase().includes("could not find the 'image_urls'")) {
+          // Remover la propiedad y reintentar con compatibilidad a una sola foto
+          const safeData = { ...postData };
+          delete safeData.image_urls;
+          delete safeData.image_urls_json;
+
+          insertResult = await supabase
+            .from('posts')
+            .insert({
+              user_id: user.id,
+              ...safeData
+            })
+            .select('*');
+        }
+      }
+
+      if (insertResult.error) throw insertResult.error;
+      const data = insertResult.data;
 
       if (data) {
         const newPost = { ...data[0], has_liked: false, likes_count: 0, comments_count: 0 };
