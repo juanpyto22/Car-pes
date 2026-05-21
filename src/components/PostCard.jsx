@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, MoreVertical, MapPin, Ruler, Weight, Fish, Bookmark, BookmarkCheck, Send } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MoreVertical, MapPin, Ruler, Weight, Fish, Bookmark, BookmarkCheck, Send, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,6 +30,7 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
   const [saved, setSaved] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const lastTap = useRef(0);
 
   useEffect(() => {
@@ -171,6 +172,30 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
     }
   };
 
+  // Parsear múltiples imágenes del post
+  const getImages = () => {
+    if (post.image_urls) {
+      try {
+        const images = JSON.parse(post.image_urls);
+        return Array.isArray(images) ? images : [post.foto_url];
+      } catch (e) {
+        return [post.foto_url];
+      }
+    }
+    return [post.foto_url];
+  };
+
+  const images = getImages();
+  const hasMultipleImages = images.length > 1;
+
+  const goToPrevious = () => {
+    setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  };
+
+  const goToNext = () => {
+    setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -227,9 +252,40 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
         {post.video_url ? (
            <video src={post.video_url} controls className="w-full h-full object-contain" poster={post.foto_url} />
         ) : (
-          <img src={post.foto_url} alt={post.descripcion} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.045]" />
+          <img src={images[currentImageIndex]} alt={post.descripcion} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.045]" />
         )}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
+        
+        {/* Contador de imágenes */}
+        {hasMultipleImages && (
+          <div className="absolute top-4 right-4 bg-black/50 px-3 py-1.5 rounded-full text-white text-xs font-medium pointer-events-none">
+            {currentImageIndex + 1}/{images.length}
+          </div>
+        )}
+        
+        {/* Flechitas de navegación */}
+        {hasMultipleImages && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                goToPrevious();
+              }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-black/50 hover:bg-black/75 text-white p-2 rounded-full transition-all z-10"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                goToNext();
+              }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-black/50 hover:bg-black/75 text-white p-2 rounded-full transition-all z-10"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          </>
+        )}
         
         {/* Animación de corazón al hacer doble tap */}
         {showHeart && (

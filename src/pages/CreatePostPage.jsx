@@ -110,17 +110,24 @@ const CreatePostPage = () => {
     setLoading(true);
 
     try {
-      // Subir la primera imagen (mantener compatibilidad con BD actual)
-      const uploadResult = await uploadImage(files[0], 'posts', user.id);
+      // Subir todas las imágenes
+      const uploadPromises = files.map(file => uploadImage(file, 'posts', user.id));
+      const uploadResults = await Promise.all(uploadPromises);
       
-      if (!uploadResult.success) {
-        throw new Error(uploadResult.error || 'Error subiendo imagen');
+      // Verificar que todas las subidas fueron exitosas
+      const failedUploads = uploadResults.filter(r => !r.success);
+      if (failedUploads.length > 0) {
+        throw new Error('Error subiendo algunas imágenes');
       }
 
-      // Crear el post
+      // Extraer las URLs
+      const imageUrls = uploadResults.map(r => r.url);
+
+      // Crear el post con array de imágenes como JSON string
       const result = await createPost({
         descripcion: formData.descripcion,
-        foto_url: uploadResult.url,
+        foto_url: imageUrls[0], // Mantener la primera para compatibilidad
+        image_urls: JSON.stringify(imageUrls), // Guardar todas como JSON
         ubicacion: formData.ubicacion,
         tipo_pez: formData.tipo_pez !== 'Otro' ? formData.tipo_pez : null,
         peso: formData.peso || null,
@@ -133,7 +140,7 @@ const CreatePostPage = () => {
 
       toast({
         title: "✅ ¡Post publicado!",
-        description: "Tu captura ha sido compartida con la comunidad",
+        description: `Tu captura con ${files.length} foto${files.length > 1 ? 's' : ''} ha sido compartida`,
       });
 
       navigate('/feed');
