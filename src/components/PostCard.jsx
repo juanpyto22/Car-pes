@@ -271,18 +271,18 @@ const PostCard = ({ post, onDelete, onToggleLike }) => {
                 e.stopPropagation();
                 goToPrevious();
               }}
-              className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-black/50 hover:bg-black/75 text-white p-2 rounded-full transition-all z-10"
+              className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-2.5 rounded-full transition-all z-10 shadow-lg"
             >
-              <ChevronLeft className="w-6 h-6" />
+              <ChevronLeft className="w-7 h-7" />
             </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 goToNext();
               }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-black/50 hover:bg-black/75 text-white p-2 rounded-full transition-all z-10"
+              className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-2.5 rounded-full transition-all z-10 shadow-lg"
             >
-              <ChevronRight className="w-6 h-6" />
+              <ChevronRight className="w-7 h-7" />
             </button>
           </>
         )}
